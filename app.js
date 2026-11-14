@@ -706,6 +706,111 @@ async function renderShots() {
   box.innerHTML = ctl + `<div class="two">${svgs.map(s => `<div>${s}</div>`).join('')}</div><div style="margin-top:16px;max-width:560px">${tbl}</div>`;
 }
 
+
+// ------------------------------------------------------------------ deployment
+const USAGE = {};
+async function loadUsage(y) { if (USAGE[y] !== undefined) return USAGE[y]; try { USAGE[y] = await getJSON(`data/usage/${y}.json`); } catch (e) { USAGE[y] = null; } return USAGE[y]; }
+const SLOT = { F: ['1st line', '2nd line', '3rd line', '4th line'], D: ['1st pair', '2nd pair', '3rd pair'] };
+const SLOTC = ['var(--c1)', 'var(--c3)', 'var(--c2)', 'var(--c5)'];
+function evo(a) { const o = { g: a[0], t: a[1], xgf: a[2], xga: a[3], gf: a[4], ga: a[5], cf: a[6], ca: a[7], pts: a[8], ixg: a[9] }; const h = o.t / 3600; o.xp = share(o.xgf, o.xga); o.xga60 = h ? o.xga / h : null; o.xgf60 = h ? o.xgf / h : null; o.pts60 = h ? o.pts / h : null; return o; }
+function evsum(list) { const z = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]; list.forEach(o => { [o.g, o.t, o.xgf, o.xga, o.gf, o.ga, o.cf, o.ca, o.pts, o.ixg].forEach((v, i) => { z[i] += v; }); }); return evo(z); }
+function profile(U, sd, id) {
+  const u = U && U.players[id]; const p = sd.byId.get(id);
+  if (!u || !p) return null;
+  const grp = u.g, n = SLOT[grp].length;
+  const slots = u.ev.map(evo), base = U.baselines.ev[grp].map(evo);
+  const G = slots.reduce((a, s) => a + s.g, 0);
+  const avgSlot = slots.reduce((a, s, k) => a + s.g * (k + 1), 0) / (G || 1);
+  const all = evsum(slots);
+  // "plays like": where his 5v5 results rank among regulars at his position, mapped onto the lineup
+  // (top quarter of forwards = 1st line ... bottom quarter = 4th line; thirds for defensemen)
+  const W = grp === 'F' ? [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['ipts60', 0.4]] : [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['rel_xga60', 0.25], ['ipts60', 0.15]];
+  let ws = 0, wt = 0; W.forEach(([k, w]) => { const v = pk(sd, p, k); if (nz(v)) { ws += v * w; wt += w; } });
+  const resPct = wt ? ws / wt : 50;
+  const eq = Math.max(1, Math.min(n, n + 0.5 - n * resPct / 100));
+  const usual = slots.reduce((b, s, k) => s.g > slots[b].g ? k : b, 0);
+  const bucket = ks => { const ss = ks.map(k => slots[k]).filter(s => s.g); const e = evsum(ss); const t = ss.reduce((a, s) => a + s.t, 0); const ex = t ? ks.reduce((a, k) => a + (slots[k].t ? slots[k].t * base[k].xp : 0), 0) / t : null; const ep = t ? ks.reduce((a, k) => a + (slots[k].t ? slots[k].t * base[k].pts60 : 0), 0) / t : null; return { e, ex, ep }; };
+  const range = (a, b) => { const o = []; for (let k = a; k <= b; k++) o.push(k); return o; };
+  const splits = [['Moved up', range(0, usual - 1)], [`Usual role (${SLOT[grp][usual]})`, [usual]], ['Moved down', range(usual + 1, n - 1)]].map(([l, ks]) => ({ l, ...bucket(ks) }));
+  const zone = u.zone.map(evo);
+  const pp = u.pp.map(a => ({ g: a[0], t: a[1], xgf60: a[1] ? a[2] / a[1] * 3600 : null, pts60: a[1] ? a[3] / a[1] * 3600 : null, pts: a[3] }));
+  const pkd = u.pk.map(a => ({ g: a[0], t: a[1], xga60: a[1] ? a[2] / a[1] * 3600 : null }));
+  const bpp = U.baselines.pp.map(a => ({ xgf60: a[1] ? a[2] / a[1] * 3600 : null, pts60: a[1] ? a[3] / a[1] * 3600 / 5 : null }));
+  const bpk = U.baselines.pk[grp].map(a => ({ xga60: a[1] ? a[2] / a[1] * 3600 : null }));
+  // role labels
+  const ppL = pp[0].g / G >= 0.5 ? 'PP1' : (pp[0].g + pp[1].g) / G >= 0.5 ? (pp[0].g >= pp[1].g ? 'PP1/PP2' : 'PP2') : (pp[0].g + pp[1].g) / G >= 0.15 ? 'Spot PP' : 'No PP';
+  const pkL = pkd[0].g / G >= 0.5 ? 'PK1' : (pkd[0].g + pkd[1].g) / G >= 0.5 ? 'PK2' : (pkd[0].g + pkd[1].g) / G >= 0.15 ? 'Spot PK' : 'No PK';
+  const zs = (zone[0].g - zone[2].g) / (G || 1);
+  const zL = zs >= 0.15 ? 'Sheltered (offensive-zone starts)' : zs <= -0.15 ? 'Defensive-zone starts' : 'Balanced starts';
+  // fits
+  const enough = all.t >= 6000;
+  const gap = avgSlot - eq;
+  const evFit = !enough ? ['ok', 'Too few minutes to judge'] : gap >= 0.6 ? ['up', 'Results fit a bigger role'] : gap <= -0.6 ? ['down', 'Used above his results'] : ['ok', 'Used about right'];
+  const pctPP = pk(sd, p, 'pp_pts60'), pctOff = pk(sd, p, 'ipts60');
+  const ppFit = nz(p.pp_pts60) && p.pp >= 0.75
+    ? (pctPP >= 70 ? ['up', 'PP1 production'] : pctPP >= 40 ? ['ok', 'PP2 production'] : ['down', 'Weak PP production'])
+    : (pctOff >= 70 ? ['up', 'Untested, worth a PP look'] : ['ok', 'Not a PP option']);
+  const pctPK = pk(sd, p, 'pk_xga60'), pctRel = pk(sd, p, 'rel_xga60');
+  const pkFit = nz(p.pk_xga60) && p.pk >= 0.75
+    ? (pctPK >= 65 ? ['up', 'PK1 results'] : pctPK >= 40 ? ['ok', 'PK2 results'] : ['down', 'Struggles on the PK'])
+    : (pctRel >= 70 ? ['up', 'Untested, PK candidate'] : ['ok', 'Not a PK option']);
+  const sc = scores(sd, p);
+  const ozx = zone[0].t >= 3000 ? zone[0].xp : null, dzx = zone[2].t >= 3000 ? zone[2].xp : null;
+  const zFit = nz(dzx) && sc.d >= 60 && (!nz(ozx) || ozx - dzx <= 4) ? ['up', 'Can take own-zone starts']
+    : sc.o >= 60 && sc.d < 45 ? ['ok', 'Best sheltered: offensive-zone starts'] : nz(dzx) && nz(ozx) && ozx - dzx > 8 ? ['down', 'Struggles on own-zone nights'] : ['ok', 'Neutral starts'];
+  return { p, u, grp, n, slots, base, G, avgSlot, all, eq, resPct, gap, usual, splits, zone, pp, pk: pkd, bpp, bpk, ppL, pkL, zL, evFit, ppFit, pkFit, zFit, enough };
+}
+const slotName = (grp, x) => SLOT[grp][Math.max(0, Math.min(SLOT[grp].length - 1, Math.round(x) - 1))];
+const flag = f => `<span class="flag ${f[0]}">${esc(f[1])}</span>`;
+const dcls = v => nz(v) ? (v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '') : '';
+function roleCard(P, col) {
+  const { p, grp } = P;
+  const bar = P.slots.map((s, k) => s.g ? `<i style="width:${100 * s.g / P.G}%;background:${SLOTC[k]}" title="${SLOT[grp][k]}: ${s.g} games">${s.g / P.G > 0.1 ? SLOT[grp][k].replace(' line', 'L').replace(' pair', 'P').replace('st', '').replace('nd', '').replace('rd', '').replace('th', '') : ''}</i>` : '').join('');
+  const sum = `Plays like a <strong>${slotName(grp, P.eq)}</strong> ${grp === 'F' ? 'forward' : 'defenseman'} (${P.eq.toFixed(1)}); used as a <strong>${slotName(grp, P.avgSlot)}</strong> (${P.avgSlot.toFixed(1)}), ${P.ppL}, ${P.pkL}, ${P.zL.toLowerCase()}.`;
+  const v = (t, f, txt) => `<div class="v"><b>${t}</b>${flag(f)}<p>${txt}</p></div>`;
+  const ppU = P.pp[0].g + P.pp[1].g, pkU = P.pk[0].g + P.pk[1].g;
+  const verdicts = `<div class="verdict">
+    ${v('Even strength', P.evFit, `His 5v5 results (${f1(P.all.xp)}% xGF, ${f2(P.all.pts60)} pts/60) rank in the ${ord(Math.round(P.resPct))} percentile of regular ${grp === 'F' ? 'forwards' : 'defensemen'}, which fits a ${slotName(grp, P.eq)}; he averaged ${slotName(grp, P.avgSlot)} minutes.`)}
+    ${v('Power play', P.ppFit, ppU ? `On a PP unit in ${ppU} of ${P.G} games; ${f2(p.pp_pts60)} PP pts/60.` : `Not used on the PP. 5v5 scoring ranks in the ${ord(pk(S.seasons[S.season], p, 'ipts60'))} percentile.`)}
+    ${v('Penalty kill', P.pkFit, pkU ? `On a PK unit in ${pkU} of ${P.G} games; ${f2(p.pk_xga60)} xGA/60 shorthanded.` : `Not used on the PK. 5v5 chance suppression ranks in the ${ord(pk(S.seasons[S.season], p, 'rel_xga60'))} percentile.`)}
+    ${v('Zone starts', P.zFit, `${P.zone[0].g} offensive-zone-heavy nights, ${P.zone[2].g} defensive-zone-heavy. xGF% ${f1(P.zone[0].xp)} vs ${f1(P.zone[2].xp)}.`)}
+  </div>`;
+  const byRole = `<p class="minihead">By role, against the league average for that role</p><div class="scroll"><table class="tbl"><thead><tr><th>Role</th><th>GP</th><th>5v5 min</th><th>xGF%</th><th>Role avg</th><th>Pts/60</th><th>Role avg</th><th>xGA/60</th><th>Role avg</th></tr></thead><tbody>` +
+    P.slots.map((s, k) => s.g ? `<tr><td>${SLOT[grp][k]}</td><td>${s.g}</td><td>${f0(s.t / 60)}</td><td class="${s.t >= 1800 ? dcls(s.xp - P.base[k].xp) : ''}">${s.t >= 1800 ? f1(s.xp) : '—'}</td><td>${f1(P.base[k].xp)}</td><td class="${s.t >= 1800 ? dcls(s.pts60 - P.base[k].pts60) : ''}">${s.t >= 1800 ? f2(s.pts60) : '—'}</td><td>${f2(P.base[k].pts60)}</td><td class="${s.t >= 1800 ? dcls(P.base[k].xga60 - s.xga60) : ''}">${s.t >= 1800 ? f2(s.xga60) : '—'}</td><td>${f2(P.base[k].xga60)}</td></tr>` : '').join('') + '</tbody></table></div>';
+  const splits = `<p class="minihead" style="margin-top:14px">Moved up, usual role, moved down</p><div class="scroll"><table class="tbl"><thead><tr><th></th><th>GP</th><th>5v5 min</th><th>xGF%</th><th>Expected for those roles</th><th>Difference</th><th>Pts/60</th></tr></thead><tbody>` +
+    P.splits.map(x => x.e.g ? `<tr><td>${esc(x.l)}</td><td>${x.e.g}</td><td>${f0(x.e.t / 60)}</td><td>${x.e.t >= 1800 ? f1(x.e.xp) : '—'}</td><td>${f1(x.ex)}</td><td class="${x.e.t >= 1800 ? dcls(x.e.xp - x.ex) : ''}">${x.e.t >= 1800 ? s1(x.e.xp - x.ex) : '—'}</td><td>${x.e.t >= 1800 ? f2(x.e.pts60) : '—'}</td></tr>` : `<tr><td>${esc(x.l)}</td><td>0</td><td colspan="5" style="text-align:left;color:var(--muted)">Not used in this role</td></tr>`).join('') + '</tbody></table></div>';
+  const zone = `<p class="minihead" style="margin-top:14px">By zone starts that night</p><div class="scroll"><table class="tbl"><thead><tr><th></th><th>GP</th><th>5v5 min</th><th>xGF%</th><th>xGA/60</th><th>Pts/60</th></tr></thead><tbody>` +
+    [['Offensive-zone-heavy', 0], ['Balanced', 1], ['Defensive-zone-heavy', 2]].map(([l, i]) => { const z = P.zone[i]; return `<tr><td>${l}</td><td>${z.g}</td><td>${f0(z.t / 60)}</td><td>${z.t >= 1800 ? f1(z.xp) : '—'}</td><td>${z.t >= 1800 ? f2(z.xga60) : '—'}</td><td>${z.t >= 1800 ? f2(z.pts60) : '—'}</td></tr>`; }).join('') + '</tbody></table></div>';
+  const st = `<p class="minihead" style="margin-top:14px">Special teams by unit</p><div class="scroll"><table class="tbl"><thead><tr><th>Unit</th><th>GP</th><th>Min</th><th>Team xGF/60 or xGA/60</th><th>League avg for unit</th><th>His pts/60</th><th>League avg</th></tr></thead><tbody>` +
+    [0, 1].map(i => { const x = P.pp[i]; return x.g ? `<tr><td>PP${i + 1}</td><td>${x.g}</td><td>${f0(x.t / 60)}</td><td class="${x.t >= 1200 ? dcls(x.xgf60 - P.bpp[i].xgf60) : ''}">${x.t >= 1200 ? f2(x.xgf60) : '—'} xGF</td><td>${f2(P.bpp[i].xgf60)}</td><td class="${x.t >= 1200 ? dcls(x.pts60 - P.bpp[i].pts60) : ''}">${x.t >= 1200 ? f2(x.pts60) : '—'}</td><td>${f2(P.bpp[i].pts60)}</td></tr>` : ''; }).join('') +
+    [0, 1].map(i => { const x = P.pk[i]; return x.g ? `<tr><td>PK${i + 1}</td><td>${x.g}</td><td>${f0(x.t / 60)}</td><td class="${x.t >= 1200 ? dcls(P.bpk[i].xga60 - x.xga60) : ''}">${x.t >= 1200 ? f2(x.xga60) : '—'} xGA</td><td>${f2(P.bpk[i].xga60)}</td><td>—</td><td>—</td></tr>` : ''; }).join('') + '</tbody></table></div>';
+  return `<div class="pcard ${col}" style="border-top-width:4px"><h3 style="font-size:26px">${esc(p.name)}</h3><p class="sub" style="margin-top:4px">${sum}</p>
+    <div class="slotbar">${bar}</div><p class="sub small" style="margin:0">Games by even-strength role: ${P.slots.map((s, k) => `${SLOT[grp][k]} ${s.g}`).join(' · ')}</p>${verdicts}${byRole}${splits}${zone}${st}</div>`;
+}
+async function renderRole() {
+  const y = S.season; const sd = S.seasons[y]; const U = await loadUsage(y);
+  if (y !== S.season) return;
+  if (!U) { $('role-sub').textContent = `Deployment data for ${sLabel(y)} hasn't been built yet. It's added by the nightly update.`; $('role').innerHTML = ''; $('lineup').innerHTML = ''; return; }
+  const PA = profile(U, sd, S.A), PB = S.B ? profile(U, sd, S.B) : null;
+  $('role-sub').innerHTML = `Green and red mark results better or worse than the league average for the same role. "Plays like" ranks his 5v5 results (xGF%, relative xGF%, points per 60, and for defensemen relative xGA/60) against regulars at his position, then maps that rank onto the lineup: top quarter of forwards = 1st line, bottom quarter = 4th; thirds for defensemen. Samples under 30 minutes are left blank. Being moved up usually also means better linemates and tougher opponents, and coaches move players partly because of form, so treat the splits as evidence, not proof.`;
+  $('role').innerHTML = PA ? `<div class="rolegrid">${roleCard(PA, 'a')}${PB ? roleCard(PB, 'b') : ''}</div>` : '<p class="empty">No game-by-game data for this player and season.</p>';
+  renderLineup(U, sd);
+}
+function renderLineup(U, sd) {
+  const A = sd.byId.get(S.A);
+  if (!S.lineupTeam || !sd.teams.includes(S.lineupTeam)) S.lineupTeam = A ? A.team : sd.teams[0];
+  $('lineupTeam').innerHTML = sd.teams.map(t => `<option${t === S.lineupTeam ? ' selected' : ''}>${t}</option>`).join('');
+  const minG = Math.max(5, Math.round(0.25 * sd.gpmax));
+  const rows = sd.players.filter(p => p.team === S.lineupTeam && p.gp >= minG).map(p => profile(U, sd, p.id)).filter(Boolean);
+  const tbl = grp => {
+    const rs = rows.filter(r => r.grp === grp).sort((a, b) => a.avgSlot - b.avgSlot);
+    if (!rs.length) return '';
+    return `<p class="minihead" style="margin-top:12px">${grp === 'F' ? 'Forwards' : 'Defensemen'}</p><div class="scroll"><table class="tbl"><thead><tr><th>Player</th><th>GP</th><th>Used as</th><th>Plays like</th><th>Even strength</th><th>PP use</th><th>PP fit</th><th>PK use</th><th>PK fit</th><th>Zone starts</th></tr></thead><tbody>` +
+      rs.map(r => `<tr class="${r.p.id === S.A ? 'isA' : ''}"><td><a href="#" data-seta="${r.p.id}">${esc(r.p.name)}</a> <span class="lab">${r.p.pos}</span></td><td>${r.G}</td><td style="white-space:nowrap">${slotName(grp, r.avgSlot)} <span class="lab">${r.avgSlot.toFixed(1)}</span></td><td style="white-space:nowrap">${r.enough ? slotName(grp, r.eq) + ` <span class="lab">${r.eq.toFixed(1)}</span>` : '—'}</td><td>${flag(r.evFit)}</td><td style="white-space:nowrap">${r.ppL}</td><td>${flag(r.ppFit)}</td><td style="white-space:nowrap">${r.pkL}</td><td>${flag(r.pkFit)}</td><td>${flag(r.zFit)}</td></tr>`).join('') + '</tbody></table></div>';
+  };
+  $('lineup').innerHTML = rows.length ? tbl('F') + tbl('D') + `<p class="sub small">Regulars with ${minG}+ games for ${S.lineupTeam} in ${sLabel(S.season)}. A player traded mid-season shows his whole season, including games for his other team.</p>` : '<p class="empty">No deployment data for this team.</p>';
+}
+
 // ------------------------------------------------------------------ orchestration
 function setHash() { const h = `#a=${S.A || ''}${S.B ? '&b=' + S.B : ''}&s=${S.season}`; if (location.hash !== h) history.replaceState(null, '', h); }
 function readHash() { const o = {}; location.hash.replace(/^#/, '').split('&').forEach(kv => { const [k, v] = kv.split('='); if (k) o[k] = v; }); return o; }
@@ -727,12 +832,13 @@ async function render() {
   const pa = S.byId.get(S.A) || {};
   safe('sec-profile', renderProfile);
   $('part1-h').textContent = A ? `${pa.name}'s ${sLabel(S.season)}` : 'The season';
-  const seasonSecs = ['sec-rank', 'sec-matrix', 'sec-h2h', 'sec-env', 'sec-mates', 'sec-swap'];
+  const seasonSecs = ['sec-rank', 'sec-matrix', 'sec-h2h', 'sec-env', 'sec-mates', 'sec-swap', 'sec-role', 'sec-lineup'];
   seasonSecs.forEach(id => { const el = $(id); el.querySelectorAll(':scope > .nodata').forEach(x => x.remove()); [...el.children].forEach(ch => { if (!ch.classList.contains('head') && !ch.classList.contains('nodata')) ch.hidden = !A; }); if (!A) el.insertAdjacentHTML('beforeend', `<p class="empty nodata">No ${sLabel(S.season)} MoneyPuck data for ${esc(pa.name || 'this player')}.${pa.mask ? ' Pick one of his seasons in the Season box.' : ' Advanced stats start in 2008-09.'}</p>`); });
   if (A) {
     safe('sec-rank', renderRank); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); safe('sec-env', renderEnv); safe('sec-swap', renderSwap);
     renderMates().catch(e => console.error(e));
     if (S.shotsSeen) renderShots().catch(e => console.error(e));
+    renderRole().catch(e => console.error(e));
   }
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }
@@ -758,6 +864,8 @@ function wire() {
   $('comps').addEventListener('click', e => { const a = e.target.closest('[data-addarc]'); if (!a) return; e.preventDefault(); const id = +a.dataset.addarc; if (!S.arcSel.includes(id)) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
   $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) SH.sit = b.dataset.sit; if (b.dataset.view) SH.view = b.dataset.view; renderShots(); });
   new IntersectionObserver(es => { if (es.some(x => x.isIntersecting) && !S.shotsSeen) { S.shotsSeen = true; renderShots().catch(e => console.error(e)); } }, { rootMargin: '600px' }).observe($('sec-shots'));
+  $('lineupTeam').addEventListener('change', e => { S.lineupTeam = e.target.value; const U = USAGE[S.season]; if (U) renderLineup(U, S.seasons[S.season]); });
+  $('lineup').addEventListener('click', e => { const a = e.target.closest('[data-seta]'); if (!a) return; e.preventDefault(); setA(+a.dataset.seta); });
   window.addEventListener('hashchange', () => { const h = readHash(); const a = +h.a, b = +h.b, s = +h.s; let ch = false; if (a && a !== S.A && S.byId.has(a)) { S.A = a; ch = true; } if (b && b !== S.B && S.byId.has(b)) { S.B = b; ch = true; } if (s && s !== S.season && S.idx.mp_seasons.includes(s)) { S.season = s; ch = true; } if (ch) render(); });
 }
 

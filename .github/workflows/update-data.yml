@@ -22,7 +22,7 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
 
@@ -45,6 +45,15 @@ jobs:
             python scripts/build_shots.py --full
           else
             python scripts/build_shots.py
+          fi
+
+      - name: Build deployment data
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            python scripts/build_usage.py --full
+          else
+            python scripts/build_usage.py
           fi
 
       - name: Commit changes
