@@ -31,7 +31,7 @@ const S = {
   idx: null, byId: new Map(), seasons: {}, lines: {}, careers: null, mpc: null, cache: {},
   A: null, B: null, season: null,
   pool: 'reg', w: { d: 40, o: 40, c: 20 }, extra: [], removed: new Set(), sortKey: null, showPct: false,
-  cmode: 'age', arcMetric: 'adj82', arcSel: [], swapTeam: null, swapOut: null,
+  boardMode: 'top', cmode: 'age', arcMetric: 'adj82', arcSel: [], swapTeam: null, swapOut: null,
 };
 
 // ------------------------------------------------------------------ metrics
@@ -327,9 +327,27 @@ function rrow(rk, r, t) {
 }
 
 // ------------------------------------------------------------------ stat board
+function similarity(sd, grp) {
+  const A = sd.byId.get(S.A); const ck = `sim|${sd.y}|${S.pool}|${S.A}`;
+  if (S.cache[ck]) return S.cache[ck];
+  const keys = COLS[grp].flatMap(c => c[1]);
+  const pa = keys.map(k => pk(sd, A, k));
+  const out = new Map();
+  for (const p of pool(sd, grp).list) {
+    if (p.id === S.A) continue;
+    let sum = 0, n = 0;
+    keys.forEach((k, i) => { const v = pk(sd, p, k); if (nz(v) && nz(pa[i])) { sum += (v - pa[i]) ** 2; n++; } });
+    if (n >= keys.length * 0.6) out.set(p.id, Math.max(0, 100 - Math.sqrt(sum / n)));
+  }
+  S.cache[ck] = out;
+  return out;
+}
 function boardIds(sd, grp) {
   const P = pool(sd, grp);
-  const auto = P.list.map(p => [composite(scores(sd, p)), p.id]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
+  const A = sd.byId.get(S.A);
+  const auto = S.boardMode === 'sim' && A && A.grp === grp
+    ? [...similarity(sd, grp).entries()].sort((a, b) => b[1] - a[1]).map(x => x[0])
+    : P.list.map(p => [composite(scores(sd, p)), p.id]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
   const ids = [];
   const add = id => { if (id && !ids.includes(id) && sd.byId.get(id) && sd.byId.get(id).grp === grp) ids.push(id); };
   add(S.A); add(S.B); S.extra.forEach(add);
@@ -346,12 +364,13 @@ function renderMatrix() {
   let ids = boardIds(sd, grp);
   let ps = ids.map(id => sd.byId.get(id));
   if (S.sortKey && flat.includes(S.sortKey)) ps.sort((a, b) => (pk(sd, b, S.sortKey) ?? -1) - (pk(sd, a, S.sortKey) ?? -1));
-  $('mtoggle').innerHTML = `<button type="button" id="mv" aria-pressed="${S.showPct}">Show percentiles</button>${S.sortKey ? '<button type="button" id="ms">Clear sort</button>' : ''}`;
+  const simMap = S.boardMode === 'sim' ? similarity(sd, grp) : null;
+  $('mtoggle').innerHTML = `<button type="button" data-mode="top" aria-pressed="${S.boardMode !== 'sim'}">Fill with top-ranked</button><button type="button" data-mode="sim" aria-pressed="${S.boardMode === 'sim'}">Fill with most similar</button><button type="button" id="mv" aria-pressed="${S.showPct}">Show percentiles</button>${S.sortKey ? '<button type="button" id="ms">Clear sort</button>' : ''}`;
   let h = `<thead><tr><th></th>${cols.map(g => `<th class="grp" colspan="${g[1].length}">${g[0]}</th>`).join('')}</tr><tr><th style="text-align:left">Player · GP</th>${flat.map(k => `<th><button type="button" data-sort="${k}">${MET[k].l}${S.sortKey === k ? ' ▾' : ''}</button></th>`).join('')}</tr></thead><tbody>`;
   h += ps.map(p => {
     const cls = p.id === S.A ? 'isA' : p.id === S.B ? 'isB' : '';
     const rm = p.id === S.A ? '' : `<button type="button" data-rm="${p.id}" title="Remove from board">×</button>`;
-    return `<tr class="${cls}"><td class="pn">${esc(p.name)} <span class="mono" style="color:var(--muted);font-weight:400">${p.team} ${p.gp}</span>${rm}</td>` + flat.map(k => {
+    return `<tr class="${cls}"><td class="pn">${esc(p.name)} <span class="mono" style="color:var(--muted);font-weight:400">${p.team} ${p.gp}</span>${simMap && simMap.has(p.id) ? `<span class="mono" style="color:var(--b);font-weight:600;font-size:11px" title="Profile match: 100 means identical percentiles across every column"> ${Math.round(simMap.get(p.id))}% match</span>` : ''}${rm}</td>` + flat.map(k => {
       const pc = pk(sd, p, k);
       return `<td style="background:${heat(pc)}">${S.showPct ? (pc ?? '—') : MET[k].f(p[k])}${!S.showPct && nz(pc) ? `<small>${pc}</small>` : ''}</td>`;
     }).join('') + '</tr>';
@@ -730,7 +749,7 @@ function wire() {
   $('weights').addEventListener('change', () => { safe('sec-profile', renderProfile); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); });
   $('rank').addEventListener('click', e => { const n = e.target.closest('[data-id]'); if (n) setA(+n.dataset.id); });
   $('matrix').addEventListener('click', e => { const s = e.target.closest('[data-sort]'); if (s) { S.sortKey = s.dataset.sort; safe('sec-matrix', renderMatrix); return; } const r = e.target.closest('[data-rm]'); if (r) { const id = +r.dataset.rm; S.extra = S.extra.filter(x => x !== id); S.removed.add(id); if (id === S.B) S.B = null; render(); } });
-  $('mtoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'mv') S.showPct = !S.showPct; if (b.id === 'ms') S.sortKey = null; safe('sec-matrix', renderMatrix); });
+  $('mtoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.mode) { S.boardMode = b.dataset.mode; S.removed.clear(); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); return; } if (b.id === 'mv') S.showPct = !S.showPct; if (b.id === 'ms') S.sortKey = null; safe('sec-matrix', renderMatrix); });
   $('swapTeam').addEventListener('change', e => { S.swapTeam = e.target.value; S.swapOut = null; safe('sec-swap', renderSwap); });
   $('swapOut').addEventListener('change', e => { S.swapOut = +e.target.value; safe('sec-swap', renderSwap); });
   $('cmode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cmode = b.dataset.m; $('cmode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); safe('sec-career', renderCareer); });
