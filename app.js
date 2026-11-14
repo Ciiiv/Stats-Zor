@@ -624,7 +624,7 @@ function hasSeason(id, y) { const p = S.byId.get(id); return p && p.mask && (p.m
 function bestSeason(id) {
   if (hasSeason(id, S.season)) return S.season;
   const p = S.byId.get(id); if (!p || !p.mask) return S.season;
-  for (let y = S.idx.current; y >= S.idx.mp_first; y--) if (hasSeason(id, y)) { const cur = y === S.idx.current; if (cur && hasSeason(id, y - 1) && (S.idx.current_gp || 0) < 20) return y - 1; return y; }
+  for (let y = S.idx.current; y >= S.idx.mp_first; y--) if (hasSeason(id, y)) { const cur = y === S.idx.current; if (cur && hasSeason(id, y - 1) && S.season < S.idx.current) return y - 1; return y; }
   return S.season;
 }
 function renderSeasonSelect() {
@@ -682,9 +682,9 @@ async function init() {
     S.B = h.b === undefined ? (S.byId.has(8480069) && S.A !== 8480069 ? 8480069 : null) : (S.byId.has(+h.b) ? +h.b : null);
     S.season = idx.mp_seasons.includes(+h.s) ? +h.s : idx.mp_seasons[idx.mp_seasons.length - 1];
     if (!h.s) {
-      // early in a season the current year is thin; start on the last full season
+      // until the current season is half over, open on the last complete season
       const cur = await loadSeason(S.season).catch(() => null);
-      if (cur && cur.gpmax < 20 && idx.mp_seasons.includes(S.season - 1)) S.season -= 1;
+      if (cur && cur.gpmax < 41 && idx.mp_seasons.includes(S.season - 1)) S.season -= 1;
       S.season = bestSeason(S.A);
     }
     wire();
