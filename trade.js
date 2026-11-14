@@ -140,11 +140,14 @@ async function init() {
     D.proj = v.proj;
     D.rosters = r.teams;
     D.teams = Object.keys(r.teams).sort();
-    D.prospects = p.prospects.map(x => { const o = {}; p.fields.forEach((k, i) => { o[k] = x[i]; }); return o; });
+    const onRoster = new Set(Object.values(r.teams).flat().map(x => (x[1] || '').toLowerCase()));
+    const MOVED = { ARI: 'UTA', PHX: 'UTA' };
+    D.prospects = p.prospects.map(x => { const o = {}; p.fields.forEach((k, i) => { o[k] = x[i]; }); o.drafted_by = MOVED[o.drafted_by] || o.drafted_by; return o; })
+      .filter(o => !onRoster.has((o.name || '').toLowerCase()));
     T.team = [D.teams.includes('DET') ? 'DET' : D.teams[0], D.teams.includes('BOS') ? 'BOS' : D.teams[1]];
     $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each future season you count, adjusted for age. The starting point blends his last three seasons. Dollar worth prices a win at about ${money(D.perWin)} this season, scaled up with the projected cap in later years.</p>
       <p><strong>Draft picks:</strong> expected value of a pick at that slot over a player's cost-controlled years (about ${f1(pickWins(1))} wins for 1st overall, ${f1(pickWins(16))} for 16th, ${f1(pickWins(32))} for 32nd, ${f1(pickWins(64))} for 64th), discounted ${Math.round((1 - FUTURE_DISCOUNT) * 100)}% for each year further out.</p>
-      <p><strong>Prospects:</strong> drafted in the last five drafts and under 100 NHL games. Same value as their draft slot, reduced ${Math.round((1 - PROSPECT_DECAY) * 100)}% for each full year since the draft. Listed under the team that drafted them, so a prospect who has since been traded shows under his old team.</p>
+      <p><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster right now (players on a roster are listed as players). Same value as their draft slot, reduced ${Math.round((1 - PROSPECT_DECAY) * 100)}% for each full year since the draft. Listed under the team that drafted them, so a prospect who has since been traded shows under his old team.</p>
       <p><strong>Not modeled:</strong> cap space and roster limits, retained salary, no-trade clauses, team needs, and the value of picks to a rebuilding team versus a contender. Treat the verdict as a starting point for debate.</p>`;
     wire(); $('status').hidden = true; render();
   } catch (e) {
