@@ -689,7 +689,7 @@ function rinkSVG(d, m, lg, title, col) {
 async function renderShots() {
   const y = S.season; const sd = S.seasons[y]; const A = seasonOf(S.A);
   const box = $('shots');
-  if (!A) { box.innerHTML = ''; return; }
+  if (!A) { box.innerHTML = ''; $('shots-sub').textContent = `No ${sLabel(y)} shot data for this player. Shot maps cover 2008-09 on; pick a season he played.`; return; }
   const d = await loadShots(y);
   if (y !== S.season) return;
   if (!d) { $('shots-sub').textContent = `Shot maps for ${sLabel(y)} haven't been built yet. They're added by the nightly update.`; box.innerHTML = ''; return; }
