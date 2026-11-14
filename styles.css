@@ -169,3 +169,17 @@ table{border-collapse:collapse}
 .flag.up{color:var(--good)} .flag.down{color:var(--bad)} .flag.ok{color:var(--muted)}
 .rolegrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,480px),1fr));gap:24px}
 .rolegrid > *{min-width:0}
+
+/* header extras */
+.brandbox{display:flex;flex-direction:column;gap:2px}
+.tradelink{font:600 12px var(--f-mono);letter-spacing:.04em;color:var(--b);text-decoration:none;white-space:nowrap}
+.tradelink:hover{text-decoration:underline}
+/* value */
+.valgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:24px}
+.valgrid > *{min-width:0}
+.comp{display:grid;grid-template-columns:110px 1fr 54px;gap:6px 10px;align-items:center;font-size:13px;margin:10px 0}
+.comp .trk{position:relative;height:14px;background:var(--mid);border-radius:2px}
+.comp .trk i{position:absolute;top:0;height:100%;border-radius:2px}
+.comp .trk b{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--muted)}
+.capin{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;font-size:14px}
+.capin input{width:110px;font:600 15px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}

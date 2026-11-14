@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Trade Machine · Stats-Zor</title>
+<meta name="description" content="Simulate NHL trades with players, prospects and draft picks, valued by the Stats-Zor model.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=202611140451">
+<style>
+.tm{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:20px}
+.tm > *{min-width:0}
+.side{border-top:4px solid var(--a);padding-top:12px}
+.side.b{border-color:var(--b)}
+.side h2{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.side h2 select{width:auto;font:800 20px var(--f-display)}
+.adders{display:grid;gap:8px;margin:12px 0}
+.adders .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.adders select{flex:1 1 200px;width:auto}
+.asset{display:grid;grid-template-columns:1fr auto;gap:4px 10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:center}
+.asset .nm{font-weight:700}
+.asset .nm small{font-weight:400;color:var(--muted);margin-left:6px}
+.asset .det{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;color:var(--muted)}
+.asset .det input{width:84px;font:600 14px var(--f-body);padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+.asset .val{font:600 15px var(--f-mono);text-align:right}
+.asset button{padding:2px 9px}
+.sum{margin-top:8px}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.meter{display:flex;height:26px;border-radius:4px;overflow:hidden;margin:10px 0 4px;background:var(--mid)}
+.meter i{display:flex;align-items:center;justify-content:center;font:600 12px var(--f-mono);color:#fff;white-space:nowrap;overflow:hidden}
+.empty-side{color:var(--muted);font-style:italic;margin:10px 0}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in" style="align-items:center">
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Player analysis</a></div>
+    <div style="flex:1;min-width:0"><h1 style="font-size:clamp(26px,4vw,36px)">Trade machine</h1></div>
+  </div>
+</header>
+<main class="wrap">
+  <p class="status" id="status">Loading data…</p>
+  <section class="panel">
+    <p class="sub" style="margin:0 0 14px">Pick two teams and add what each side sends: NHL players, prospects (recent draft picks not yet NHL regulars) and draft picks. Value is the Stats-Zor model's projected wins above replacement over the years each asset is controlled. Add a player's cap hit and years left to bring salary into it; the verdict then uses surplus value (what he's worth minus what he's paid).</p>
+    <div class="tm" id="tm"></div>
+  </section>
+  <section class="panel sum" id="summary"></section>
+  <section class="panel">
+    <div class="head"><h2>How values are set</h2></div>
+    <div class="sub" id="method"></div>
+  </section>
+  <footer class="foot"><p>Data: <a href="https://moneypuck.com" rel="noopener">MoneyPuck.com</a> and the NHL's public API. Contracts aren't included; cap hits you type stay in this page only.</p></footer>
+</main>
+<script src="trade.js?v=202611140451"></script>
+</body>
+</html>

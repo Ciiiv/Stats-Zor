@@ -8,12 +8,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611140424">
+<link rel="stylesheet" href="styles.css?v=202611140451">
 </head>
 <body>
 <header class="top">
   <div class="wrap top-in">
-    <a class="brand" href="#">STATS<span>-</span>ZOR</a>
+    <div class="brandbox"><a class="brand" href="#">STATS<span>-</span>ZOR</a><a class="tradelink" href="trade.html">Trade machine →</a></div>
     <div class="pickers">
       <div class="picker" id="pickA">
         <label for="qA"><i class="dot a"></i>Player</label>
@@ -37,7 +37,9 @@
       <a href="#sec-rank">Ranking</a><a href="#sec-matrix">Stat board</a><a href="#sec-h2h">Head to head</a><a href="#sec-env">Shot environment</a><a href="#sec-shots">Shot maps</a><a href="#sec-mates">Linemates</a><a href="#sec-swap">Team swap</a></div></div>
     <div class="ng" data-part="2"><span class="nl">2 · How he's used</span><div class="nls">
       <a href="#sec-role">Role &amp; fit</a><a href="#sec-lineup">Team card</a></div></div>
-    <div class="ng" data-part="3"><span class="nl">3 · Vs. history</span><div class="nls">
+    <div class="ng" data-part="3"><span class="nl">3 · What he's worth</span><div class="nls">
+      <a href="#sec-value">Value &amp; worth</a><a href="#sec-deal">Fair contract</a></div></div>
+    <div class="ng" data-part="4"><span class="nl">4 · Vs. history</span><div class="nls">
       <a href="#sec-career">Career vs career</a><a href="#sec-arcs">Arcs &amp; comps</a></div></div>
   </nav>
 </header>
@@ -113,7 +115,20 @@
     <div id="lineup"></div>
   </section>
 
-  <div class="part"><span class="eyebrow">Part three · careers across eras · NHL data</span><h2 class="part-h">Against history</h2>
+  <div class="part"><span class="eyebrow">Part three · value · Stats-Zor model</span><h2 class="part-h">What he's worth</h2>
+    <p class="sub">Stats-Zor's own value model turns 5v5 impact, finishing, power play, penalty kill and penalties into goals and wins above a replacement-level player, then prices those wins with the salary cap. It estimates fair value; it doesn't know actual contracts.</p></div>
+
+  <section class="panel" id="sec-value">
+    <div class="head"><h2>Value and worth</h2><p class="sub" id="value-sub"></p></div>
+    <div id="value"></div>
+  </section>
+
+  <section class="panel" id="sec-deal">
+    <div class="head"><h2>Fair-value contract</h2><p class="sub" id="deal-sub"></p></div>
+    <div id="deal"></div>
+  </section>
+
+  <div class="part"><span class="eyebrow">Part four · careers across eras · NHL data</span><h2 class="part-h">Against history</h2>
     <p class="sub">Raw points from different eras aren't comparable. Era-adjusted figures rescale every season to a league scoring 6.0 goals per game. Advanced stats (expected goals) exist only from 2008-09 on.</p></div>
 
   <section class="panel" id="sec-career">
@@ -145,6 +160,6 @@
     <p id="updated"></p>
   </footer>
 </main>
-<script src="app.js?v=202611140424"></script>
+<script src="app.js?v=202611140451"></script>
 </body>
 </html>
