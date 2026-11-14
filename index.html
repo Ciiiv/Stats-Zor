@@ -37,11 +37,11 @@
     <a href="#sec-matrix">Stat board</a>
     <a href="#sec-h2h">Head to head</a>
     <a href="#sec-env">Shot environment</a>
+    <a href="#sec-shots">Shot maps</a>
     <a href="#sec-mates">Linemates</a>
     <a href="#sec-swap">Team swap</a>
     <a href="#sec-career">Career vs career</a>
     <a href="#sec-arcs">Arcs &amp; comps</a>
-    <a href="#sec-shots">Shot maps</a>
   </nav>
 </header>
 
@@ -79,6 +79,12 @@
     <div class="head"><h2>Shot environment and deployment</h2>
       <p class="sub">Grey dots are every regular at the same position. Left: chances for and against per 60 at 5v5 (up and left is good). Right: own-zone start share against relative xGF%, the team's share with him on the ice minus its share with him on the bench.</p></div>
     <div class="two"><svg id="sc1" viewBox="0 0 520 440" role="img" aria-label="xGF/60 vs xGA/60"></svg><svg id="sc2" viewBox="0 0 520 440" role="img" aria-label="Zone starts vs relative xGF%"></svg></div>
+  </section>
+
+  <section class="panel" id="sec-shots">
+    <div class="head"><h2>Shot maps</h2>
+      <p class="sub" id="shots-sub">Loading shot maps…</p></div>
+    <div id="shots"></div>
   </section>
 
   <section class="panel" id="sec-mates">
@@ -121,11 +127,6 @@
     <div class="scroll"><table class="tbl" id="comps"></table></div>
   </section>
 
-  <section class="panel" id="sec-shots">
-    <div class="head"><h2>Shot maps</h2>
-      <p class="sub" id="shots-sub">Loading shot maps…</p></div>
-    <div id="shots"></div>
-  </section>
 
   <footer class="foot">
     <p>Data: <a href="https://moneypuck.com" rel="noopener">MoneyPuck.com</a> season summaries (2008-09 on) and the NHL's public stats API (careers, bios, trophies). Free for non-commercial use with credit to MoneyPuck. Updated automatically every morning.</p>
