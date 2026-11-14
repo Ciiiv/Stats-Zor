@@ -811,6 +811,28 @@ function renderLineup(U, sd) {
   $('lineup').innerHTML = rows.length ? tbl('F') + tbl('D') + `<p class="sub small">Regulars with ${minG}+ games for ${S.lineupTeam} in ${sLabel(S.season)}. A player traded mid-season shows his whole season, including games for his other team.</p>` : '<p class="empty">No deployment data for this team.</p>';
 }
 
+
+// ------------------------------------------------------------------ nav: highlight the part and section in view
+function initNav() {
+  const links = [...document.querySelectorAll('#nav a')];
+  const groups = [...document.querySelectorAll('#nav .ng')];
+  let ticking = false;
+  const update = () => {
+    ticking = false;
+    const head = document.querySelector('.top');
+    const off = Math.max((getComputedStyle(head).position === 'sticky' ? head.offsetHeight : 0) + 60, window.innerHeight * 0.25);
+    let cur = links[0];
+    for (const a of links) { const el = document.querySelector(a.getAttribute('href')); if (el && !el.hidden && el.getBoundingClientRect().top - off <= 0) cur = a; }
+    links.forEach(a => a.classList.toggle('cur', a === cur));
+    const g = cur.closest('.ng'); const part = g.dataset.part || '1';
+    groups.forEach(x => x.classList.toggle('on', x.dataset.part === part));
+    if (window.innerWidth < 900) { const nav = $('nav'); const r = cur.getBoundingClientRect(), nr = nav.getBoundingClientRect(); if (r.left < nr.left || r.right > nr.right) nav.scrollLeft += r.left - nr.left - 40; }
+  };
+  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  window.addEventListener('resize', update);
+  update();
+}
+
 // ------------------------------------------------------------------ orchestration
 function setHash() { const h = `#a=${S.A || ''}${S.B ? '&b=' + S.B : ''}&s=${S.season}`; if (location.hash !== h) history.replaceState(null, '', h); }
 function readHash() { const o = {}; location.hash.replace(/^#/, '').split('&').forEach(kv => { const [k, v] = kv.split('='); if (k) o[k] = v; }); return o; }
@@ -888,7 +910,9 @@ async function init() {
       S.season = bestSeason(S.A);
     }
     wire();
+    initNav();
     $('status').hidden = true;
+    S.shotsSeen = true;
     await render();
     loadCareers().then(() => render()).catch(e => { console.error(e); $('sec-career').insertAdjacentHTML('beforeend', '<p class="empty">Career data could not be loaded.</p>'); });
   } catch (e) {
