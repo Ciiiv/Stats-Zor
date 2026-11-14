@@ -1,0 +1,700 @@
+'use strict';
+/* Stats-Zor — everything runs in the browser from the JSON files in data/.
+   No server, no AI. Data is refreshed nightly by .github/workflows/update-data.yml. */
+
+// ------------------------------------------------------------------ helpers
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const nz = v => v !== null && v !== undefined && !Number.isNaN(v);
+const sub = (a, b) => nz(a) && nz(b) ? a - b : null;
+const share = (f, a) => nz(f) && nz(a) && f + a > 0 ? 100 * f / (f + a) : null;
+const avg = a => { const v = a.filter(nz); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+const f0 = v => nz(v) ? Math.round(v).toLocaleString() : '—';
+const f1 = v => nz(v) ? v.toFixed(1) : '—';
+const f2 = v => nz(v) ? v.toFixed(2) : '—';
+const s1 = v => nz(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—';
+const s2 = v => nz(v) ? (v > 0 ? '+' : '') + v.toFixed(2) : '—';
+const fmin = v => { if (!nz(v)) return '—'; let m = Math.floor(v), s = Math.round((v - m) * 60); if (s === 60) { m++; s = 0; } return m + ':' + String(s).padStart(2, '0'); };
+const sLabel = y => `${y}-${String(y + 1).slice(2)}`;
+const last = n => (n || '').split(' ').slice(-1)[0];
+const ord = n => !nz(n) ? '—' : n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+const grpOf = pos => pos === 'D' ? 'D' : 'F';
+const GRP_NAME = { D: 'defensemen', F: 'forwards' };
+const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const BASE_GPG = 6.0;
+const MAJOR = ['Hart', 'Norris', 'Selke', 'Art Ross', 'Richard', 'Lindsay', 'Calder', 'Conn Smythe'];
+const getJSON = async url => { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); };
+function safe(id, fn) { try { fn(); } catch (e) { console.error(id, e); const el = $(id); if (el) el.insertAdjacentHTML('beforeend', `<p class="empty">This section hit an error: ${esc(e.message)}</p>`); } }
+
+// ------------------------------------------------------------------ state
+const S = {
+  idx: null, byId: new Map(), seasons: {}, lines: {}, careers: null, mpc: null, cache: {},
+  A: null, B: null, season: null,
+  pool: 'reg', w: { d: 40, o: 40, c: 20 }, extra: [], removed: new Set(), sortKey: null, showPct: false,
+  cmode: 'age', arcMetric: 'adj82', arcSel: [], swapTeam: null, swapOut: null,
+};
+
+// ------------------------------------------------------------------ metrics
+const MET = {
+  toi: { l: 'TOI/GP', f: fmin, role: 1 }, ev: { l: '5v5 TOI/GP', f: fmin }, pk: { l: 'PK TOI/GP', f: fmin, role: 1 }, pp: { l: 'PP TOI/GP', f: fmin },
+  dzs: { l: 'Own-zone start %', f: f1, role: 1 }, off_xgf_pct: { l: 'Team xGF% w/o him', f: f1, lo: 1, role: 1 },
+  xga60: { l: 'xGA/60', f: f2, lo: 1 }, rel_xga60: { l: 'Rel xGA/60', f: s2, lo: 1 }, hdxga60: { l: 'HD xGA/60', f: f2, lo: 1 },
+  ca60: { l: 'CA/60', f: f1, lo: 1 }, pk_xga60: { l: 'PK xGA/60', f: f2, lo: 1 },
+  blk60: { l: 'Blocks/60', f: f2 }, tk60: { l: 'Takeaways/60', f: f2 }, hits60: { l: 'Hits/60', f: f2 },
+  dzgv60: { l: 'DZ giveaways/60', f: f2, lo: 1 }, gv60: { l: 'Giveaways/60', f: f2, lo: 1 },
+  xgf60: { l: 'xGF/60', f: f2 }, rel_xgf60: { l: 'Rel xGF/60', f: s2 }, ixg60: { l: 'ixG/60', f: f2 }, ig60: { l: 'Goals/60', f: f2 },
+  ipts60: { l: 'Pts/60', f: f2 }, ia1_60: { l: 'Primary A/60', f: f2 }, isa60: { l: 'Shot att./60', f: f1 }, ihd60: { l: 'HD shots/60', f: f2 },
+  pp_pts60: { l: 'PP pts/60', f: f2 }, pp_xgf60: { l: 'PP xGF/60', f: f2 }, gax82: { l: 'Goals above exp. /82', f: s1 },
+  xgf_pct: { l: 'xGF%', f: f1 }, cf_pct: { l: 'CF%', f: f1 }, gf_pct: { l: 'GF%', f: f1 }, rel_xgf_pct: { l: 'Rel xGF%', f: s1 },
+  gs: { l: 'GameScore/GP', f: f2 }, fo_pct: { l: 'Faceoff %', f: f1 }, pdiff60: { l: 'Pen. drawn − taken /60', f: s2 },
+};
+const COLS = {
+  D: [['Role', ['toi', 'pk', 'dzs', 'off_xgf_pct']], ['Suppression · 5v5', ['xga60', 'rel_xga60', 'hdxga60', 'ca60', 'pk_xga60']],
+    ['Defensive actions', ['blk60', 'tk60', 'hits60', 'dzgv60']], ['Offense', ['xgf60', 'rel_xgf60', 'ixg60', 'ipts60', 'pp_pts60']],
+    ['Overall', ['xgf_pct', 'rel_xgf_pct', 'gf_pct', 'gs']]],
+  F: [['Role', ['toi', 'pk', 'dzs', 'off_xgf_pct', 'fo_pct']], ['Scoring', ['ig60', 'ipts60', 'ia1_60', 'pp_pts60', 'gax82']],
+    ['Shooting', ['isa60', 'ixg60', 'ihd60']], ['Play driving', ['xgf60', 'rel_xgf60', 'cf_pct', 'xgf_pct', 'rel_xgf_pct']],
+    ['Defense', ['xga60', 'rel_xga60', 'hdxga60', 'pk_xga60', 'tk60', 'gv60']], ['Physical · discipline', ['hits60', 'blk60', 'pdiff60']]],
+};
+const COMP = {
+  D: { d: [[0.75, ['xga60', 'rel_xga60', 'hdxga60', 'ca60', 'pk_xga60']], [0.25, ['blk60', 'tk60', 'dzgv60', 'hits60']]],
+    o: [[1, ['xgf60', 'rel_xgf60', 'ixg60', 'ipts60', 'pp_pts60']]], c: [[1, ['toi', 'pk', 'dzs', 'off_xgf_pct']]] },
+  F: { d: [[0.8, ['xga60', 'rel_xga60', 'hdxga60', 'pk_xga60']], [0.2, ['tk60', 'gv60']]],
+    o: [[1, ['ig60', 'ipts60', 'ixg60', 'xgf60', 'rel_xgf60', 'pp_pts60']]], c: [[1, ['toi', 'pk', 'dzs', 'off_xgf_pct', 'fo_pct']]] },
+};
+const RADAR = {
+  D: [['toi', 'Ice time'], ['dzs', 'Own-zone starts'], ['xga60', 'xGA/60'], ['rel_xga60', 'Rel xGA/60'], ['pk_xga60', 'PK xGA/60'], ['_bt', 'Blocks + takeaways'], ['rel_xgf60', 'Rel xGF/60'], ['ipts60', 'Pts/60']],
+  F: [['toi', 'Ice time'], ['ig60', 'Goals/60'], ['ipts60', 'Pts/60'], ['ixg60', 'ixG/60'], ['rel_xgf60', 'Rel xGF/60'], ['rel_xga60', 'Rel xGA/60'], ['pk_xga60', 'PK xGA/60'], ['_fo', 'Faceoffs (C) / takeaways']],
+};
+const POOLS = { reg: { l: 'Regulars', D: 16, F: 12 }, top: { l: 'Top-pair D / top-six F', D: 20, F: 16 } };
+const PRESETS = [['Balanced', 40, 40, 20], ['Defense first', 55, 25, 20], ['Points-driven ballot', 15, 75, 10], ['Even D/O, no context', 50, 50, 0]];
+
+function derive(p) {
+  p.grp = grpOf(p.pos);
+  p.xgf_pct = share(p.xgf60, p.xga60); p.cf_pct = share(p.cf60, p.ca60); p.gf_pct = share(p.gf5, p.ga5);
+  p.off_xgf_pct = share(p.off_xgf60, p.off_xga60); p.rel_xgf_pct = sub(p.xgf_pct, p.off_xgf_pct);
+  p.rel_xgf60 = sub(p.xgf60, p.off_xgf60); p.rel_xga60 = sub(p.xga60, p.off_xga60);
+  p.fo_pct = (p.fow + p.fol) >= 100 ? 100 * p.fow / (p.fow + p.fol) : null;
+  p.pdiff60 = sub(p.pend60, p.pen60);
+  p.gax82 = p.gp ? p.gax / p.gp * 82 : null;
+  return p;
+}
+
+// ------------------------------------------------------------------ data loading
+async function loadSeason(y) {
+  if (S.seasons[y]) return S.seasons[y];
+  const j = await getJSON(`data/seasons/${y}.json`);
+  const players = j.players.map(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); return derive(o); });
+  const sd = { y, gpmax: j.gpmax, teams: j.teams, updated: j.updated, players, byId: new Map(players.map(p => [p.id, p])) };
+  S.seasons[y] = sd;
+  return sd;
+}
+async function loadLines(y) {
+  if (S.lines[y]) return S.lines[y];
+  try { S.lines[y] = await getJSON(`data/lines/${y}.json`); } catch (e) { S.lines[y] = { lines: [] }; }
+  return S.lines[y];
+}
+function pool(sd, grp, key = S.pool) {
+  const ck = `${sd.y}|${grp}|${key}`;
+  if (S.cache[ck]) return S.cache[ck];
+  const minGp = Math.max(5, Math.round(0.35 * sd.gpmax));
+  const thr = POOLS[key][grp];
+  const list = sd.players.filter(p => p.grp === grp && p.gp >= minGp && p.toi >= thr);
+  const out = { list, sorted: {} };
+  S.cache[ck] = out;
+  return out;
+}
+function pctl(sd, grp, k, v) {
+  if (!nz(v)) return null;
+  const P = pool(sd, grp);
+  let arr = P.sorted[k];
+  if (!arr) {
+    const src = k === 'fo_pct' ? P.list.filter(p => p.pos === 'C') : P.list;
+    arr = P.sorted[k] = src.map(p => p[k]).filter(nz).sort((a, b) => a - b);
+  }
+  if (!arr.length) return null;
+  let lo = 0, hi = arr.length; while (lo < hi) { const m = (lo + hi) >> 1; if (arr[m] < v) lo = m + 1; else hi = m; }
+  let eq = lo; while (eq < arr.length && arr[eq] === v) eq++;
+  const below = lo, equal = eq - lo, above = arr.length - eq;
+  const raw = (below + equal / 2) / arr.length * 100;
+  return Math.round(MET[k] && MET[k].lo ? 100 - raw : raw);
+  void above;
+}
+function pk(sd, p, k) {
+  if (k === '_bt') return avg([pctl(sd, p.grp, 'blk60', p.blk60), pctl(sd, p.grp, 'tk60', p.tk60)]);
+  if (k === '_fo') return p.pos === 'C' && nz(p.fo_pct) ? pctl(sd, p.grp, 'fo_pct', p.fo_pct) : pctl(sd, p.grp, 'tk60', p.tk60);
+  if (k === 'fo_pct' && p.pos !== 'C') return null;
+  return pctl(sd, p.grp, k, p[k]);
+}
+function scores(sd, p) {
+  const ck = `sc|${sd.y}|${S.pool}|${p.id}`;
+  if (S.cache[ck]) return S.cache[ck];
+  const part = parts => { let t = 0, w = 0; for (const [wt, keys] of parts) { const v = avg(keys.map(k => pk(sd, p, k))); if (nz(v)) { t += wt * v; w += wt; } } return w ? t / w : null; };
+  const C = COMP[p.grp];
+  const o = { d: part(C.d), o: part(C.o), c: part(C.c) };
+  S.cache[ck] = o;
+  return o;
+}
+function composite(sc) {
+  const { d, o, c } = S.w; const t = (d + o + c) || 1;
+  return ((sc.d ?? 50) * d + (sc.o ?? 50) * o + (sc.c ?? 50) * c) / t;
+}
+
+// ------------------------------------------------------------------ careers
+let CAR = null;
+function careerOf(id) {
+  if (!CAR) return null;
+  if (CAR.memo.has(id)) return CAR.memo.get(id);
+  const bio = CAR.players[id];
+  const rows = CAR.rowsBy.get(id) || [];
+  if (!bio && !rows.length) { CAR.memo.set(id, null); return null; }
+  const aw = CAR.awards[id] || [];
+  const mp = CAR.mpBy.get(id) || [];
+  const cur = S.idx.current;
+  const seasons = rows.map(r => {
+    const lg = CAR.league[r.y] || { gpg: BASE_GPG, sched: 82 };
+    const fct = BASE_GPG / (lg.gpg || BASE_GPG);
+    const sched = r.y === cur ? 82 : (lg.sched || 82);
+    const m = mp.find(x => x.y === r.y);
+    return {
+      ...r, adjPts: r.pts * fct, adjG: r.g * fct, adj82: r.gp ? r.pts * fct / r.gp * 82 : null, adjg82: r.gp ? r.g * fct / r.gp * 82 : null,
+      full: r.gp >= 0.4 * sched && r.y !== cur, partial: r.y === cur, aw: aw.filter(a => a[1] === r.y).map(a => a[0]),
+      rel_xgf_pct: m ? m.rel_xgf_pct : null, rel_xga60: m ? m.rel_xga60 : null, xgf_pct: m ? m.xgf_pct : null, mpgp: m ? m.gp : 0,
+    };
+  });
+  const c = { id, name: bio ? bio[0] : (S.byId.get(id) || {}).name, pos: bio ? bio[1] : (S.byId.get(id) || {}).pos, shoots: bio && bio[2], birth: bio && bio[3], ht: bio && bio[4], wt: bio && bio[5], hof: bio && bio[6], awards: aw, S: seasons };
+  c.grp = grpOf(c.pos);
+  CAR.memo.set(id, c);
+  return c;
+}
+function ctot(Ss) {
+  const gp = Ss.reduce((a, s) => a + s.gp, 0);
+  const t = k => Ss.reduce((a, s) => a + (s[k] || 0), 0);
+  const ts = Ss.filter(s => nz(s.toi)); const tg = ts.reduce((a, s) => a + s.gp, 0);
+  const mp = Ss.filter(s => nz(s.rel_xgf_pct)); const mg = mp.reduce((a, s) => a + s.mpgp, 0);
+  const wavg = k => mg ? mp.reduce((a, s) => a + s[k] * s.mpgp, 0) / mg : null;
+  const aw = Ss.flatMap(s => s.aw);
+  return {
+    n: Ss.length, gp, g: t('g'), a: t('a'), pts: t('pts'), adj: t('adjPts'), adjG: t('adjG'),
+    adj82: gp ? t('adjPts') / gp * 82 : null, adjg82: gp ? t('adjG') / gp * 82 : null,
+    toi: tg ? ts.reduce((a, s) => a + s.toi * s.gp, 0) / tg : null, toiCover: gp ? tg / gp : 0,
+    rel_xgf_pct: wavg('rel_xgf_pct'), rel_xga60: wavg('rel_xga60'), mpgp: mg,
+    major: aw.filter(a => MAJOR.includes(a)).length, cups: aw.filter(a => a === 'Cup').length, aw,
+  };
+}
+const awardLine = list => { const c = {}; list.forEach(a => { c[a] = (c[a] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, v]) => v > 1 ? `${k} ×${v}` : k).join(', ') || '—'; };
+const ageNow = (birth, y) => { if (!birth) return null; const b = new Date(birth + 'T00:00:00'); const ref = new Date(y + 1, 1, 1); let a = ref.getFullYear() - b.getFullYear(); if (ref < new Date(ref.getFullYear(), b.getMonth(), b.getDate())) a--; return a; };
+const htFmt = h => nz(h) && h ? `${Math.floor(h / 12)}'${h % 12}"` : '';
+
+async function loadCareers() {
+  if (CAR) return CAR;
+  const [c, m] = await Promise.all([getJSON('data/careers.json'), getJSON('data/mp_careers.json').catch(() => ({ fields: [], rows: [] }))]);
+  const rowsBy = new Map();
+  for (const r of c.seasons) { const o = {}; c.fields.forEach((k, i) => { o[k] = r[i]; }); if (!rowsBy.has(o.id)) rowsBy.set(o.id, []); rowsBy.get(o.id).push(o); }
+  const mpBy = new Map();
+  for (const r of m.rows) { const o = {}; m.fields.forEach((k, i) => { o[k] = r[i]; }); if (!mpBy.has(o.id)) mpBy.set(o.id, []); mpBy.get(o.id).push(o); }
+  const players = {}; for (const [k, v] of Object.entries(c.players)) players[+k] = v;
+  const awards = {}; for (const [k, v] of Object.entries(c.awards || {})) awards[+k] = v;
+  const league = {}; for (const [k, v] of Object.entries(c.league)) league[+k] = v;
+  CAR = { players, rowsBy, mpBy, awards, league, memo: new Map() };
+  return CAR;
+}
+
+// ------------------------------------------------------------------ search
+function makeSearch(inputId, onPick, opts = {}) {
+  const inp = $(inputId), ul = inp.parentElement.querySelector('.sugg');
+  let items = [], sel = -1;
+  const close = () => { ul.hidden = true; sel = -1; };
+  const show = () => {
+    const q = norm(inp.value.trim());
+    if (q.length < 2) { close(); return; }
+    const toks = q.split(/\s+/);
+    const res = [];
+    for (const p of S.idx.list) {
+      if (opts.filter && !opts.filter(p)) continue;
+      const n = p.n;
+      if (toks.every(t => n.includes(t))) {
+        let sc = p.gp; if (n.startsWith(q)) sc += 1e6; else if (n.split(' ').some(w => w.startsWith(toks[0]))) sc += 5e5;
+        res.push([sc, p]);
+      }
+    }
+    res.sort((a, b) => b[0] - a[0]);
+    items = res.slice(0, 12).map(r => r[1]);
+    ul.innerHTML = items.length ? items.map((p, i) => `<li role="option" data-i="${i}" aria-selected="${i === sel}">${esc(p.name)}<small>${p.pos} · ${p.first}–${String(p.last + 1).slice(2)} · ${esc(p.team)}</small></li>`).join('') : '<li class="empty">No match</li>';
+    ul.hidden = false;
+  };
+  inp.addEventListener('input', () => { sel = -1; show(); });
+  inp.addEventListener('focus', () => { if (inp.value.trim().length >= 2) show(); });
+  inp.addEventListener('keydown', e => {
+    if (ul.hidden) return;
+    if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); e.preventDefault(); }
+    else if (e.key === 'Enter') { const p = items[Math.max(0, sel)]; if (p) { pick(p); } e.preventDefault(); return; }
+    else if (e.key === 'Escape') { close(); return; }
+    else return;
+    ul.querySelectorAll('li').forEach((li, i) => li.setAttribute('aria-selected', i === sel));
+  });
+  ul.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pick(items[+li.dataset.i]); } });
+  inp.addEventListener('blur', () => setTimeout(close, 150));
+  function pick(p) { close(); inp.value = opts.keep ? p.name : ''; inp.blur(); onPick(p.id); }
+}
+
+// ------------------------------------------------------------------ svg helpers
+function axes(W, H, m, xd, yd, xt, yt, xl, yl, xf, yf) {
+  const X = v => m.l + (v - xd[0]) / (xd[1] - xd[0]) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - yd[0]) / (yd[1] - yd[0]) * (H - m.t - m.b);
+  let s = '';
+  xt.forEach(v => { s += `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}" class="ax" stroke-dasharray="2 4"/><text x="${X(v)}" y="${H - m.b + 15}" text-anchor="middle" class="lab">${xf ? xf(v) : v}</text>`; });
+  yt.forEach(v => { s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" class="ax" stroke-dasharray="2 4"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" class="lab">${yf ? yf(v) : v}</text>`; });
+  if (xl) s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle" font-size="12" font-weight="600">${esc(xl)}</text>`;
+  if (yl) s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle" font-size="12" font-weight="600">${esc(yl)}</text>`;
+  return { X, Y, s };
+}
+function niceStep(range, target = 6) { const raw = range / target; const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw / p; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p; }
+function ticks(a, b, st) { const o = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9; v += st) o.push(+v.toFixed(6)); return o; }
+function extent(vals, pad = 0.06) { const v = vals.filter(nz); if (!v.length) return [0, 1]; let lo = Math.min(...v), hi = Math.max(...v); if (lo === hi) { lo -= 1; hi += 1; } const p = (hi - lo) * pad; return [lo - p, hi + p]; }
+function placeLabels(svg) {
+  const labs = [...svg.querySelectorAll('text[data-l]')].sort((a, b) => +a.getAttribute('y') - +b.getAttribute('y'));
+  const placed = [];
+  for (const t of labs) {
+    const x = +t.getAttribute('x'); let y = +t.getAttribute('y');
+    for (let k = 0; k < 6; k++) { const hit = placed.find(q => Math.abs(q[0] - x) < 70 && Math.abs(q[1] - y) < 12); if (!hit) break; y = hit[1] + 13; }
+    t.setAttribute('y', y); placed.push([x, y]);
+  }
+}
+
+// ------------------------------------------------------------------ rendering: profile
+function seasonOf(id) { const sd = S.seasons[S.season]; return sd ? sd.byId.get(id) : null; }
+function renderProfile() {
+  const card = (id, cls) => {
+    if (!id) return `<div class="pcard ${cls}"><p class="empty">Pick a second player in the search box above to compare.</p></div>`;
+    const ix = S.byId.get(id) || {};
+    const c = careerOf(id);
+    const p = seasonOf(id);
+    const sd = S.seasons[S.season];
+    const pos = (p && p.pos) || (c && c.pos) || ix.pos || '';
+    const age = c && c.birth ? ageNow(c.birth, S.season) : null;
+    const meta = [p ? p.team : ix.team, pos, c && c.shoots ? `Shoots ${c.shoots}` : '', age ? `Age ${age}` : '', c ? [htFmt(c.ht), c.wt ? c.wt + ' lb' : ''].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ');
+    let tiles = '';
+    if (p) {
+      const sc = scores(sd, p);
+      const T = [[`${p.g}-${p.a1 + p.a2}-${p.pts}`, `G-A-P in ${p.gp} GP`], [fmin(p.toi), 'TOI per game'], [f1(p.xgf_pct), 'xGF% at 5v5'], [s1(p.rel_xgf_pct), 'Rel xGF%'],
+        [f0(sc.d), 'Defense score'], [f0(sc.o), 'Offense score'], [f0(sc.c), 'Role difficulty']];
+      tiles = `<p class="minihead">${sLabel(S.season)} · scores are percentiles vs ${GRP_NAME[p.grp]}</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
+    } else {
+      tiles = `<p class="empty">No ${sLabel(S.season)} MoneyPuck data for ${esc(ix.name || '')}. ${ix.mask ? 'Pick one of his seasons in the Season box.' : 'Advanced stats start in 2008-09; the career sections below still work.'}</p>`;
+    }
+    let badges = '';
+    if (c) {
+      const t = ctot(c.S);
+      const bs = [`${t.gp} GP · ${t.pts} pts`, ...Object.entries(c.awards.reduce((o, a) => { o[a[0]] = (o[a[0]] || 0) + 1; return o; }, {})).map(([k, v]) => `<span class="badge gold">${esc(k)}${v > 1 ? ' ×' + v : ''}</span>`)];
+      if (c.hof) bs.push('<span class="badge gold">Hall of Fame</span>');
+      badges = `<div class="badges">${bs.map(b => b.startsWith('<') ? b : `<span class="badge">${b}</span>`).join('')}</div>`;
+    }
+    return `<div class="pcard ${cls}"><h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${esc(meta)}</p>${tiles}${badges}</div>`;
+  };
+  $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
+}
+
+// ------------------------------------------------------------------ ranking
+function renderRank() {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A); const grp = A ? A.grp : 'D';
+  const P = pool(sd, grp);
+  $('rank-sub').textContent = `Each score averages percentile ranks against ${P.list.length} ${GRP_NAME[grp]} (${POOLS[S.pool].l.toLowerCase()}: ${POOLS[S.pool][grp]}+ min a night, ${Math.max(5, Math.round(0.35 * sd.gpmax))}+ games) in ${sLabel(S.season)}. Drag the weights to reorder.`;
+  $('rank-ctl').innerHTML = `<span class="lbl">Pool</span><span class="toggle">${Object.entries(POOLS).map(([k, v]) => `<button type="button" data-pool="${k}" aria-pressed="${S.pool === k}">${v.l}</button>`).join('')}</span>
+    <span class="lbl">Presets</span><span class="toggle">${PRESETS.map((p, i) => `<button type="button" data-pre="${i}" aria-pressed="${S.w.d === p[1] && S.w.o === p[2] && S.w.c === p[3]}">${p[0]}</button>`).join('')}</span>`;
+  const t = (S.w.d + S.w.o + S.w.c) || 1;
+  $('weights').innerHTML = [['d', 'Defense'], ['o', 'Offense'], ['c', 'Role difficulty']].map(([k, l]) =>
+    `<div><label for="w${k}">${l} <span class="mono">${Math.round(S.w[k] / t * 100)}%</span></label><input type="range" id="w${k}" data-w="${k}" min="0" max="100" value="${S.w[k]}"></div>`).join('');
+  const list = P.list.map(p => { const sc = scores(sd, p); return { p, sc, s: composite(sc) }; }).sort((a, b) => b.s - a.s);
+  const extra = [S.A, S.B].map(id => sd.byId.get(id)).filter(p => p && p.grp === grp && !P.list.includes(p)).map(p => { const sc = scores(sd, p); return { p, sc, s: composite(sc), out: 1 }; });
+  const top = 25; const rows = [];
+  list.forEach((r, i) => { if (i < top || r.p.id === S.A || r.p.id === S.B) rows.push([i + 1, r]); });
+  const html = []; let prev = 0;
+  for (const [rk, r] of rows) {
+    if (rk - prev > 1 && prev >= top) html.push(`<div class="rrow gap">· · ·</div>`);
+    html.push(rrow(rk, r, t)); prev = rk;
+  }
+  extra.forEach(r => html.push(`<div class="rrow gap">Below the pool's minutes or games cutoff:</div>` + rrow('—', r, t)));
+  $('rank').innerHTML = html.join('');
+}
+function rrow(rk, r, t) {
+  const { p, sc } = r; const w = S.w;
+  const cls = p.id === S.A ? 'isA' : p.id === S.B ? 'isB' : '';
+  const d = (sc.d ?? 50) * w.d / t, o = (sc.o ?? 50) * w.o / t, c = (sc.c ?? 50) * w.c / t;
+  return `<div class="rrow ${cls}"><span class="mono">${rk}</span><span class="nm" data-id="${p.id}" title="Make ${esc(p.name)} the main player">${esc(p.name)}<small>${p.team} · ${p.pos}</small></span>
+    <div class="bar" title="Defense ${f0(sc.d)} · Offense ${f0(sc.o)} · Role ${f0(sc.c)}"><i class="seg-d" style="width:${d}%"></i><i class="seg-o" style="width:${o}%"></i><i class="seg-c" style="width:${c}%"></i></div><b class="mono">${f1(r.s)}</b></div>`;
+}
+
+// ------------------------------------------------------------------ stat board
+function boardIds(sd, grp) {
+  const P = pool(sd, grp);
+  const auto = P.list.map(p => [composite(scores(sd, p)), p.id]).sort((a, b) => b[0] - a[0]).map(x => x[1]);
+  const ids = [];
+  const add = id => { if (id && !ids.includes(id) && sd.byId.get(id) && sd.byId.get(id).grp === grp) ids.push(id); };
+  add(S.A); add(S.B); S.extra.forEach(add);
+  for (const id of auto) { if (ids.length >= 12 + S.extra.length) break; if (!S.removed.has(id)) add(id); }
+  return ids;
+}
+function heat(v) {
+  if (!nz(v)) return 'transparent';
+  return v < 50 ? `color-mix(in srgb, var(--mid) ${v * 2}%, var(--lo))` : `color-mix(in srgb, var(--hi) ${(v - 50) * 2}%, var(--mid))`;
+}
+function renderMatrix() {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A); const grp = A ? A.grp : 'D';
+  const cols = COLS[grp]; const flat = cols.flatMap(c => c[1]);
+  let ids = boardIds(sd, grp);
+  let ps = ids.map(id => sd.byId.get(id));
+  if (S.sortKey && flat.includes(S.sortKey)) ps.sort((a, b) => (pk(sd, b, S.sortKey) ?? -1) - (pk(sd, a, S.sortKey) ?? -1));
+  $('mtoggle').innerHTML = `<button type="button" id="mv" aria-pressed="${S.showPct}">Show percentiles</button>${S.sortKey ? '<button type="button" id="ms">Clear sort</button>' : ''}`;
+  let h = `<thead><tr><th></th>${cols.map(g => `<th class="grp" colspan="${g[1].length}">${g[0]}</th>`).join('')}</tr><tr><th style="text-align:left">Player · GP</th>${flat.map(k => `<th><button type="button" data-sort="${k}">${MET[k].l}${S.sortKey === k ? ' ▾' : ''}</button></th>`).join('')}</tr></thead><tbody>`;
+  h += ps.map(p => {
+    const cls = p.id === S.A ? 'isA' : p.id === S.B ? 'isB' : '';
+    const rm = p.id === S.A ? '' : `<button type="button" data-rm="${p.id}" title="Remove from board">×</button>`;
+    return `<tr class="${cls}"><td class="pn">${esc(p.name)} <span class="mono" style="color:var(--muted);font-weight:400">${p.team} ${p.gp}</span>${rm}</td>` + flat.map(k => {
+      const pc = pk(sd, p, k);
+      return `<td style="background:${heat(pc)}">${S.showPct ? (pc ?? '—') : MET[k].f(p[k])}${!S.showPct && nz(pc) ? `<small>${pc}</small>` : ''}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+  const B = seasonOf(S.B);
+  const note = B && B.grp !== grp ? `<p class="sub small">${esc(B.name)} plays a different position, so he isn't on this board. Boards compare within a position.</p>` : '';
+  $('matrix').innerHTML = h + '</tbody>';
+  const wrap = $('matrix').parentElement; wrap.querySelectorAll('p.sub').forEach(x => x.remove()); if (note) wrap.insertAdjacentHTML('beforeend', note);
+}
+
+// ------------------------------------------------------------------ head to head
+function renderH2H() {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A); const B = seasonOf(S.B);
+  const ax = RADAR[A.grp];
+  const cx = 230, cy = 215, R = 150, n = ax.length;
+  const pt = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + Math.cos(a) * R * v / 100, cy + Math.sin(a) * R * v / 100]; };
+  let s = '';
+  [25, 50, 75, 100].forEach(r => { s += `<polygon points="${ax.map((_, i) => pt(i, r).join(',')).join(' ')}" fill="none" class="ax"/>`; });
+  s += `<text x="${cx + 4}" y="${cy - R * 0.5 - 3}" class="lab">50th</text><text x="${cx + 4}" y="${cy - R - 3}" class="lab">100th</text>`;
+  ax.forEach((a, i) => { const [x, y] = pt(i, 100), [lx, ly] = pt(i, 118); s += `<line x1="${cx}" y1="${cy}" x2="${x}" y2="${y}" class="ax"/><text x="${lx}" y="${ly + 4}" text-anchor="${Math.abs(lx - cx) < 8 ? 'middle' : lx > cx ? 'start' : 'end'}" font-size="12" font-weight="600">${esc(a[1])}</text>`; });
+  const poly = (p, col) => { const v = ax.map(a => pk(sd, p, a[0]) ?? 0); return `<polygon points="${v.map((x, i) => pt(i, x).join(',')).join(' ')}" fill="${col}" fill-opacity=".15" stroke="${col}" stroke-width="2.4"/>` + v.map((x, i) => { const [px, py] = pt(i, x); return `<circle cx="${px}" cy="${py}" r="3.4" fill="${col}"><title>${esc(p.name)} · ${esc(ax[i][1])}: ${Math.round(x)}th percentile</title></circle>`; }).join(''); };
+  if (B) s += poly(B, 'var(--b)');
+  s += poly(A, 'var(--a)');
+  $('radar').innerHTML = s;
+  const rows = [['Games', p => p.gp, f0], ['TOI/GP', p => p.toi, fmin], ['Goals', p => p.g, f0], ['Points', p => p.pts, f0], ['Pts/60 (5v5)', p => p.ipts60, f2],
+    ['xGF%', p => p.xgf_pct, f1], ['Rel xGF%', p => p.rel_xgf_pct, s1], ['Rel xGA/60', p => p.rel_xga60, s2], ['Own-zone starts', p => p.dzs, f1],
+    ['Defense score', p => scores(sd, p).d, f0], ['Offense score', p => scores(sd, p).o, f0], ['Role difficulty', p => scores(sd, p).c, f0], ['Composite', p => composite(scores(sd, p)), f1]];
+  const lo = new Set(['Rel xGA/60']);
+  const cell = (row, p, q) => { const v = row[1](p), w = q ? row[1](q) : null; const win = q && nz(v) && nz(w) && v !== w && (lo.has(row[0]) ? v < w : v > w); return `<td class="${win ? 'win' : ''}">${row[2](v)}</td>`; };
+  $('h2h-table').innerHTML = `<table class="tape"><thead><tr><th>${sLabel(S.season)}</th><th class="a">${esc(last(A.name))}</th><th class="b">${B ? esc(last(B.name)) : '—'}</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${cell(r, A, B)}${B ? cell(r, B, A) : '<td>—</td>'}</tr>`).join('')}</tbody></table>
+    ${B && B.grp !== A.grp ? `<p class="sub small">Different positions: each player's percentiles are against his own position group.</p>` : ''}<p class="sub small">● marks the better value in each row.</p>`;
+}
+
+// ------------------------------------------------------------------ scatters
+function scatter(svgId, xk, yk, xl, yl, notes, refs) {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A); const grp = A.grp;
+  const P = pool(sd, grp).list.filter(p => nz(p[xk]) && nz(p[yk]));
+  const board = boardIds(sd, grp).map(id => sd.byId.get(id)).filter(p => p && nz(p[xk]) && nz(p[yk]));
+  const B = seasonOf(S.B);
+  const all = [...P, ...board, ...(B && nz(B[xk]) && nz(B[yk]) ? [B] : [])];
+  const W = 520, H = 440, m = { l: 52, r: 16, t: 18, b: 46 };
+  const xd = extent(all.map(p => p[xk])), yd = extent(all.map(p => p[yk]));
+  const xs = niceStep(xd[1] - xd[0]), ys = niceStep(yd[1] - yd[0]);
+  const xf = v => Math.abs(xs) < 1 ? v.toFixed(xs < 0.1 ? 2 : 1) : v, yf = v => Math.abs(ys) < 1 ? v.toFixed(ys < 0.1 ? 2 : 1) : v;
+  const g = axes(W, H, m, xd, yd, ticks(xd[0], xd[1], xs), ticks(yd[0], yd[1], ys), xl, yl, xf, yf);
+  let s = g.s;
+  if (refs) { const [rx, ry] = refs(P); if (nz(rx)) s += `<line x1="${g.X(rx)}" x2="${g.X(rx)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-width="1"/>`; if (nz(ry)) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${g.Y(ry)}" y2="${g.Y(ry)}" stroke="var(--muted)" stroke-width="1"/>`; }
+  s += notes(g, W, H, m);
+  const bset = new Set(board.map(p => p.id));
+  P.forEach(p => { if (!bset.has(p.id)) s += `<circle cx="${g.X(p[xk])}" cy="${g.Y(p[yk])}" r="3" fill="var(--dot)"><title>${esc(p.name)}</title></circle>`; });
+  const mark = (p, col, r, big) => {
+    const x = g.X(p[xk]), y = g.Y(p[yk]); const anchor = x > W - m.r - 80 ? 'end' : 'start';
+    return `<circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="var(--panel)" stroke-width="1.5"><title>${esc(p.name)}: ${MET[xk] ? MET[xk].f(p[xk]) : p[xk]}, ${MET[yk] ? MET[yk].f(p[yk]) : p[yk]}</title></circle><text data-l="1" x="${anchor === 'end' ? x - 8 : x + 8}" y="${y - 8}" text-anchor="${anchor}" font-size="${big ? 13 : 11}" font-weight="${big ? 700 : 600}" fill="${col}">${esc(last(p.name))}</text>`;
+  };
+  board.forEach(p => { if (p.id !== S.A && p.id !== S.B) s += mark(p, 'var(--board)', 4.5, false); });
+  if (B && nz(B[xk]) && nz(B[yk])) s += mark(B, 'var(--b)', 6.5, true);
+  s += mark(A, 'var(--a)', 7, true);
+  const el = $(svgId); el.innerHTML = s; placeLabels(el);
+}
+const median = a => { const v = a.filter(nz).sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : null; };
+function renderEnv() {
+  scatter('sc1', 'xga60', 'xgf60', 'xGA/60 at 5v5 (fewer is better →  left)', 'xGF/60 at 5v5', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Drives play, suppresses</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Bleeds chances, little offense</text>`, P => [median(P.map(p => p.xga60)), median(P.map(p => p.xgf60))]);
+  scatter('sc2', 'dzs', 'rel_xgf_pct', 'Own-zone start % at 5v5 (tougher →  right)', 'Rel xGF% (team with him minus without)', (g, W, H, m) => `<text x="${W - m.r - 4}" y="${m.t + 12}" text-anchor="end" class="lab">Hard minutes, still lifts the team</text><text x="${m.l + 6}" y="${m.t + 12}" class="lab">Sheltered, lifts the team</text>`, P => [median(P.map(p => p.dzs)), 0]);
+}
+
+// ------------------------------------------------------------------ linemates
+async function renderMates() {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A);
+  const L = await loadLines(S.season);
+  if (S.A !== A.id || sd !== S.seasons[S.season]) return;
+  const kind = A.grp === 'D' ? 'P' : 'L';
+  const mine = (L.lines || []).filter(r => r[2] === kind && r[0].includes(A.id));
+  $('mates-sub').textContent = A.grp === 'D'
+    ? `${A.name}'s 5v5 results with and without each defense partner in ${sLabel(S.season)}. "Without" is everything else he played, which comes mostly with other partners.`
+    : `${A.name}'s 5v5 results with and without each linemate in ${sLabel(S.season)}, built from MoneyPuck's forward-line data.`;
+  if (!mine.length) { $('mates').innerHTML = ''; $('combos').innerHTML = `<p class="empty">No ${kind === 'P' ? 'pairing' : 'line'} data for this player and season.</p>`; return; }
+  const tog = new Map();
+  for (const r of mine) for (const id of r[0]) { if (id === A.id) continue; const t = tog.get(id) || { t: 0, xgf: 0, xga: 0, gf: 0, ga: 0 }; t.t += r[3]; t.xgf += r[4]; t.xga += r[5]; t.gf += r[8]; t.ga += r[9]; tog.set(id, t); }
+  const tot = p => ({ t: p.t5, xgf: p.xgf5, xga: p.xga5, gf: p.gf5, ga: p.ga5 });
+  const minus = (a, b) => ({ t: a.t - b.t, xgf: a.xgf - b.xgf, xga: a.xga - b.xga, gf: a.gf - b.gf, ga: a.ga - b.ga });
+  const xp = o => o.t >= 600 ? f1(share(o.xgf, o.xga)) : '—';
+  const mn = o => f0(Math.max(0, o.t) / 60);
+  const rows = [...tog.entries()].filter(([, t]) => t.t >= 1800).sort((a, b) => b[1].t - a[1].t).slice(0, 10);
+  const At = tot(A);
+  $('mates').innerHTML = `<thead><tr><th>${kind === 'P' ? 'Partner' : 'Linemate'}</th><th>Min together</th><th>xGF% together</th><th>Goals together</th><th>${esc(last(A.name))} without · min</th><th>xGF%</th><th>Partner without ${esc(last(A.name))} · min</th><th>xGF%</th></tr></thead><tbody>` +
+    rows.map(([id, t]) => {
+      const T = sd.byId.get(id); const aw = minus(At, t); const tw = T ? minus(tot(T), t) : null;
+      const xt = share(t.xgf, t.xga), xa = aw.t >= 600 ? share(aw.xgf, aw.xga) : null, xb = tw && tw.t >= 600 ? share(tw.xgf, tw.xga) : null;
+      const c = (v, ref) => nz(v) && nz(ref) ? (v > ref ? 'pos' : v < ref ? 'neg' : '') : '';
+      return `<tr><td>${esc(T ? T.name : id)}</td><td>${mn(t)}</td><td>${f1(xt)}</td><td>${t.gf}-${t.ga}</td><td>${mn(aw)}</td><td class="${c(xa, xt)}">${xp(aw)}</td><td>${tw ? mn(tw) : '—'}</td><td class="${c(xb, xt)}">${tw ? xp(tw) : '—'}</td></tr>`;
+    }).join('') + '</tbody>';
+  const combos = mine.slice().sort((a, b) => b[3] - a[3]).slice(0, 6);
+  $('combos').innerHTML = `<p class="minihead" style="margin-top:16px">Most-used ${kind === 'P' ? 'pairs' : 'lines'}</p><div class="scroll"><table class="tbl"><thead><tr><th>${kind === 'P' ? 'Pair' : 'Line'}</th><th>Min</th><th>xGF%</th><th>CF%</th><th>Goals</th></tr></thead><tbody>` +
+    combos.map(r => `<tr><td>${r[0].map(id => esc(last((sd.byId.get(id) || {}).name || id))).join(' – ')}</td><td>${f0(r[3] / 60)}</td><td>${f1(share(r[4], r[5]))}</td><td>${f1(share(r[6], r[7]))}</td><td>${r[8]}-${r[9]}</td></tr>`).join('') + '</tbody></table></div><p class="sub small">Green and red show whether a player did better or worse apart than together. Samples under 10 minutes are left blank.</p>';
+}
+
+// ------------------------------------------------------------------ team swap
+function renderSwap() {
+  const sd = S.seasons[S.season]; const A = seasonOf(S.A);
+  const teams = sd.teams.filter(t => t !== A.team);
+  if (!teams.includes(S.swapTeam)) S.swapTeam = teams[0];
+  $('swapTeam').innerHTML = teams.map(t => `<option${t === S.swapTeam ? ' selected' : ''}>${t}</option>`).join('');
+  const cands = sd.players.filter(p => p.team === S.swapTeam && p.grp === A.grp && p.t5 >= 3600 && nz(p.off_xgf60)).sort((a, b) => b.t5 - a.t5);
+  if (!cands.find(p => p.id === S.swapOut)) S.swapOut = cands[0] ? cands[0].id : null;
+  $('swapOut').innerHTML = cands.map(p => `<option value="${p.id}"${p.id === S.swapOut ? ' selected' : ''}>${esc(p.name)} (${fmin(p.ev)} 5v5/gp)</option>`).join('');
+  const R = sd.byId.get(S.swapOut);
+  if (!R || !nz(A.off_xgf60)) { $('swap').innerHTML = '<p class="empty">Not enough 5v5 data for this swap.</p>'; return; }
+  const rel = p => ({ f: p.xgf60 - p.off_xgf60, a: p.xga60 - p.off_xga60 });
+  const off = p => ({ f: p.off_xgf60, a: p.off_xga60 });
+  const ra = rel(A), rr = rel(R);
+  const S1 = { f: off(R).f + ra.f, a: off(R).a + ra.a }; // A on R's team
+  const S2 = { f: off(A).f + rr.f, a: off(A).a + rr.a }; // R on A's team
+  const actA = { f: A.xgf60, a: A.xga60 }, actR = { f: R.xgf60, a: R.xga60 };
+  const minA = A.ev * 82, minR = R.ev * 82;
+  const diff = (o, mins) => (o.f - o.a) * mins / 60;
+  const sw1 = diff(S1, minA) - diff(actR, minR), sw2 = diff(S2, minR) - diff(actA, minA);
+  const pc = o => share(o.f, o.a);
+  const word = v => v >= 0 ? 'better' : 'worse';
+  $('swap').innerHTML = `<div class="swapgrid">
+    <div class="v a"><b>${S.swapTeam} gets ${word(sw1)}</b><p>With ${esc(A.name)} instead of ${esc(R.name)}, ${S.swapTeam} projects to ${f1(pc(S1))}% of 5v5 expected goals with him on the ice, against ${f1(pc(actR))}% with ${esc(last(R.name))}. Over a full season that's ${s1(sw1)} expected-goal differential, about ${s1(sw1 / 6)} wins.</p></div>
+    <div class="v b"><b>${A.team} gets ${word(sw2)}</b><p>With ${esc(R.name)} instead, ${A.team} projects to ${f1(pc(S2))}%, against ${f1(pc(actA))}% with ${esc(last(A.name))}: ${s1(sw2)} expected goals, about ${s1(sw2 / 6)} wins.</p></div></div>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Scenario</th><th>xGF/60</th><th>xGA/60</th><th>xGF%</th><th>xG diff per 82 games</th></tr></thead><tbody>
+    ${[[`${A.name} on ${A.team} (actual)`, actA, minA], [`${R.name} on ${A.team} (swap)`, S2, minR], [`${A.team} with neither`, off(A), minA], [`${R.name} on ${S.swapTeam} (actual)`, actR, minR], [`${A.name} on ${S.swapTeam} (swap)`, S1, minA], [`${S.swapTeam} with neither`, off(R), minR]]
+      .map(([n, o, mi]) => { const d = diff(o, mi); return `<tr><td>${esc(n)}</td><td>${f2(o.f)}</td><td>${f2(o.a)}</td><td>${f1(pc(o))}</td><td class="${d >= 0 ? 'pos' : 'neg'}">${s1(d)}</td></tr>`; }).join('')}
+    </tbody></table></div><p class="sub small">Uses each player's own 5v5 minutes per game, scaled to 82 games. A common rule of thumb is about 6 goals of differential per win. The model assumes a player's impact moves with him intact; new partners, coaches and systems all change that in reality.</p>`;
+}
+
+// ------------------------------------------------------------------ careers
+function careerRows(c, mode, ref) {
+  if (mode === 'age') return c.S.filter(s => nz(s.age) && s.age <= ref);
+  const full = c.S.filter(s => s.full).slice(0, ref); const lastY = full.length ? full[full.length - 1].y : -1; return c.S.filter(s => s.y <= lastY);
+}
+function renderCareer() {
+  const a = careerOf(S.A), b = S.B ? careerOf(S.B) : null;
+  if (!a) { $('tape').innerHTML = ''; $('atsame').innerHTML = ''; $('cumu').innerHTML = ''; $('seas').innerHTML = ''; $('tape').insertAdjacentHTML('afterend', ''); return; }
+  const ta = ctot(a.S), tb = b ? ctot(b.S) : null;
+  const head = `<thead><tr><th></th><th class="a">${esc(last(a.name))}</th><th class="b">${b ? esc(last(b.name)) : '—'}</th></tr></thead>`;
+  const row = (l, va, vb, f, better) => { let wa = '', wb = ''; if (better && nz(va) && nz(vb) && va !== vb) { const aw = better === 'hi' ? va > vb : va < vb; wa = aw ? 'win' : ''; wb = aw ? '' : 'win'; } return `<tr><td>${l}</td><td class="${wa}">${f(va)}</td><td class="${wb}">${b ? f(vb) : '—'}</td></tr>`; };
+  const yrs = c => c.S.length ? `${sLabel(c.S[0].y)} to ${sLabel(c.S[c.S.length - 1].y)}` : '—';
+  const status = c => c.hof ? 'Hall of Fame' : (c.S.length && c.S[c.S.length - 1].y >= S.idx.current - 1 ? 'Active' : '—');
+  const trophies = c => awardLine(c.awards.map(x => x[0]).filter(x => x !== 'Cup'));
+  const txt = (l, x, y) => `<tr><td>${l}</td><td>${x}</td><td>${b ? y : '—'}</td></tr>`;
+  $('tape').innerHTML = head + '<tbody>' +
+    txt('Position · shoots · size', `${a.pos || ''} · ${a.shoots || '?'} · ${htFmt(a.ht)} ${a.wt || ''}`, b ? `${b.pos || ''} · ${b.shoots || '?'} · ${htFmt(b.ht)} ${b.wt || ''}` : '') +
+    txt('Seasons', `${ta.n}<br><small>${yrs(a)}</small>`, b ? `${tb.n}<br><small>${yrs(b)}</small>` : '') +
+    row('Games', ta.gp, tb && tb.gp, f0) + row('Goals', ta.g, tb && tb.g, f0) + row('Points', ta.pts, tb && tb.pts, f0) +
+    row('Era-adj. points', ta.adj, tb && tb.adj, f0) + row('Era-adj. pts / 82', ta.adj82, tb && tb.adj82, f1, 'hi') + row('Era-adj. goals / 82', ta.adjg82, tb && tb.adjg82, f1, 'hi') +
+    row('Avg TOI (tracked years)', ta.toi, tb && tb.toi, fmin, 'hi') + row('Rel xGF% (2008+)', ta.rel_xgf_pct, tb && tb.rel_xgf_pct, s1, 'hi') + row('Rel xGA/60 (2008+)', ta.rel_xga60, tb && tb.rel_xga60, s2, 'lo') +
+    txt('Trophies', trophies(a), b ? trophies(b) : '') + row('Stanley Cups', ta.cups, tb && tb.cups, f0, 'hi') + txt('Status', status(a), b ? status(b) : '') + '</tbody>';
+  // same point
+  let ra, rb, lab;
+  if (S.cmode === 'age') { const mx = Math.max(...a.S.filter(s => !s.partial).map(s => s.age).filter(nz), ...(a.S.every(s => s.partial) ? a.S.map(s => s.age).filter(nz) : [])); ra = careerRows(a, 'age', mx); rb = b ? careerRows(b, 'age', mx) : []; lab = `through age ${mx}`; }
+  else { const n = a.S.filter(s => s.full).length || a.S.length; ra = careerRows(a, 'stage', n); rb = b ? careerRows(b, 'stage', n) : []; lab = `first ${n} full seasons`; }
+  const x = ctot(ra), y = ctot(rb);
+  const span = r => r.length ? `ages ${r[0].age ?? '?'}–${r[r.length - 1].age ?? '?'}` : '—';
+  $('atlab').textContent = 'At the same point · ' + lab;
+  $('atsame').innerHTML = head + '<tbody>' + txt('Span', span(ra), span(rb)) + row('Games', x.gp, b && y.gp, f0) + row('Points', x.pts, b && y.pts, f0) +
+    row('Era-adj. points', x.adj, b && y.adj, f0, 'hi') + row('Era-adj. pts / 82', x.adj82, b && y.adj82, f1, 'hi') + row('Era-adj. goals / 82', x.adjg82, b && y.adjg82, f1, 'hi') +
+    row('Avg TOI (tracked years)', x.toi, b && y.toi, fmin, 'hi') + row('Rel xGF% (2008+)', x.rel_xgf_pct, b && y.rel_xgf_pct, s1, 'hi') + row('Major awards by then', x.major, b && y.major, f0, 'hi') + row('Cups by then', x.cups, b && y.cups, f0, 'hi') + '</tbody>';
+  drawCumu(a, b); drawSeas(a, b);
+}
+function drawCumu(a, b) {
+  const W = 540, H = 300, m = { l: 48, r: 16, t: 14, b: 36 };
+  const cum = c => { let t = 0; return c.S.filter(s => nz(s.age)).map(s => { t += s.adjPts; return [s.age, t]; }); };
+  const da = cum(a), db = b ? cum(b) : [];
+  const all = [...da, ...db]; if (!all.length) { $('cumu').innerHTML = ''; return; }
+  const x0 = Math.min(...all.map(d => d[0])), x1 = Math.max(...all.map(d => d[0])) || x0 + 1;
+  const ymax = Math.max(...all.map(d => d[1])) * 1.08 || 10;
+  const g = axes(W, H, m, [x0, Math.max(x1, x0 + 1)], [0, ymax], ticks(x0, x1, x1 - x0 > 12 ? 4 : 2), ticks(0, ymax, niceStep(ymax, 5)), 'Age', null);
+  const path = (d, c, w) => `<polyline points="${d.map(([x, y]) => g.X(x) + ',' + g.Y(y)).join(' ')}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linejoin="round"/>` + d.map(([x, y]) => `<circle cx="${g.X(x)}" cy="${g.Y(y)}" r="2.6" fill="${c}"/>`).join('');
+  let s = g.s;
+  if (db.length) s += path(db, 'var(--b)', 2);
+  s += path(da, 'var(--a)', 3);
+  const ea = da[da.length - 1];
+  s += `<text data-l="1" x="${g.X(ea[0]) + 6}" y="${g.Y(ea[1]) + 4}" font-size="12" font-weight="700" fill="var(--a)">${esc(last(a.name))} ${f0(ea[1])}</text>`;
+  if (db.length) { const eb = db[db.length - 1]; s += `<text data-l="1" x="${Math.min(g.X(eb[0]) + 6, W - 90)}" y="${g.Y(eb[1]) - 6}" font-size="12" font-weight="700" fill="var(--b)">${esc(last(b.name))} ${f0(eb[1])}</text>`; }
+  $('cumu').innerHTML = s; placeLabels($('cumu'));
+}
+function drawSeas(a, b) {
+  const W = 540, H = 300, m = { l: 40, r: 12, t: 14, b: 36 };
+  const pa = a.S.filter(s => s.full && nz(s.age)), pb = b ? b.S.filter(s => s.full && nz(s.age)) : [];
+  const all = [...pa, ...pb]; if (!all.length) { $('seas').innerHTML = ''; return; }
+  const x0 = Math.min(...all.map(s => s.age)), x1 = Math.max(...all.map(s => s.age));
+  const ymax = Math.max(...all.map(s => s.adj82)) * 1.12 || 10;
+  const g = axes(W, H, m, [x0 - 0.5, x1 + 0.5], [0, ymax], ticks(x0, x1, x1 - x0 > 12 ? 4 : 2), ticks(0, ymax, niceStep(ymax, 5)), 'Age · seasons under 40% of the schedule left out', null);
+  const bw = Math.max(2, Math.min(12, (W - m.l - m.r) / (x1 - x0 + 1) / (b ? 2 : 1) - 1));
+  let s = g.s;
+  const bars = (c, Ss, col, off) => Ss.map(x => { const star = x.aw.some(t => MAJOR.includes(t) && t !== 'Calder'); return `<rect x="${g.X(x.age) + off}" y="${g.Y(x.adj82)}" width="${bw}" height="${g.Y(0) - g.Y(x.adj82)}" fill="${col}"><title>${esc(c.name)} ${sLabel(x.y)} (${esc(x.team)}): ${f1(x.adj82)} era-adj pts/82${x.aw.length ? ' · ' + x.aw.join(', ') : ''}</title></rect>` + (star ? `<text x="${g.X(x.age) + off + bw / 2}" y="${g.Y(x.adj82) - 4}" text-anchor="middle" font-size="10" fill="${col}">★</text>` : ''); }).join('');
+  if (b) s += bars(b, pb, 'var(--b)', 0);
+  s += bars(a, pa, 'var(--a)', b ? -bw : -bw / 2);
+  s += `<text x="${W - m.r}" y="${m.t + 10}" text-anchor="end" class="lab">★ Hart, Norris, Selke, Art Ross, Richard, Lindsay or Conn Smythe</text>`;
+  $('seas').innerHTML = s;
+}
+
+// ------------------------------------------------------------------ arcs + comps
+const AMET = [
+  { k: 'adj82', l: 'Era-adj. pts / 82', f: s => s.full ? s.adj82 : null, fmt: f1, note: 'Era-adjusted points per 82 games. Seasons under 40% of the schedule are left out.' },
+  { k: 'adjg82', l: 'Era-adj. goals / 82', f: s => s.full ? s.adjg82 : null, fmt: f1, note: 'Era-adjusted goals per 82 games.' },
+  { k: 'toi', l: 'Ice time', f: s => s.full ? s.toi : null, fmt: fmin, note: 'Average ice time per game. The NHL only tracked it from 1997-98 on.' },
+  { k: 'gp', l: 'Games played', f: s => s.partial ? null : s.gp, fmt: f0, note: 'Games played each season. Short seasons (lockouts, 2019-20, 2020-21) show as dips.' },
+  { k: 'rel_xgf_pct', l: 'Rel xGF% (2008+)', f: s => s.mpgp >= 20 ? s.rel_xgf_pct : null, fmt: s1, note: "MoneyPuck's relative xGF%: the team's share of 5v5 expected goals with him on the ice minus with him off. 2008-09 on." },
+  { k: 'rel_xga60', l: 'Rel xGA/60 (2008+)', f: s => s.mpgp >= 20 ? s.rel_xga60 : null, fmt: s2, note: 'Chances against per 60 with him on the ice minus with him off. Lower is better, so the axis is flipped: up is better.', flip: true },
+];
+const PAL = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
+function arcPlayers() { const ids = []; [S.B, ...S.arcSel].forEach(id => { if (id && id !== S.A && !ids.includes(id)) ids.push(id); }); return ids.slice(0, 6); }
+function renderArcs() {
+  const M = AMET.find(m => m.k === S.arcMetric);
+  $('ametric').innerHTML = AMET.map(m => `<button type="button" data-am="${m.k}" aria-pressed="${m.k === S.arcMetric}">${m.l}</button>`).join('');
+  const others = arcPlayers();
+  $('achips').innerHTML = [S.A, ...others].map((id, i) => { const c = careerOf(id); const col = i === 0 ? 'var(--a)' : PAL[i - 1]; return `<button type="button" ${i ? `data-rmarc="${id}"` : ''} title="${i ? 'Remove' : 'Main player'}"><i style="background:${col}"></i>${esc(c ? c.name : id)}${i ? '<b>×</b>' : ''}</button>`; }).join('');
+  $('arcnote').textContent = M.note;
+  const series = [S.A, ...others].map((id, i) => ({ c: careerOf(id), col: i === 0 ? 'var(--a)' : PAL[i - 1], main: i === 0 })).filter(x => x.c);
+  const pts = series.flatMap(x => x.c.S.map(s => [s.age, M.f(s)]).filter(d => nz(d[0]) && nz(d[1])));
+  const W = 1080, H = 400, m = { l: 56, r: 110, t: 16, b: 40 };
+  if (!pts.length) { $('arc').innerHTML = `<text x="20" y="40" class="lab">No data for this measure.</text>`; return; }
+  const x0 = Math.min(18, ...pts.map(d => d[0])), x1 = Math.max(36, ...pts.map(d => d[0]));
+  let yd = extent(pts.map(d => d[1]), 0.08); if (M.k === 'adj82' || M.k === 'adjg82' || M.k === 'gp') yd[0] = 0;
+  if (M.flip) yd = [yd[1], yd[0]];
+  const st = niceStep(Math.abs(yd[1] - yd[0]), 6);
+  const g = axes(W, H, m, [x0, x1], yd, ticks(x0, x1, 2), ticks(Math.min(...yd), Math.max(...yd), st), 'Age', M.l, null, M.k === 'toi' ? (v => v + ':00') : (v => +v.toFixed(2)));
+  let s = g.s;
+  if (M.k.startsWith('rel')) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${g.Y(0)}" y2="${g.Y(0)}" stroke="var(--muted)"/>`;
+  const draw = x => {
+    const d = x.c.S.map(sn => ({ s: sn, v: M.f(sn) })).filter(o => nz(o.v) && nz(o.s.age));
+    if (!d.length) return '';
+    const segs = [[d[0]]]; for (let i = 1; i < d.length; i++) { if (d[i].s.age - d[i - 1].s.age > 2) segs.push([]); segs[segs.length - 1].push(d[i]); }
+    let o = segs.map(sg => `<polyline points="${sg.map(p => g.X(p.s.age) + ',' + g.Y(p.v)).join(' ')}" fill="none" stroke="${x.col}" stroke-width="${x.main ? 3.5 : 2}" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+    o += d.map(p => `<circle cx="${g.X(p.s.age)}" cy="${g.Y(p.v)}" r="${x.main ? 4 : 3}" fill="${x.col}"><title>${esc(x.c.name)} · ${sLabel(p.s.y)} (${esc(p.s.team)}, age ${p.s.age}): ${M.fmt(p.v)}${p.s.aw.length ? ' · ' + p.s.aw.join(', ') : ''}</title></circle>`).join('');
+    const e = d[d.length - 1];
+    return o + `<text data-l="1" x="${g.X(e.s.age) + 7}" y="${g.Y(e.v) + 4}" font-size="${x.main ? 13 : 12}" font-weight="700" fill="${x.col}">${esc(last(x.c.name))}</text>`;
+  };
+  series.slice().reverse().forEach(x => { s += draw(x); });
+  $('arc').innerHTML = s; placeLabels($('arc'));
+  renderComps();
+}
+function renderComps() {
+  const a = careerOf(S.A); if (!a || !a.S.length) { $('comps').innerHTML = ''; return; }
+  const X = Math.max(...a.S.filter(s => !s.partial).map(s => s.age).filter(nz));
+  if (!Number.isFinite(X)) { $('comps').innerHTML = ''; $('comps-sub').textContent = 'Not enough games yet to find comps.'; return; }
+  const me = ctot(a.S.filter(s => s.age <= X && !s.partial));
+  if (me.gp < 40) { $('comps-h').textContent = 'Closest comps'; $('comps-sub').textContent = 'Not enough games yet to find comps.'; $('comps').innerHTML = ''; return; }
+  const minGp = Math.max(100, Math.round(me.gp * 0.5));
+  const cands = [];
+  for (const id of CAR.rowsBy.keys()) {
+    if (id === a.id) continue;
+    const bio = CAR.players[id]; if (!bio || grpOf(bio[1]) !== a.grp) continue;
+    const c = careerOf(id); if (!c) continue;
+    const thru = c.S.filter(s => nz(s.age) && s.age <= X && !s.partial);
+    const t = ctot(thru); if (t.gp < minGp) continue;
+    cands.push({ c, t, after: ctot(c.S) });
+  }
+  const feats = [['adj82', 1], ['adjg82', 0.6]];
+  if (me.toiCover > 0.6) feats.push(['toi', 1]);
+  if (me.mpgp >= 100) feats.push(['rel_xgf_pct', 1], ['rel_xga60', 1]);
+  const sd = {}; feats.forEach(([k]) => { const v = cands.map(x => x.t[k]).filter(nz); const mu = avg(v); sd[k] = Math.sqrt(avg(v.map(x => (x - mu) ** 2))) || 1; });
+  cands.forEach(x => { let sum = 0, w = 0; feats.forEach(([k, wt]) => { if (k === 'toi' && x.t.toiCover < 0.6) return; if (k.startsWith('rel') && x.t.mpgp < 100) return; if (!nz(x.t[k]) || !nz(me[k])) return; sum += wt * ((x.t[k] - me[k]) / sd[k]) ** 2; w += wt; }); x.d = w >= 1.5 ? Math.sqrt(sum / w) : Infinity; });
+  const top = cands.filter(x => Number.isFinite(x.d)).sort((p, q) => p.d - q.d).slice(0, 12);
+  const maxD = Math.max(1, ...top.map(x => x.d));
+  $('comps-h').textContent = `Who looked most like ${a.name} through age ${X}, and how their careers turned out`;
+  $('comps-sub').textContent = `Closeness compares era-adjusted points and goals per 82${feats.some(f => f[0] === 'toi') ? ', ice time' : ''}${feats.some(f => f[0].startsWith('rel')) ? ', and relative xGF% and xGA/60 where both have 2008+ data' : ''}, against ${GRP_NAME[a.grp]} with ${minGp}+ games by that age. Production and on-ice impact only; it doesn't capture size or style. Click a name to add it to the chart.`;
+  $('comps').innerHTML = `<thead><tr><th>Player</th><th>Years</th><th>GP to ${X}</th><th>Adj pts/82</th><th>Adj G/82</th><th>TOI</th><th>Rel xGF%</th><th style="min-width:110px">Closeness</th><th>Career trophies</th><th>Cups</th><th>Status</th></tr></thead><tbody>` +
+    `<tr class="isA"><td>${esc(a.name)}</td><td>${a.S[0] ? a.S[0].y : ''}–</td><td>${me.gp}</td><td>${f1(me.adj82)}</td><td>${f1(me.adjg82)}</td><td>${fmin(me.toi)}</td><td>${s1(me.rel_xgf_pct)}</td><td class="lab">reference</td><td>${esc(awardLine(a.awards.map(x => x[0]).filter(x => x !== 'Cup')))}</td><td>${a.awards.filter(x => x[0] === 'Cup').length}</td><td>—</td></tr>` +
+    top.map(x => { const c = x.c; const cl = Math.round(100 * (1 - x.d / (maxD * 1.15))); return `<tr><td><a href="#" data-addarc="${c.id}">${esc(c.name)}</a></td><td>${c.S[0].y}–${c.S[c.S.length - 1].y + 1}</td><td>${x.t.gp}</td><td>${f1(x.t.adj82)}</td><td>${f1(x.t.adjg82)}</td><td>${fmin(x.t.toi)}</td><td>${s1(x.t.rel_xgf_pct)}</td><td><div class="cl" title="${cl}"><i style="width:${cl}%"></i></div></td><td>${esc(awardLine(c.awards.map(z => z[0]).filter(z => z !== 'Cup')))}</td><td>${x.after.cups}</td><td>${c.hof ? 'HOF' : c.S[c.S.length - 1].y >= S.idx.current - 1 ? 'Active' : ''}</td></tr>`; }).join('') + '</tbody>';
+}
+
+// ------------------------------------------------------------------ orchestration
+function setHash() { const h = `#a=${S.A || ''}${S.B ? '&b=' + S.B : ''}&s=${S.season}`; if (location.hash !== h) history.replaceState(null, '', h); }
+function readHash() { const o = {}; location.hash.replace(/^#/, '').split('&').forEach(kv => { const [k, v] = kv.split('='); if (k) o[k] = v; }); return o; }
+function hasSeason(id, y) { const p = S.byId.get(id); return p && p.mask && (p.mask >> (y - S.idx.mp_first)) & 1; }
+function bestSeason(id) {
+  if (hasSeason(id, S.season)) return S.season;
+  const p = S.byId.get(id); if (!p || !p.mask) return S.season;
+  for (let y = S.idx.current; y >= S.idx.mp_first; y--) if (hasSeason(id, y)) { const cur = y === S.idx.current; if (cur && hasSeason(id, y - 1) && (S.idx.current_gp || 0) < 20) return y - 1; return y; }
+  return S.season;
+}
+function renderSeasonSelect() {
+  const ys = S.idx.mp_seasons.slice().reverse();
+  $('season').innerHTML = ys.map(y => `<option value="${y}"${y === S.season ? ' selected' : ''}>${sLabel(y)}${hasSeason(S.A, y) ? '' : ' ·'}</option>`).join('');
+}
+async function render() {
+  setHash(); renderSeasonSelect();
+  const sd = await loadSeason(S.season).catch(() => null);
+  const A = sd ? sd.byId.get(S.A) : null;
+  const pa = S.byId.get(S.A) || {};
+  safe('sec-profile', renderProfile);
+  $('part1-h').textContent = A ? `${pa.name}'s ${sLabel(S.season)}` : 'The season';
+  const seasonSecs = ['sec-rank', 'sec-matrix', 'sec-h2h', 'sec-env', 'sec-mates', 'sec-swap'];
+  seasonSecs.forEach(id => { const el = $(id); el.querySelectorAll(':scope > .nodata').forEach(x => x.remove()); [...el.children].forEach(ch => { if (!ch.classList.contains('head') && !ch.classList.contains('nodata')) ch.hidden = !A; }); if (!A) el.insertAdjacentHTML('beforeend', `<p class="empty nodata">No ${sLabel(S.season)} MoneyPuck data for ${esc(pa.name || 'this player')}.${pa.mask ? ' Pick one of his seasons in the Season box.' : ' Advanced stats start in 2008-09.'}</p>`); });
+  if (A) {
+    safe('sec-rank', renderRank); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); safe('sec-env', renderEnv); safe('sec-swap', renderSwap);
+    renderMates().catch(e => console.error(e));
+  }
+  if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
+}
+function setA(id) { if (!id) return; if (id === S.B) S.B = S.A; S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null; S.season = bestSeason(id); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function setB(id) { if (!id || id === S.A) return; S.B = id; if (!hasSeason(S.A, S.season) && hasSeason(id, S.season)) { /* keep */ } render(); }
+
+function wire() {
+  makeSearch('qA', setA); makeSearch('qB', setB);
+  makeSearch('qBoard', id => { if (!S.extra.includes(id)) S.extra.push(id); S.removed.delete(id); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); }, { filter: p => hasSeason(p.id, S.season) });
+  makeSearch('qArc', id => { if (!S.arcSel.includes(id) && id !== S.A) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
+  $('season').addEventListener('change', e => { S.season = +e.target.value; render(); });
+  $('rank-ctl').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pool) { S.pool = b.dataset.pool; S.cache = {}; } if (b.dataset.pre) { const p = PRESETS[+b.dataset.pre]; S.w = { d: p[1], o: p[2], c: p[3] }; } render(); });
+  $('weights').addEventListener('input', e => { const k = e.target.dataset.w; if (!k) return; S.w[k] = +e.target.value; safe('sec-rank', renderRank); });
+  $('weights').addEventListener('change', () => { safe('sec-profile', renderProfile); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); });
+  $('rank').addEventListener('click', e => { const n = e.target.closest('[data-id]'); if (n) setA(+n.dataset.id); });
+  $('matrix').addEventListener('click', e => { const s = e.target.closest('[data-sort]'); if (s) { S.sortKey = s.dataset.sort; safe('sec-matrix', renderMatrix); return; } const r = e.target.closest('[data-rm]'); if (r) { const id = +r.dataset.rm; S.extra = S.extra.filter(x => x !== id); S.removed.add(id); if (id === S.B) S.B = null; render(); } });
+  $('mtoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.id === 'mv') S.showPct = !S.showPct; if (b.id === 'ms') S.sortKey = null; safe('sec-matrix', renderMatrix); });
+  $('swapTeam').addEventListener('change', e => { S.swapTeam = e.target.value; S.swapOut = null; safe('sec-swap', renderSwap); });
+  $('swapOut').addEventListener('change', e => { S.swapOut = +e.target.value; safe('sec-swap', renderSwap); });
+  $('cmode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cmode = b.dataset.m; $('cmode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); safe('sec-career', renderCareer); });
+  $('ametric').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.arcMetric = b.dataset.am; safe('sec-arcs', renderArcs); });
+  $('achips').addEventListener('click', e => { const b = e.target.closest('[data-rmarc]'); if (!b) return; const id = +b.dataset.rmarc; S.arcSel = S.arcSel.filter(x => x !== id); if (id === S.B) S.B = null; render(); });
+  $('comps').addEventListener('click', e => { const a = e.target.closest('[data-addarc]'); if (!a) return; e.preventDefault(); const id = +a.dataset.addarc; if (!S.arcSel.includes(id)) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
+  window.addEventListener('hashchange', () => { const h = readHash(); const a = +h.a, b = +h.b, s = +h.s; let ch = false; if (a && a !== S.A && S.byId.has(a)) { S.A = a; ch = true; } if (b && b !== S.B && S.byId.has(b)) { S.B = b; ch = true; } if (s && s !== S.season && S.idx.mp_seasons.includes(s)) { S.season = s; ch = true; } if (ch) render(); });
+}
+
+async function init() {
+  try {
+    const idx = await getJSON('data/index.json');
+    const f = idx.fields;
+    idx.list = idx.players.map(r => { const o = {}; f.forEach((k, i) => { o[k] = r[i]; }); o.mask = o.mp_mask; o.n = norm(o.name); return o; });
+    S.idx = idx; idx.list.forEach(p => S.byId.set(p.id, p));
+    $('updated').textContent = `Data updated ${idx.updated.replace('T', ' ').replace('Z', ' UTC')}.`;
+    const h = readHash();
+    const top = idx.list.filter(p => p.mask).sort((a, b) => b.gp - a.gp)[0];
+    S.A = S.byId.has(+h.a) ? +h.a : S.byId.has(8481542) ? 8481542 : top.id;
+    S.B = h.b === undefined ? (S.byId.has(8480069) && S.A !== 8480069 ? 8480069 : null) : (S.byId.has(+h.b) ? +h.b : null);
+    S.season = idx.mp_seasons.includes(+h.s) ? +h.s : idx.mp_seasons[idx.mp_seasons.length - 1];
+    if (!h.s) {
+      // early in a season the current year is thin; start on the last full season
+      const cur = await loadSeason(S.season).catch(() => null);
+      if (cur && cur.gpmax < 20 && idx.mp_seasons.includes(S.season - 1)) S.season -= 1;
+      S.season = bestSeason(S.A);
+    }
+    wire();
+    $('status').hidden = true;
+    await render();
+    loadCareers().then(() => render()).catch(e => { console.error(e); $('sec-career').insertAdjacentHTML('beforeend', '<p class="empty">Career data could not be loaded.</p>'); });
+  } catch (e) {
+    console.error(e);
+    $('status').textContent = 'Could not load the data files. If this is a new site, the first data build may still be running; check the Actions tab on GitHub.';
+    $('status').classList.add('err');
+  }
+}
+init();
