@@ -617,6 +617,76 @@ function renderComps() {
     top.map(x => { const c = x.c; const cl = Math.round(100 * (1 - x.d / (maxD * 1.15))); return `<tr><td><a href="#" data-addarc="${c.id}">${esc(c.name)}</a></td><td>${c.S[0].y}–${c.S[c.S.length - 1].y + 1}</td><td>${x.t.gp}</td><td>${f1(x.t.adj82)}</td><td>${f1(x.t.adjg82)}</td><td>${fmin(x.t.toi)}</td><td>${s1(x.t.rel_xgf_pct)}</td><td><div class="cl" title="${cl}"><i style="width:${cl}%"></i></div></td><td>${esc(awardLine(c.awards.map(z => z[0]).filter(z => z !== 'Cup')))}</td><td>${x.after.cups}</td><td>${c.hof ? 'HOF' : c.S[c.S.length - 1].y >= S.idx.current - 1 ? 'Active' : ''}</td></tr>`; }).join('') + '</tbody>';
 }
 
+
+// ------------------------------------------------------------------ shot maps
+const SHOTS = {};
+const SH = { sit: 'all', view: 'freq' };
+async function loadShots(y) {
+  if (SHOTS[y] !== undefined) return SHOTS[y];
+  try { SHOTS[y] = await getJSON(`data/shots/${y}.json`); } catch (e) { SHOTS[y] = null; }
+  return SHOTS[y];
+}
+function shotCells(list) { const m = new Map(); (list || []).forEach(([c, n, g, x]) => m.set(c, { n, g, xg: x / 100 })); return m; }
+function shotTotals(m) { let n = 0, g = 0, xg = 0, slot = 0; for (const [c, v] of m) { n += v.n; g += v.g; xg += v.xg; } return { n, g, xg }; }
+function rinkSVG(d, m, lg, title, col) {
+  const G = d.grid, k = 5, W = (G.y1 - G.y0) * k, H = (G.x1 - G.x0) * k;
+  const px = y => (y - G.y0) * k, py = x => (G.x1 - x) * k;
+  const tot = shotTotals(m), ltot = shotTotals(lg);
+  const id = 'clip' + Math.random().toString(36).slice(2, 8);
+  const r = 28 * k;
+  const shape = `M0,${H} L0,${r} Q0,0 ${r},0 L${W - r},0 Q${W},0 ${W},${r} L${W},${H} Z`;
+  let cells = '';
+  for (let cy = 0; cy < G.ny; cy++) for (let cx = 0; cx < G.nx; cx++) {
+    const c = cy * G.nx + cx; const v = m.get(c); const l = lg.get(c);
+    let fill = null, tip = '';
+    const x0 = G.x0 + cx * G.cell, y0 = G.y0 + cy * G.cell;
+    if (SH.view === 'freq') {
+      const sp = v ? v.n / tot.n : 0, ls = l ? l.n / ltot.n : 0;
+      if (!v && ls < 0.002) continue;
+      const diff = (sp - ls) * 100; // percentage points
+      const t = Math.max(-1, Math.min(1, diff / 3));
+      fill = t >= 0 ? `color-mix(in srgb, var(--hi) ${Math.round(t * 100)}%, var(--mid))` : `color-mix(in srgb, var(--lo) ${Math.round(-t * 100)}%, var(--mid))`;
+      tip = `${v ? v.n : 0} attempts (${(sp * 100).toFixed(1)}% of his) vs league ${(ls * 100).toFixed(1)}%`;
+    } else {
+      if (!v || v.n < 3) continue;
+      const gax = v.g - v.xg; const t = Math.max(-1, Math.min(1, gax / 2.5));
+      fill = t >= 0 ? `color-mix(in srgb, var(--hi) ${Math.round(t * 100)}%, var(--mid))` : `color-mix(in srgb, var(--lo) ${Math.round(-t * 100)}%, var(--mid))`;
+      tip = `${v.n} attempts, ${v.g} goals, ${v.xg.toFixed(1)} expected (${gax >= 0 ? '+' : ''}${gax.toFixed(1)})`;
+    }
+    cells += `<rect x="${px(y0)}" y="${py(x0 + G.cell)}" width="${G.cell * k}" height="${G.cell * k}" fill="${fill}"><title>${tip}</title></rect>`;
+    if (SH.view === 'freq' && v && v.g) cells += `<circle cx="${px(y0 + G.cell / 2)}" cy="${py(x0 + G.cell / 2)}" r="${Math.min(9, 2 + v.g)}" fill="none" stroke="var(--ink)" stroke-width="1.4"><title>${v.g} goals</title></circle>`;
+  }
+  const line = (x, cls, w) => `<line x1="0" x2="${W}" y1="${py(x)}" y2="${py(x)}" stroke="${cls}" stroke-width="${w}"/>`;
+  const circ = (x, y, rr, st) => `<circle cx="${px(y)}" cy="${py(x)}" r="${rr * k}" fill="none" stroke="${st}" stroke-width="1.5"/>`;
+  const marks = line(89, 'var(--a)', 2) + line(25.5, 'var(--b)', 6) +
+    `<path d="M${px(-6)},${py(89)} A${6 * k},${6 * k} 0 0 0 ${px(6)},${py(89)}" fill="none" stroke="var(--a)" stroke-width="1.5"/>` +
+    `<rect x="${px(-3)}" y="${py(92.5)}" width="${6 * k}" height="${3.5 * k}" fill="none" stroke="var(--ink)" stroke-width="2"/>` +
+    circ(69, -22, 15, 'var(--a)') + circ(69, 22, 15, 'var(--a)') +
+    `<circle cx="${px(-22)}" cy="${py(69)}" r="4" fill="var(--a)"/><circle cx="${px(22)}" cy="${py(69)}" r="4" fill="var(--a)"/>`;
+  const hdr = `<text x="${W / 2}" y="-14" text-anchor="middle" font-size="15" font-weight="700" fill="${col}">${esc(title)}</text>`;
+  return `<svg viewBox="-10 -34 ${W + 20} ${H + 44}" role="img" aria-label="Shot map for ${esc(title)}"><defs><clipPath id="${id}"><path d="${shape}"/></clipPath></defs>${hdr}
+    <path d="${shape}" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/><g clip-path="url(#${id})">${cells}${marks}</g><path d="${shape}" fill="none" stroke="var(--ink)" stroke-width="2"/></svg>`;
+}
+async function renderShots() {
+  const y = S.season; const sd = S.seasons[y]; const A = seasonOf(S.A);
+  const box = $('shots');
+  if (!A) { box.innerHTML = ''; return; }
+  const d = await loadShots(y);
+  if (y !== S.season) return;
+  if (!d) { $('shots-sub').textContent = `Shot maps for ${sLabel(y)} haven't been built yet. They're added by the nightly update.`; box.innerHTML = ''; return; }
+  $('shots-sub').innerHTML = `Unblocked shot attempts (shots on goal, misses and goals) in the offensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells. <strong>Where he shoots:</strong> blue cells are spots he shoots from more often than the average ${'${grp}'}, orange less often; rings mark goals. <strong>Finishing:</strong> goals minus expected goals in each cell with 3+ attempts; blue means he scored more than an average shooter would from there.`.replace('${grp}', A.grp === 'D' ? 'defenseman' : 'forward');
+  const B = seasonOf(S.B);
+  const ctl = `<div class="ctl"><span class="lbl">Situation</span><span class="toggle" id="shsit">${[['all', 'All'], ['ev', '5v5'], ['pp', 'Power play']].map(([k, l]) => `<button type="button" data-sit="${k}" aria-pressed="${SH.sit === k}">${l}</button>`).join('')}</span>
+    <span class="lbl">View</span><span class="toggle" id="shview">${[['freq', 'Where he shoots'], ['fin', 'Finishing']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${SH.view === k}">${l}</button>`).join('')}</span></div>`;
+  const ps = [A, B].filter(Boolean);
+  const maps = ps.map((p, i) => { const m = shotCells((d.players[p.id] || {})[SH.sit]); const lg = shotCells((d.league[p.grp] || {})[SH.sit]); return { p, m, lg, t: shotTotals(m), col: i ? 'var(--b)' : 'var(--a)' }; });
+  const svgs = maps.map(x => x.t.n ? rinkSVG(d, x.m, x.lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no attempts in this situation.</p>`);
+  const rows = [['Attempts', x => x.t.n, f0], ['Goals', x => x.t.g, f0], ['Expected goals', x => x.t.xg, f1], ['Goals − expected', x => x.t.g - x.t.xg, s1], ['Shooting % (unblocked)', x => x.t.n ? 100 * x.t.g / x.t.n : null, f1], ['xG per attempt', x => x.t.n ? x.t.xg / x.t.n : null, v => nz(v) ? v.toFixed(3) : '—'],
+    ['Attempts from the slot', x => { let n = 0; for (const [c, v] of x.m) { const cx = c % d.grid.nx, cy = Math.floor(c / d.grid.nx); const xx = d.grid.x0 + (cx + 0.5) * d.grid.cell, yy = d.grid.y0 + (cy + 0.5) * d.grid.cell; if (xx >= 69 && xx <= 89 && Math.abs(yy) <= 10) n += v.n; } return x.t.n ? 100 * n / x.t.n : null; }, v => nz(v) ? v.toFixed(1) + '%' : '—']];
+  const tbl = `<table class="tape"><thead><tr><th>${SH.sit === 'all' ? 'All situations' : SH.sit === 'ev' ? '5v5' : 'Power play'}</th>${maps.map((x, i) => `<th class="${i ? 'b' : 'a'}">${esc(last(x.p.name))}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${maps.map(x => `<td>${r[2](r[1](x))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  box.innerHTML = ctl + `<div class="two">${svgs.map(s => `<div>${s}</div>`).join('')}</div><div style="margin-top:16px;max-width:560px">${tbl}</div>`;
+}
+
 // ------------------------------------------------------------------ orchestration
 function setHash() { const h = `#a=${S.A || ''}${S.B ? '&b=' + S.B : ''}&s=${S.season}`; if (location.hash !== h) history.replaceState(null, '', h); }
 function readHash() { const o = {}; location.hash.replace(/^#/, '').split('&').forEach(kv => { const [k, v] = kv.split('='); if (k) o[k] = v; }); return o; }
@@ -643,6 +713,7 @@ async function render() {
   if (A) {
     safe('sec-rank', renderRank); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); safe('sec-env', renderEnv); safe('sec-swap', renderSwap);
     renderMates().catch(e => console.error(e));
+    if (S.shotsSeen) renderShots().catch(e => console.error(e));
   }
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }
@@ -666,6 +737,8 @@ function wire() {
   $('ametric').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.arcMetric = b.dataset.am; safe('sec-arcs', renderArcs); });
   $('achips').addEventListener('click', e => { const b = e.target.closest('[data-rmarc]'); if (!b) return; const id = +b.dataset.rmarc; S.arcSel = S.arcSel.filter(x => x !== id); if (id === S.B) S.B = null; render(); });
   $('comps').addEventListener('click', e => { const a = e.target.closest('[data-addarc]'); if (!a) return; e.preventDefault(); const id = +a.dataset.addarc; if (!S.arcSel.includes(id)) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
+  $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) SH.sit = b.dataset.sit; if (b.dataset.view) SH.view = b.dataset.view; renderShots(); });
+  new IntersectionObserver(es => { if (es.some(x => x.isIntersecting) && !S.shotsSeen) { S.shotsSeen = true; renderShots().catch(e => console.error(e)); } }, { rootMargin: '600px' }).observe($('sec-shots'));
   window.addEventListener('hashchange', () => { const h = readHash(); const a = +h.a, b = +h.b, s = +h.s; let ch = false; if (a && a !== S.A && S.byId.has(a)) { S.A = a; ch = true; } if (b && b !== S.B && S.byId.has(b)) { S.B = b; ch = true; } if (s && s !== S.season && S.idx.mp_seasons.includes(s)) { S.season = s; ch = true; } if (ch) render(); });
 }
 
