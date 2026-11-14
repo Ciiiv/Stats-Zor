@@ -644,7 +644,7 @@ function rinkSVG(d, m, lg, title, col) {
       const sp = v ? v.n / tot.n : 0, ls = l ? l.n / ltot.n : 0;
       if (!v && ls < 0.002) continue;
       const diff = (sp - ls) * 100; // percentage points
-      const t = Math.max(-1, Math.min(1, diff / 3));
+      const t = Math.max(-1, Math.min(1, diff / 1.2));
       fill = t >= 0 ? `color-mix(in srgb, var(--hi) ${Math.round(t * 100)}%, var(--mid))` : `color-mix(in srgb, var(--lo) ${Math.round(-t * 100)}%, var(--mid))`;
       tip = `${v ? v.n : 0} attempts (${(sp * 100).toFixed(1)}% of his) vs league ${(ls * 100).toFixed(1)}%`;
     } else {
@@ -674,7 +674,7 @@ async function renderShots() {
   const d = await loadShots(y);
   if (y !== S.season) return;
   if (!d) { $('shots-sub').textContent = `Shot maps for ${sLabel(y)} haven't been built yet. They're added by the nightly update.`; box.innerHTML = ''; return; }
-  $('shots-sub').innerHTML = `Unblocked shot attempts (shots on goal, misses and goals) in the offensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells. <strong>Where he shoots:</strong> blue cells are spots he shoots from more often than the average ${'${grp}'}, orange less often; rings mark goals. <strong>Finishing:</strong> goals minus expected goals in each cell with 3+ attempts; blue means he scored more than an average shooter would from there.`.replace('${grp}', A.grp === 'D' ? 'defenseman' : 'forward');
+  $('shots-sub').innerHTML = `Unblocked shot attempts (shots on goal, misses and goals) in the offensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells; empty-net shots are left out. <strong>Where he shoots:</strong> blue cells are spots he shoots from more often than the average ${'${grp}'}, orange less often; rings mark goals. <strong>Finishing:</strong> goals minus expected goals in each cell with 3+ attempts; blue means he scored more than an average shooter would from there.`.replace('${grp}', A.grp === 'D' ? 'defenseman' : 'forward');
   const B = seasonOf(S.B);
   const ctl = `<div class="ctl"><span class="lbl">Situation</span><span class="toggle" id="shsit">${[['all', 'All'], ['ev', '5v5'], ['pp', 'Power play']].map(([k, l]) => `<button type="button" data-sit="${k}" aria-pressed="${SH.sit === k}">${l}</button>`).join('')}</span>
     <span class="lbl">View</span><span class="toggle" id="shview">${[['freq', 'Where he shoots'], ['fin', 'Finishing']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${SH.view === k}">${l}</button>`).join('')}</span></div>`;
