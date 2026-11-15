@@ -56,6 +56,15 @@ jobs:
             python scripts/build_usage.py
           fi
 
+      - name: Build NHL EDGE tracking stats
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            python scripts/build_edge.py --full
+          else
+            python scripts/build_edge.py
+          fi
+
       - name: Build value, rosters and prospects
         continue-on-error: true
         run: python scripts/build_value.py

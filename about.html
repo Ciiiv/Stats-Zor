@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150105">
+<link rel="stylesheet" href="styles.css?v=202611150131">
 <style>
 .doc{max-width:860px}
 .doc h2{font-size:28px;margin-top:6px}
@@ -39,7 +39,7 @@
 <section class="panel">
   <p style="margin-top:0">Every number on Stats-Zor is computed from public data by code you can read in the <a href="https://github.com/Ciiiv/Stats-Zor">GitHub repo</a>. Nothing is hand-entered except the cap figures listed under <a href="#m-value">Value and worth</a>. This page explains, section by section, what each part shows, how it's calculated, why it's built that way, and what it can't see.</p>
   <div class="toc">
-    <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a></div>
+    <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a><a href="#m-tools">Tools (NHL EDGE)</a></div>
     <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
@@ -63,6 +63,7 @@
     <dt>Percentile</dt><dd>The share of the comparison pool he's better than. 90th means better than 90% of them.</dd>
     <dt>Wins above replacement</dt><dd>Stats-Zor's estimate of how many wins a player adds over a replacement-level call-up. See <a href="#m-value">Value and worth</a>.</dd>
     <dt>Era-adjusted</dt><dd>Scoring rescaled to a common league-wide scoring level, so a 1980s point and a 2020s point can be compared. See <a href="#m-career">Career vs. career</a>.</dd>
+    <dt>NHL EDGE</dt><dd>The NHL's puck and player tracking (2021-22 on): skating speed, speed bursts, distance skated, shot speed and zone time.</dd>
     <dt>Age</dt><dd>Age on February 1 of the season, the same convention Hockey-Reference uses.</dd>
   </dl>
 </section>
@@ -82,6 +83,11 @@
 <section class="panel">
   <h2 id="m-profile">Profile</h2>
   <p>The two cards at the top show the season line (goals, assists, points, games), ice time, 5v5 xGF% and relative xGF%, plus three scores from the <a href="#m-rank">two-way composite</a>: defense, offense and role difficulty. Trophies and Cups come from the NHL's records. Age, size and handedness come from NHL bios.</p>
+  <h3 id="m-tools">Tools (NHL EDGE)</h3>
+  <p>For 2021-22 on, each card shows tracking data from the NHL's EDGE system: top skating speed, number of 20+ mph bursts, hardest shot, distance skated per game, and share of 5v5 time spent in the offensive zone. Percentiles are the NHL's own, forwards against forwards and defensemen against defensemen.</p>
+  <p><strong>Trend:</strong> his top speed and 20+ mph bursts per game this season against his best earlier EDGE season (20+ games). It's flagged <em>Slowing</em> if top speed is down 0.5 mph or more, or bursts per game are down 25% or more. Speed usually fades before production does, so it's an early sign for older players.</p>
+  <p><strong>Why it's not in the value model:</strong> speed and shot power describe how a player plays, not how much he helps. Fast players can drive play poorly and slow ones can be excellent, and what tools produce (chances, goals, suppression) is already counted. EDGE is used for style instead: in the stat board's "most similar" match and in the trend.</p>
+  <p class="lim"><b>Limits:</b> top speed and hardest shot are single peak moments from one game. Bursts and distance are season totals, so they depend on games and minutes played. No EDGE data exists before 2021-22.</p>
 </section>
 
 <section class="panel">
@@ -111,7 +117,9 @@ Composite = (Defense × wD + Offense × wO + Role × wR) ÷ (wD + wO + wR)</div>
     <li><strong>Most similar:</strong> the players whose percentile profile across every board column is closest to his.</li>
   </ul>
   <div class="m">match % = 100 − √(average of (his percentile − their percentile)² across columns)
-(players missing more than 40% of the columns are skipped)</div>
+(players missing more than 40% of the columns are skipped)
+when both players have NHL EDGE data, top speed, 20+ mph bursts and shot speed percentiles
+are added as style columns at half weight each</div>
   <p>Your comparison player and anyone you add always stay on the board.</p>
 
   <h3 id="m-h2h">Head to head</h3>
@@ -263,6 +271,7 @@ distance = √(weighted average of squared differences); closest = smallest dist
     <li><a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>: season summaries, lines and pairs, game-by-game skater data, and shot data from 2008-09 on. Free for non-commercial use with credit to MoneyPuck.com.</li>
     <li>NHL stats API: every skater season since 1917-18, bios and league scoring.</li>
     <li>NHL player and roster API: trophies, Hall of Fame, current rosters and draft picks.</li>
+    <li>NHL EDGE API: skating speed, bursts, distance, shot speed and zone time, 2021-22 on.</li>
   </ul>
   <p>A GitHub Actions job rebuilds the data every morning (about 7 a.m. Eastern) after MoneyPuck's overnight update. Past seasons are kept; the current season is refreshed each day.</p>
 </section>

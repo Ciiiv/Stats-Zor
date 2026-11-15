@@ -263,6 +263,44 @@ function placeLabels(svg) {
   }
 }
 
+
+// ------------------------------------------------------------------ NHL EDGE tracking (2021-22 on)
+const EDGE = {};
+async function loadEdge(y) {
+  if (EDGE[y] !== undefined) return EDGE[y];
+  try { const j = await getJSON(`data/edge/${y}.json`); const m = new Map(); j.rows.forEach(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); m.set(o.id, o); }); EDGE[y] = m; }
+  catch (e) { EDGE[y] = null; }
+  return EDGE[y];
+}
+async function loadAllEdge() { const ys = (S.idx.mp_seasons || []).filter(y => y >= 2021); await Promise.all(ys.map(loadEdge)); }
+const edgeOf = (y, id) => EDGE[y] ? EDGE[y].get(id) || null : null;
+const pctTxt = v => nz(v) ? ord(Math.round(v * 100)) : '—';
+function toolsHTML(id, y) {
+  const e = edgeOf(y, id);
+  if (!e) return y >= 2021 && EDGE[y] === undefined ? '' : (y < 2021 ? '' : `<p class="sub small" style="margin-top:10px">No NHL EDGE tracking data for this player in ${sLabel(y)}.</p>`);
+  const perGame = e.gp ? e.bursts20 / e.gp : null;
+  const T = [[nz(e.speed_mph) ? e.speed_mph.toFixed(1) + ' mph' : '—', 'Top skating speed', e.speed_pct],
+    [f0(e.bursts20), '20+ mph bursts', e.bursts20_pct],
+    [nz(e.shot_mph) ? e.shot_mph.toFixed(1) + ' mph' : '—', 'Hardest shot', e.shot_pct],
+    [nz(e.dist_mi) && e.gp ? (e.dist_mi / e.gp).toFixed(2) + ' mi' : '—', 'Skated per game', e.dist_pct],
+    [nz(e.oz_ev_pct) ? (100 * e.oz_ev_pct).toFixed(1) + '%' : '—', 'Offensive-zone time at 5v5', e.oz_ev_pctile]];
+  // trend against his best earlier EDGE season
+  let trend = '';
+  const prev = Object.keys(EDGE).map(Number).filter(z => z < y && EDGE[z]).map(z => [z, edgeOf(z, id)]).filter(x => x[1] && x[1].gp >= 20);
+  if (prev.length && e.gp >= 10) {
+    const bestSp = prev.reduce((b, x) => (x[1].speed_mph ?? 0) > (b[1].speed_mph ?? 0) ? x : b);
+    const bestBu = prev.reduce((b, x) => (x[1].bursts20 / x[1].gp) > (b[1].bursts20 / b[1].gp) ? x : b);
+    const ds = nz(e.speed_mph) && nz(bestSp[1].speed_mph) ? e.speed_mph - bestSp[1].speed_mph : null;
+    const db = nz(perGame) ? 100 * (perGame / (bestBu[1].bursts20 / bestBu[1].gp) - 1) : null;
+    const parts = [];
+    if (nz(ds)) parts.push(`top speed ${ds >= 0 ? '+' : '−'}${Math.abs(ds).toFixed(1)} mph vs. his ${sLabel(bestSp[0])} best`);
+    if (nz(db) && Number.isFinite(db)) parts.push(`20+ mph bursts per game ${db >= 0 ? '+' : '−'}${Math.abs(db).toFixed(0)}% vs. ${sLabel(bestBu[0])}`);
+    const warn = (nz(ds) && ds <= -0.5) || (nz(db) && db <= -25);
+    if (parts.length) trend = `<p class="sub small" style="margin-top:6px">${warn ? '<b class="neg">Slowing:</b> ' : 'Trend: '}${parts.join('; ')}.${warn ? ' Speed usually fades before scoring does.' : ''}</p>`;
+  }
+  return `<p class="minihead" style="margin-top:12px">Tools · NHL EDGE tracking · percentile vs. his position</p><div class="tiles">${T.map(([b, l, p]) => `<div class="tile"><b style="font-size:21px">${b}</b><span>${l}${nz(p) ? ` · ${pctTxt(p)}` : ''}</span></div>`).join('')}</div>${trend}`;
+}
+
 // ------------------------------------------------------------------ rendering: profile
 function seasonOf(id) { const sd = S.seasons[S.season]; return sd ? sd.byId.get(id) : null; }
 function renderProfile() {
@@ -291,7 +329,7 @@ function renderProfile() {
       if (c.hof) bs.push('<span class="badge gold">Hall of Fame</span>');
       badges = `<div class="badges">${bs.map(b => b.startsWith('<') ? b : `<span class="badge">${b}</span>`).join('')}</div>`;
     }
-    return `<div class="pcard ${cls}"><h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${esc(meta)}</p>${tiles}${badges}</div>`;
+    return `<div class="pcard ${cls}"><h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${esc(meta)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
   };
   $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
 }
@@ -328,7 +366,7 @@ function rrow(rk, r, t) {
 
 // ------------------------------------------------------------------ stat board
 function similarity(sd, grp) {
-  const A = sd.byId.get(S.A); const ck = `sim|${sd.y}|${S.pool}|${S.A}`;
+  const A = sd.byId.get(S.A); const ck = `sim|${sd.y}|${S.pool}|${S.A}|${EDGE[sd.y] ? 'e' : ''}`;
   if (S.cache[ck]) return S.cache[ck];
   const keys = COLS[grp].flatMap(c => c[1]);
   const pa = keys.map(k => pk(sd, A, k));
@@ -337,7 +375,11 @@ function similarity(sd, grp) {
     if (p.id === S.A) continue;
     let sum = 0, n = 0;
     keys.forEach((k, i) => { const v = pk(sd, p, k); if (nz(v) && nz(pa[i])) { sum += (v - pa[i]) ** 2; n++; } });
-    if (n >= keys.length * 0.6) out.set(p.id, Math.max(0, 100 - Math.sqrt(sum / n)));
+    if (n < keys.length * 0.6) continue;
+    // style: NHL EDGE skating speed, bursts and shot speed, half weight each, when both players have them
+    const ea = edgeOf(sd.y, S.A), eb = edgeOf(sd.y, p.id);
+    if (ea && eb) ['speed_pct', 'bursts20_pct', 'shot_pct'].forEach(k => { if (nz(ea[k]) && nz(eb[k])) { sum += 0.5 * (100 * (ea[k] - eb[k])) ** 2; n += 0.5; } });
+    out.set(p.id, Math.max(0, 100 - Math.sqrt(sum / n)));
   }
   S.cache[ck] = out;
   return out;
@@ -982,6 +1024,7 @@ async function render() {
     renderRole().catch(e => console.error(e));
   }
   renderValue().catch(e => console.error(e));
+  if (S.season >= 2021) loadAllEdge().then(() => { safe('sec-profile', renderProfile); if (S.boardMode === 'sim' && A) { safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); } }).catch(() => {});
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }
 function setA(id) { if (!id) return; if (id === S.B) S.B = S.A; S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null; S.season = bestSeason(id); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
