@@ -20,7 +20,7 @@ Read `README.md` (structure, pipeline, how to run) and `about.html` (every formu
 |---|---|
 | Skater page | `index.html`, `app.js` |
 | Goalie page | `goalies.html`, `goalies.js` |
-| Trade machine | `trade.html`, `trade.js` (values players, prospects, picks; goalies priced at the goalie price of a win) |
+| Trade machine | `trade.html`, `trade.js` (values players, prospects, picks; goalies priced at the goalie price of a win; rosters include players under team control who are off the active roster, `off_roster` in `rosters.json`) |
 | Methods page | `about.html` (glossary + a section per page section; anchors `#m-…`, goalie ones `#m-g-…`) |
 | Shared front end | `common.js` (formatters, SVG axes, search with cross-page routing), `theme.js` (auto/dark/light toggle), `styles.css` |
 | Pipeline | `scripts/build_data.py` → `build_shots.py` → `build_usage.py` → `build_edge.py` → `build_goalies.py` → `build_value.py` |

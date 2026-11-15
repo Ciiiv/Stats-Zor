@@ -142,10 +142,13 @@ async function init() {
     D.proj = v.proj;
     D.rosters = r.teams;
     D.teams = Object.keys(r.teams).sort();
-    const onRoster = new Set(Object.values(r.teams).flat().map(x => (x[1] || '').toLowerCase()));
+    const onRoster = new Set(Object.values(r.teams).flat().filter(x => x[4] !== 1).map(x => (x[1] || '').toLowerCase()));
     const MOVED = { ARI: 'UTA', PHX: 'UTA' };
     D.prospects = p.prospects.map(x => { const o = {}; p.fields.forEach((k, i) => { o[k] = x[i]; }); o.drafted_by = MOVED[o.drafted_by] || o.drafted_by; return o; })
       .filter(o => !onRoster.has((o.name || '').toLowerCase()));
+    // off-roster players who are still prospects are offered as prospects (valued by draft slot) instead
+    const prosNames = new Set(D.prospects.map(x => (x.name || '').toLowerCase()));
+    for (const t of D.teams) D.rosters[t] = D.rosters[t].filter(x => !(x[4] === 1 && prosNames.has((x[1] || '').toLowerCase())));
     T.team = [D.teams.includes('DET') ? 'DET' : D.teams[0], D.teams.includes('BOS') ? 'BOS' : D.teams[1]];
     $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each future season you count, adjusted for age. The starting point blends his last three seasons. Dollar worth prices a skater win at about ${money(D.perWin)} and a goalie win at about ${money(D.perWinG)} this season (each from its share of the cap), scaled up with the projected cap in later years. Goalie projections are in wins per season at his own workload, and trust his record in proportion to the shots it rests on (one season as a starter keeps about a third of his edge over an average goalie, three seasons about 60%).</p>
       <p><strong>Not on the active roster:</strong> players who played in the last two seasons, aren't on any team's active roster right now, but whose NHL player record still lists a team (sitting out, unsigned restricted free agents, long-term injury). They're listed with that team and marked.</p>
