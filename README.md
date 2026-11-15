@@ -35,7 +35,7 @@ The goalie page (`goalies.html`) has the same four parts, built for goalies. Sea
 4. **Vs. history:** careers back to 1917-18, with save % against the league average (1955-56 on), goals saved above average and era-adjusted GAA.
 
 Two more pages:
-- **Trade machine** (`trade.html`): two teams; skaters and goalies (including players under team control who aren't on the active roster, like ones sitting out), prospects and draft picks; years left on each contract and optional cap hits (you enter both); restricted-free-agent seasons estimated from age and NHL games (a checkbox you can override); prospects with 40+ NHL games blend their own record with their draft slot; wins and surplus verdicts side by side; optional team plans (No preference, Contending, Bubble team, Rebuilding) that weigh wins by when they arrive.
+- **Trade machine** (`trade.html`): two teams picked in the header, with a live score next to them; skaters and goalies (including players under team control who aren't on the active roster, like ones sitting out), prospects and draft picks; years left on each contract and optional cap hits (you enter both); restricted-free-agent seasons estimated from age and NHL games (a checkbox you can override); prospects with 40+ NHL games blend their own record with their draft slot; wins and surplus verdicts side by side; optional team plans (No preference, Contending, Bubble team, Rebuilding) that weigh wins by when they arrive.
 - **How it works** (`about.html`): a glossary plus the method for every section.
 
 ## How the data works

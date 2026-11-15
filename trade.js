@@ -120,7 +120,7 @@ function sideHTML(i) {
     }
     return `<div class="asset"><div class="nm">${nm}</div><div style="display:flex;gap:10px;align-items:center"><span class="val">${f1(v.wins)} W</span><button type="button" data-rm="${i}:${k}" aria-label="Remove">×</button></div><div class="det">${det}</div></div>`;
   }).join('');
-  return `<div class="side ${cls}"><h2><span>${i ? 'Team B' : 'Team A'}</span><select data-team="${i}" aria-label="${i ? 'Team B' : 'Team A'}">${D.teams.map(t => `<option${t === team ? ' selected' : ''}>${t}</option>`).join('')}</select><span style="font-size:16px;color:var(--muted)">sends</span><select data-mode="${i}" aria-label="${team} plans" title="How ${team} weighs wins now against wins later" style="width:auto;font:600 13px var(--f-body);margin-left:auto">${Object.entries(MODES).map(([k, m]) => `<option value="${k}"${T.mode[i] === k ? ' selected' : ''}>${m.l}</option>`).join('')}</select></h2>
+  return `<div class="side ${cls}"><h2><span>${esc(team)} sends</span><span class="lab" style="font:600 11px var(--f-mono);letter-spacing:.06em;text-transform:uppercase">${i ? 'Team B' : 'Team A'} · ${MODES[T.mode[i]].l.toLowerCase()}</span></h2>
     <div class="adders">
       <div class="row"><select data-addp="${i}" aria-label="Add a player"><option value="">+ Add a player</option>${roster.map(r => `<option value="${r.id}">${esc(r.name)} · ${r.pos}${r.off ? ' · not on active roster' : ''}${nz(r.base) ? ' · ' + f1(r.base) + (D.proj[r.id].per === 'season' ? ' W/season' : ' W/82') : ''}</option>`).join('')}</select></div>
       <div class="row"><select data-addq="${i}" aria-label="Add a prospect"><option value="">+ Add a prospect (${pros.length})</option>${pros.map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${p.pos} · #${p.overall} in ${p.draft_year}</option>`).join('')}</select></div>
@@ -164,20 +164,46 @@ function summary() {
   $('summary').innerHTML = `<div class="head"><h2>${esc(verdict)}</h2><p class="sub">Verdict on ${M ? 'surplus value: projected worth minus salary over each contract. Wins above replacement are shown too' : 'projected wins above replacement over the years each asset is controlled'}. Prospects and picks count their projected wins, and their worth with no salary against it.</p></div>
     <div class="meter"><i style="width:${wA}%;background:var(--a)">${wA > 12 ? T.team[0] + ' gets ' + unit(H.getA) : ''}</i><i style="width:${100 - wA}%;background:var(--b)">${100 - wA > 12 ? T.team[1] + ' gets ' + unit(H.getB) : ''}</i></div>
     ${table}${timeNote}${yearsNote}${capNote}`;
+  // live score in the header
+  const empty = !T.assets[0].length && !T.assets[1].length;
+  const cell = (v, f) => `<span class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : '−'}${f(Math.abs(v))}</span>`;
+  const short = empty ? 'Add assets to both sides' : verdict;
+  const line = empty ? '' : `${T.team[0]} ${cell(W.diff, f1)} wins${M ? ` · ${cell(M.diff, money)}` : ''}`;
+  const sc = $('score'); const wasOpen = sc.dataset.open;
+  sc.innerHTML = `<button type="button" class="score-top" aria-expanded="${wasOpen === '1'}"><span class="sv">${esc(short)}</span><span class="line">${line}</span></button>
+    ${empty ? '' : `<div class="score-body"><div class="r"><span></span><span>Wins</span><span>${M ? 'Surplus' : ''}</span>
+      <span>${T.team[0]}</span>${cell(W.diff, f1)}<span>${M ? cell(M.diff, money) : ''}</span>
+      <span>${T.team[1]}</span>${cell(-W.diff, f1)}<span>${M ? cell(-M.diff, money) : ''}</span></div>
+      ${anyMode ? `<div class="note">By plans: ${T.team[0]} ${cell(tA, f1)} · ${T.team[1]} ${cell(tB, f1)}</div>` : ''}
+      ${!M && players.length ? '<div class="note">Add every cap hit for surplus</div>' : ''}</div>`}`;
+  sc.classList.toggle('empty', empty);
+}
+function headerHTML() {
+  const pick = i => `<div class="tpick"><span class="lbl"><i style="background:var(--${i ? 'b' : 'a'})"></i>Team ${i ? 'B' : 'A'} sends</span><div class="row">
+    <select class="team" data-team="${i}" aria-label="Team ${i ? 'B' : 'A'}">${D.teams.map(x => `<option${x === T.team[i] ? ' selected' : ''}>${x}</option>`).join('')}</select>
+    <select class="plan" data-mode="${i}" aria-label="Team ${i ? 'B' : 'A'} plans" title="How this team weighs wins now against wins later">${Object.entries(MODES).map(([k, m]) => `<option value="${k}"${T.mode[i] === k ? ' selected' : ''}>${m.l}</option>`).join('')}</select></div></div>`;
+  $('teams').innerHTML = pick(0) + '<span class="swap" aria-hidden="true">⇄</span>' + pick(1);
 }
 function render() {
+  headerHTML();
   $('tm').innerHTML = sideHTML(0) + sideHTML(1);
   summary();
 }
 function wire() {
   const tm = $('tm');
+  const onTeam = e => {
+    const t = e.target;
+    if (t.dataset.mode) { T.mode[+t.dataset.mode] = t.value; render(); return true; }
+    if (t.dataset.team) { const i = +t.dataset.team; T.team[i] = t.value; T.assets[i] = []; render(); return true; }
+    return false;
+  };
+  $('teams').addEventListener('change', onTeam);
+  $('score').addEventListener('click', e => { const b = e.target.closest('.score-top'); if (!b) return; const sc = $('score'); sc.dataset.open = sc.dataset.open === '1' ? '0' : '1'; b.setAttribute('aria-expanded', sc.dataset.open === '1'); });
   tm.addEventListener('change', e => {
     const t = e.target;
     if (t.dataset.pky) { T.pk[+t.dataset.pky].year = +t.value; return; }
     if (t.dataset.pkr) { T.pk[+t.dataset.pkr].round = +t.value; return; }
     if (t.dataset.pks) { T.pk[+t.dataset.pks].slot = t.value; return; }
-    if (t.dataset.mode) { T.mode[+t.dataset.mode] = t.value; summary(); return; }
-    if (t.dataset.team) { const i = +t.dataset.team; T.team[i] = t.value; T.assets[i] = []; render(); return; }
     if (t.dataset.addp) { const i = +t.dataset.addp; const r = (D.rosters[T.team[i]] || []).find(x => String(x[0]) === t.value); if (r) T.assets[i].push({ type: 'player', id: r[0], name: r[1], pos: r[2], off: r[4] === 1, after: null, cap: null }); render(); return; }
     if (t.dataset.f === 'rfa') { T.assets[+t.dataset.i][+t.dataset.k].rfa = t.checked; render(); return; }
     if (t.dataset.addq) { const i = +t.dataset.addq; const p = D.prospects.find(x => x.name === t.value && x.drafted_by === T.team[i]); if (p) T.assets[i].push({ type: 'prospect', ...p }); render(); return; }
