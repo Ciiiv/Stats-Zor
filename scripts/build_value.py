@@ -311,6 +311,24 @@ def main():
     if gseasons:
         project_goalies(gseasons, gbirth, cur, proj, gshots)
 
+    # team-control inputs for the trade machine: birth date and accrued seasons (an estimate of the
+    # CBA rule: a season with 40+ NHL games, 25+ for goalies), completed seasons only
+    acc = {}
+    if careers:
+        fi = careers["fields"]
+        for r in careers["seasons"]:
+            if r[fi.index("y")] < cur and r[fi.index("gp")] >= 40:
+                acc[r[0]] = acc.get(r[0], 0) + 1
+    if gcar:
+        fg = gcar["fields"]
+        for r in gcar["seasons"]:
+            if r[fg.index("y")] < cur and r[fg.index("gp")] >= 25:
+                acc[r[0]] = acc.get(r[0], 0) + 1
+    for pid, e in proj.items():
+        b = (gbirth if e.get("g") else birth).get(int(pid))
+        e["birth"] = b[:10] if b else None
+        e["acc"] = acc.get(int(pid), 0)
+
     write_json(os.path.join(DATA, "value.json"), {
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "current": cur,
@@ -385,6 +403,7 @@ def main():
 
     # prospects: recent draft picks who haven't become NHL regulars (matched to careers by name)
     gp_by_name = {}
+    id_by_name = {}  # name -> (career GP, NHL id), for linking prospects to their NHL record
     if careers:
         fi = careers["fields"]
         gp_by_id = {}
@@ -393,6 +412,8 @@ def main():
         for pid, b in careers["players"].items():
             key = (b[0] or "").lower()
             gp_by_name[key] = max(gp_by_name.get(key, 0), gp_by_id.get(int(pid), 0))
+            if gp_by_id.get(int(pid), 0) >= id_by_name.get(key, (-1, None))[0]:
+                id_by_name[key] = (gp_by_id.get(int(pid), 0), int(pid))
     if gcar:
         gi = gcar["fields"].index("gp")
         ggp = {}
@@ -401,6 +422,8 @@ def main():
         for pid, b in gcar["players"].items():
             key = (b[0] or "").lower()
             gp_by_name[key] = max(gp_by_name.get(key, 0), ggp.get(int(pid), 0))
+            if ggp.get(int(pid), 0) >= id_by_name.get(key, (-1, None))[0]:
+                id_by_name[key] = (ggp.get(int(pid), 0), int(pid))
     last_draft = cur if dt.date.today().month >= 7 or dt.date.today().year > cur else cur - 1
     prospects = []
     for dy in range(last_draft - 4, last_draft + 1):
@@ -414,10 +437,11 @@ def main():
             gp = gp_by_name.get(nm.lower(), 0)
             if gp >= 100:
                 continue
-            prospects.append([nm, p.get("positionCode"), dy, p.get("overallPick"), p.get("round"), p.get("teamAbbrev"), gp])
+            prospects.append([nm, p.get("positionCode"), dy, p.get("overallPick"), p.get("round"), p.get("teamAbbrev"), gp,
+                              id_by_name.get(nm.lower(), (0, None))[1] if gp else None])
     if prospects:
         write_json(os.path.join(DATA, "prospects.json"), {"updated": dt.date.today().isoformat(),
-                   "fields": ["name", "pos", "draft_year", "overall", "round", "drafted_by", "nhl_gp"], "prospects": prospects})
+                   "fields": ["name", "pos", "draft_year", "overall", "round", "drafted_by", "nhl_gp", "id"], "prospects": prospects})
         log(f"prospects: {len(prospects)}")
 
 
