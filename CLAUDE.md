@@ -20,7 +20,7 @@ Read `README.md` (structure, pipeline, how to run) and `about.html` (every formu
 |---|---|
 | Skater page | `index.html`, `app.js` |
 | Goalie page | `goalies.html`, `goalies.js` |
-| Trade machine | `trade.html`, `trade.js` (values players, prospects, picks; goalies priced at the goalie price of a win; rosters include players under team control who are off the active roster, `off_roster` in `rosters.json`) |
+| Trade machine | `trade.html`, `trade.js` (values players, prospects, picks; goalies priced at the goalie price of a win; rosters include players under team control who are off the active roster, `off_roster` in `rosters.json`; RFA team control from `birth`/`acc` in `value.json` projections; prospects carry an NHL `id` in `prospects.json`) |
 | Methods page | `about.html` (glossary + a section per page section; anchors `#m-…`, goalie ones `#m-g-…`) |
 | Shared front end | `common.js` (formatters, SVG axes, search with cross-page routing), `theme.js` (auto/dark/light toggle), `styles.css` |
 | Pipeline | `scripts/build_data.py` → `build_shots.py` → `build_usage.py` → `build_edge.py` → `build_goalies.py` → `build_value.py` |
@@ -57,6 +57,9 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 - **Goalie projections** keep `shots ÷ (shots + 3,000)` of a goalie's edge over the league-average goalie (three seasons of shots), and are valued at his own workload (games per season, up to 65). One hot season shouldn't price like a proven elite goalie; the owner wanted "only valued if they're great" to hold. Skaters keep their simpler 3-season projection.
 - **NHL EDGE stats** (speed, shot speed) describe style, so they feed similarity and a "slowing" trend, not value.
 - **Deployment fit** is judged three ways (5v5 results, overall value, against his role) because public data has no quality of competition.
+- **Trade machine contracts:** the site never knows contracts. Years left after this season are blank until the user types them (blank = this season only, flagged). Cap hits are in $M; dollar amounts convert. Trades are not saved on refresh, on purpose (the owner prefers a clean slate).
+- **Team control:** RFA seasons are estimated with the UFA rule (27 by June 30 or 7 accrued seasons; accrued ≈ 40+ NHL games, 25+ for goalies) and added through a checkbox that auto-sets but can be overridden. RFA seasons are assumed paid fair value, so they add wins but no surplus.
+- **Prospects** are valued by draft slot (decaying 15% a year since the draft); from 40 NHL games their own projection blends in by games played (100 = all NHL record). CapFriendly is gone and PuckPedia can't be scraped, so none of this uses contract data.
 - Defaults: skater page Seider vs. Makar; goalie page Vasilevskiy vs. Shesterkin. Both open on the last complete season until the current one passes 41 team games.
 
 ## Yearly upkeep

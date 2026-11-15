@@ -35,7 +35,7 @@ The goalie page (`goalies.html`) has the same four parts, built for goalies. Sea
 4. **Vs. history:** careers back to 1917-18, with save % against the league average (1955-56 on), goals saved above average and era-adjusted GAA.
 
 Two more pages:
-- **Trade machine** (`trade.html`): two teams; skaters, goalies, prospects and draft picks; years left on each contract and optional cap hits (you enter both); a value or surplus verdict.
+- **Trade machine** (`trade.html`): two teams; skaters, goalies, prospects and draft picks; years left on each contract and optional cap hits (you enter both); restricted-free-agent seasons estimated from age and NHL games (a checkbox you can override); prospects with 40+ NHL games blend their own record with their draft slot; wins and surplus verdicts side by side.
 - **How it works** (`about.html`): a glossary plus the method for every section.
 
 ## How the data works
@@ -64,7 +64,7 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 - **Era adjustment:** `adjusted = actual × 6.0 ÷ that season's league goals per game`.
 - **Salary cap and minimum salary by season:** the `CAP` and `MIN` tables at the top of `scripts/build_value.py`. Published caps run through 2027-28 ($113.5M); the model assumes 5% a year after that. Update these when the league announces new figures.
 - **Value weights, replacement level, age curves:** also in `scripts/build_value.py`. Goalies use `GOALIE_WEIGHT` (half credit for goals saved), `GOALIE_SHOTS_K` (projections keep shots ÷ (shots + 3,000) of a goalie's edge over average, and use his own workload), `AGE_MULT_G` and the goalie cap share (1 − `SKATER_SHARE`).
-- **Pick and prospect values:** `pickWins`, `FUTURE_DISCOUNT` and `PROSPECT_DECAY` at the top of `trade.js`.
+- **Pick and prospect values, team control:** `pickWins`, `FUTURE_DISCOUNT`, `PROSPECT_DECAY`, `NHL_BLEND_MIN`, `UFA_AGE` and `UFA_ACC` in `trade.js`. Birth dates and accrued seasons (40+ NHL games, 25+ for goalies) are added to each projection in `value.json` by `build_value.py`.
 
 ## Running the update yourself
 
