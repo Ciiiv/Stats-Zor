@@ -35,7 +35,7 @@ The goalie page (`goalies.html`) has the same four parts, built for goalies. Sea
 4. **Vs. history:** careers back to 1917-18, with save % against the league average (1955-56 on), goals saved above average and era-adjusted GAA.
 
 Two more pages:
-- **Trade machine** (`trade.html`): two teams; skaters, goalies, prospects and draft picks; optional cap hits and years left; a value or surplus verdict.
+- **Trade machine** (`trade.html`): two teams; skaters, goalies, prospects and draft picks; years left on each contract and optional cap hits (you enter both); a value or surplus verdict.
 - **How it works** (`about.html`): a glossary plus the method for every section.
 
 ## How the data works
