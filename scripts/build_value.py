@@ -35,7 +35,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_data import DATA, MP_FIRST, current_season, fetch_json, log, read_json, write_json  # noqa: E402
+from build_data import DATA, MP_FIRST, NHL_LANDING, current_season, fetch_json, log, read_json, write_json  # noqa: E402
 
 # Upper limit and league minimum salary, by season start year (US$ millions).
 CAP = {2008: 56.7, 2009: 56.8, 2010: 59.4, 2011: 64.3, 2012: 60.0, 2013: 64.3, 2014: 69.0, 2015: 71.4,
@@ -343,8 +343,44 @@ def main():
         for t, out in ex.map(roster, teams):
             if out:
                 rosters[t] = out
+    for out in rosters.values():
+        for row in out:
+            row.append(0)  # on the active roster
+    # Players still under a team's control but missing from its active roster (sitting out,
+    # unsigned RFA, long-term injury, suspended): anyone who played the last two seasons and
+    # isn't on any active roster, kept if his NHL player record still names a current team.
+    if len(rosters) >= 0.9 * len(teams):
+        on = {row[0] for out in rosters.values() for row in out}
+        recent = {}
+        for y in (cur - 1, cur):
+            sf = read_json(os.path.join(DATA, "seasons", f"{y}.json"))
+            if sf:
+                for r in sf["players"]:
+                    recent[r[0]] = (r[1], r[3])
+            gf = read_json(os.path.join(DATA, "goalies", "seasons", f"{y}.json"))
+            if gf:
+                gi = {k: i for i, k in enumerate(gf["fields"])}
+                for r in gf["players"]:
+                    recent[r[gi["id"]]] = (r[gi["name"]], "G")
+        todo = [pid for pid in recent if pid not in on]
+
+        def status(pid):
+            try:
+                j = fetch_json(NHL_LANDING.format(pid=pid))
+            except Exception:  # noqa: BLE001
+                return pid, None, None
+            return pid, j.get("currentTeamAbbrev") if j.get("isActive") else None, j.get("birthDate")
+
+        added = 0
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            for pid, team, birth in ex.map(status, todo):
+                if team and team in rosters:
+                    nm, pos = recent[pid]
+                    rosters[team].append([pid, nm, pos, birth, 1])
+                    added += 1
+        log(f"rosters: {added} players under contract or team control but not on an active roster ({len(todo)} checked)")
     if rosters:
-        write_json(os.path.join(DATA, "rosters.json"), {"updated": dt.date.today().isoformat(), "fields": ["id", "name", "pos", "birth"], "teams": rosters})
+        write_json(os.path.join(DATA, "rosters.json"), {"updated": dt.date.today().isoformat(), "fields": ["id", "name", "pos", "birth", "off_roster"], "teams": rosters})
         log(f"rosters: {len(rosters)} teams")
 
     # prospects: recent draft picks who haven't become NHL regulars (matched to careers by name)

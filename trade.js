@@ -42,7 +42,7 @@ const valueOf = a => a.type === 'player' ? playerValue(a) : a.type === 'pick' ? 
 
 function sideHTML(i) {
   const team = T.team[i]; const cls = i ? 'b' : '';
-  const roster = (D.rosters[team] || []).map(r => ({ id: r[0], name: r[1], pos: r[2], base: D.proj[r[0]] ? D.proj[r[0]].base_war82 : null }))
+  const roster = (D.rosters[team] || []).map(r => ({ id: r[0], name: r[1], pos: r[2], off: r[4] === 1, base: D.proj[r[0]] ? D.proj[r[0]].base_war82 : null }))
     .filter(r => !T.assets[i].some(a => a.type === 'player' && a.id === r.id)).sort((a, b) => (b.base ?? -9) - (a.base ?? -9));
   const pros = D.prospects.filter(p => p.drafted_by === team && !T.assets[i].some(a => a.type === 'prospect' && a.name === p.name)).sort((a, b) => a.overall - b.overall);
   const years = [0, 1, 2].map(k => D.nextDraft + k);
@@ -50,7 +50,7 @@ function sideHTML(i) {
     const v = valueOf(a);
     let nm = '', det = '';
     if (a.type === 'player') {
-      nm = `${esc(a.name)}<small>${a.pos} · ${v.hasProj ? f1(v.base) + (D.proj[a.id].per === 'season' ? ' wins/season' : ' wins/82') : 'no recent NHL data'}</small>`;
+      nm = `${esc(a.name)}<small>${a.pos}${a.off ? ' · not on active roster' : ''} · ${v.hasProj ? f1(v.base) + (D.proj[a.id].per === 'season' ? ' wins/season' : ' wins/82') : 'no recent NHL data'}</small>`;
       det = `<label>Years left incl. this one <input type="number" min="1" max="8" step="1" value="${a.years}" data-i="${i}" data-k="${k}" data-f="years"></label>
         <label>Cap hit $M <input type="number" min="0" step="0.05" placeholder="optional" value="${nz(a.cap) ? a.cap : ''}" data-i="${i}" data-k="${k}" data-f="cap"></label>
         <span>Worth ${money(v.worth)}${nz(v.cost) ? ` · paid ${money(v.cost)} · surplus <b class="${v.surplus >= 0 ? 'pos' : 'neg'}">${money(v.surplus)}</b>` : ''}</span>`;
@@ -65,7 +65,7 @@ function sideHTML(i) {
   }).join('');
   return `<div class="side ${cls}"><h2><span>${i ? 'Team B' : 'Team A'}</span><select data-team="${i}" aria-label="${i ? 'Team B' : 'Team A'}">${D.teams.map(t => `<option${t === team ? ' selected' : ''}>${t}</option>`).join('')}</select><span style="font-size:16px;color:var(--muted)">sends</span></h2>
     <div class="adders">
-      <div class="row"><select data-addp="${i}" aria-label="Add a player"><option value="">+ Add a player</option>${roster.map(r => `<option value="${r.id}">${esc(r.name)} · ${r.pos}${nz(r.base) ? ' · ' + f1(r.base) + (D.proj[r.id].per === 'season' ? ' W/season' : ' W/82') : ''}</option>`).join('')}</select></div>
+      <div class="row"><select data-addp="${i}" aria-label="Add a player"><option value="">+ Add a player</option>${roster.map(r => `<option value="${r.id}">${esc(r.name)} · ${r.pos}${r.off ? ' · not on active roster' : ''}${nz(r.base) ? ' · ' + f1(r.base) + (D.proj[r.id].per === 'season' ? ' W/season' : ' W/82') : ''}</option>`).join('')}</select></div>
       <div class="row"><select data-addq="${i}" aria-label="Add a prospect"><option value="">+ Add a prospect (${pros.length})</option>${pros.map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${p.pos} · #${p.overall} in ${p.draft_year}</option>`).join('')}</select></div>
       <div class="row"><select data-pky="${i}" aria-label="Pick year">${years.map(y => `<option>${y}</option>`).join('')}</select>
         <select data-pkr="${i}" aria-label="Round">${[1, 2, 3, 4, 5, 6, 7].map(r => `<option value="${r}">Round ${r}</option>`).join('')}</select>
@@ -107,7 +107,7 @@ function wire() {
   tm.addEventListener('change', e => {
     const t = e.target;
     if (t.dataset.team) { const i = +t.dataset.team; T.team[i] = t.value; T.assets[i] = []; render(); return; }
-    if (t.dataset.addp) { const i = +t.dataset.addp; const r = (D.rosters[T.team[i]] || []).find(x => String(x[0]) === t.value); if (r) T.assets[i].push({ type: 'player', id: r[0], name: r[1], pos: r[2], years: 2, cap: null }); render(); return; }
+    if (t.dataset.addp) { const i = +t.dataset.addp; const r = (D.rosters[T.team[i]] || []).find(x => String(x[0]) === t.value); if (r) T.assets[i].push({ type: 'player', id: r[0], name: r[1], pos: r[2], off: r[4] === 1, years: 2, cap: null }); render(); return; }
     if (t.dataset.addq) { const i = +t.dataset.addq; const p = D.prospects.find(x => x.name === t.value && x.drafted_by === T.team[i]); if (p) T.assets[i].push({ type: 'prospect', ...p }); render(); return; }
   });
   tm.addEventListener('input', e => {
@@ -148,6 +148,7 @@ async function init() {
       .filter(o => !onRoster.has((o.name || '').toLowerCase()));
     T.team = [D.teams.includes('DET') ? 'DET' : D.teams[0], D.teams.includes('BOS') ? 'BOS' : D.teams[1]];
     $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each future season you count, adjusted for age. The starting point blends his last three seasons. Dollar worth prices a skater win at about ${money(D.perWin)} and a goalie win at about ${money(D.perWinG)} this season (each from its share of the cap), scaled up with the projected cap in later years. Goalie projections are in wins per season at his own workload, and trust his record in proportion to the shots it rests on (one season as a starter keeps about a third of his edge over an average goalie, three seasons about 60%).</p>
+      <p><strong>Not on the active roster:</strong> players who played in the last two seasons, aren't on any team's active roster right now, but whose NHL player record still lists a team (sitting out, unsigned restricted free agents, long-term injury). They're listed with that team and marked.</p>
       <p><strong>Draft picks:</strong> expected value of a pick at that slot over a player's cost-controlled years (about ${f1(pickWins(1))} wins for 1st overall, ${f1(pickWins(16))} for 16th, ${f1(pickWins(32))} for 32nd, ${f1(pickWins(64))} for 64th), discounted ${Math.round((1 - FUTURE_DISCOUNT) * 100)}% for each year further out.</p>
       <p><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster right now (players on a roster are listed as players). Same value as their draft slot, reduced ${Math.round((1 - PROSPECT_DECAY) * 100)}% for each full year since the draft. Listed under the team that drafted them, so a prospect who has since been traded shows under his old team.</p>
       <p><strong>Not modeled:</strong> cap space and roster limits, retained salary, no-trade clauses, team needs, and the value of picks to a rebuilding team versus a contender. Treat the verdict as a starting point for debate.</p>`;
