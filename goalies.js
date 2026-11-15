@@ -361,7 +361,7 @@ async function renderShots() {
   const rows = [['Unblocked shots faced', x => f0(x.t.n)], ['Goals against', x => f0(x.t.g)], ['Expected goals against', x => f1(x.t.xg)], ['Saved above expected', x => s1(x.t.xg - x.t.g)],
     ['xG per shot', x => x.t.n ? (x.t.xg / x.t.n).toFixed(3) : '—'], ['Share from the slot', x => nz(slot(x)) ? slot(x).toFixed(1) + '%' : '—']];
   const tbl = `<table class="tape"><thead><tr><th>${sit === 'all' ? 'All situations' : sit === 'ev' ? '5v5' : 'Penalty kill'}</th>${maps.map((x, i) => `<th class="${i ? 'b' : 'a'}">${esc(last(x.p.name))}</th>`).join('')}<th>League goalie avg</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${maps.map(x => `<td>${r[1](x)}</td>`).join('')}<td>${r[0] === 'xG per shot' && lt.n ? (lt.xg / lt.n).toFixed(3) : r[0] === 'Share from the slot' ? (nz(slot({ m: lg, t: lt })) ? slot({ m: lg, t: lt }).toFixed(1) + '%' : '—') : ''}</td></tr>`).join('')}</tbody></table>`;
-  box.innerHTML = ctl + `<div class="two">${maps.map(x => `<div>${x.t.n ? rinkSVG(d, x.m, lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no shots faced in this situation.</p>`}</div>`).join('')}</div><div style="margin-top:16px;max-width:640px">${tbl}</div>`;
+  box.innerHTML = ctl + `<div class="two">${maps.map(x => `<div>${x.t.n ? rinkSVG(d, x.m, lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no shots faced in this situation.</p>`}</div>`).join('')}</div><div class="scroll" style="margin-top:16px;max-width:640px">${tbl}</div>`;
 }
 
 // ------------------------------------------------------------------ goalie swap
@@ -800,11 +800,12 @@ async function init() {
     const cur = await loadSeason(S.season).catch(() => null);
     if (!h.s && cur && cur.gpmax < 41 && GS().includes(S.season - 1)) S.season -= 1;
     const sd = await loadSeason(S.season);
-    const byToi = sd.players.slice().sort((a, b) => b.gsax - a.gsax);
-    const def = byToi.find(p => p.gs >= 0.5 * sd.gpmax) || byToi[0];
-    S.A = S.byId.has(+h.a) ? +h.a : def.id;
-    const second = sd.players.filter(p => p.id !== S.A && p.gs >= 0.5 * sd.gpmax).sort((a, b) => b.toi - a.toi)[0];
-    S.B = h.b === undefined ? (second ? second.id : null) : (S.byId.has(+h.b) ? +h.b : null);
+    // default matchup: Vasilevskiy vs. Shesterkin, falling back to the top starters if either is missing
+    const VASY = 8476883, SHESTY = 8478048;
+    const top = sd.players.filter(p => p.gs >= 0.5 * sd.gpmax).sort((a, b) => b.gsax - a.gsax);
+    S.A = S.byId.has(+h.a) ? +h.a : S.byId.has(VASY) ? VASY : (top[0] || sd.players[0]).id;
+    const dflB = S.byId.has(SHESTY) && S.A !== SHESTY ? SHESTY : (top.find(p => p.id !== S.A) || {}).id || null;
+    S.B = h.b === undefined ? dflB : (S.byId.has(+h.b) ? +h.b : null);
     if (!h.s) S.season = bestSeason(S.A);
     wire(); initNav(); $('status').hidden = true;
     await render();
