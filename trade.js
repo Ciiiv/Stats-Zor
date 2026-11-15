@@ -24,7 +24,7 @@ function playerValue(a) {
   const n = Math.max(1, a.years || 1);
   const fut = P ? P.years.slice(0, n - 1) : [];
   const wins = base * frac + fut.reduce((s, r) => s + r[2], 0);
-  const worthNow = D.minNow + Math.max(0, base) * D.perWin;
+  const worthNow = D.minNow + Math.max(0, base) * (P && P.g ? D.perWinG : D.perWin);
   const worth = worthNow * frac + fut.reduce((s, r) => s + r[3], 0);
   const cost = nz(a.cap) ? a.cap * (frac + (n - 1)) : null;
   return { wins, worth, cost, surplus: nz(cost) ? worth - cost : null, base, hasProj: !!P };
@@ -136,6 +136,8 @@ async function init() {
     D.progress = cs.progress ?? 1;
     D.perWin = ref.per_win * (cs.cap || ref.cap) / ref.cap;
     D.minNow = cs.min || ref.min;
+    const gs = (v.goalie_seasons || {})[String(v.current)] || {}, gref = (v.goalie_seasons || {})[String(v.current - 1)] || gs;
+    D.perWinG = gref.per_win ? gref.per_win * (gs.cap || gref.cap) / gref.cap : D.perWin;
     D.nextDraft = v.current + 1;
     D.proj = v.proj;
     D.rosters = r.teams;
@@ -145,7 +147,7 @@ async function init() {
     D.prospects = p.prospects.map(x => { const o = {}; p.fields.forEach((k, i) => { o[k] = x[i]; }); o.drafted_by = MOVED[o.drafted_by] || o.drafted_by; return o; })
       .filter(o => !onRoster.has((o.name || '').toLowerCase()));
     T.team = [D.teams.includes('DET') ? 'DET' : D.teams[0], D.teams.includes('BOS') ? 'BOS' : D.teams[1]];
-    $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each future season you count, adjusted for age. The starting point blends his last three seasons. Dollar worth prices a win at about ${money(D.perWin)} this season, scaled up with the projected cap in later years.</p>
+    $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each future season you count, adjusted for age. The starting point blends his last three seasons. Dollar worth prices a skater win at about ${money(D.perWin)} and a goalie win at about ${money(D.perWinG)} this season (each from its share of the cap), scaled up with the projected cap in later years. Goalie projections are pulled 30% toward an average goalie, since goalie seasons swing so much.</p>
       <p><strong>Draft picks:</strong> expected value of a pick at that slot over a player's cost-controlled years (about ${f1(pickWins(1))} wins for 1st overall, ${f1(pickWins(16))} for 16th, ${f1(pickWins(32))} for 32nd, ${f1(pickWins(64))} for 64th), discounted ${Math.round((1 - FUTURE_DISCOUNT) * 100)}% for each year further out.</p>
       <p><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster right now (players on a roster are listed as players). Same value as their draft slot, reduced ${Math.round((1 - PROSPECT_DECAY) * 100)}% for each full year since the draft. Listed under the team that drafted them, so a prospect who has since been traded shows under his old team.</p>
       <p><strong>Not modeled:</strong> cap space and roster limits, retained salary, no-trade clauses, team needs, and the value of picks to a rebuilding team versus a contender. Treat the verdict as a starting point for debate.</p>`;

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150131">
+<link rel="stylesheet" href="styles.css?v=202611150300">
 <style>
 .doc{max-width:860px}
 .doc h2{font-size:28px;margin-top:6px}
@@ -30,7 +30,7 @@
 <body>
 <header class="top">
   <div class="wrap top-in" style="align-items:center">
-    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Player analysis</a></div>
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="goalies.html">← Goalies</a></div>
     <div style="flex:1;min-width:0"><h1 style="font-size:clamp(26px,4vw,36px)">How it works</h1></div>
   </div>
 </header>
@@ -43,6 +43,7 @@
     <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
+    <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
   </div>
 </section>
 
@@ -64,6 +65,10 @@
     <dt>Wins above replacement</dt><dd>Stats-Zor's estimate of how many wins a player adds over a replacement-level call-up. See <a href="#m-value">Value and worth</a>.</dd>
     <dt>Era-adjusted</dt><dd>Scoring rescaled to a common league-wide scoring level, so a 1980s point and a 2020s point can be compared. See <a href="#m-career">Career vs. career</a>.</dd>
     <dt>NHL EDGE</dt><dd>The NHL's puck and player tracking (2021-22 on): skating speed, speed bursts, distance skated, shot speed and zone time.</dd>
+    <dt>GSAx</dt><dd>Goals saved above expected, for goalies: the expected goals of every shot he faced minus the goals he allowed. +10 means he stopped 10 more than an average goalie would have on the same shots.</dd>
+    <dt>Sv% vs expected</dt><dd>His save % minus the save % an average goalie would post on his shots (1 − xGA ÷ shots on goal), in percentage points.</dd>
+    <dt>GSAA</dt><dd>Goals saved above average: shots faced × (his save % − league save %). Works back to 1955-56, before expected goals existed.</dd>
+    <dt>Quality start</dt><dd>A start with a save % at or above the league average, or .885+ when he faced 20 shots or fewer. A really bad start is under .850.</dd>
     <dt>Age</dt><dd>Age on February 1 of the season, the same convention Hockey-Reference uses.</dd>
   </dl>
 </section>
@@ -221,7 +226,7 @@ Wins = goals ÷ 6</div>
 Worth          = minimum salary + max(0, wins per 82 games) × price of a win
 % of cap       = worth ÷ that season's cap</div>
   <p>Caps used ($M): 2008-09 56.7 · 09-10 56.8 · 10-11 59.4 · 11-12 64.3 · 12-13 60.0 (lockout) · 13-14 64.3 · 14-15 69.0 · 15-16 71.4 · 16-17 73.0 · 17-18 75.0 · 18-19 79.5 · 19-20 to 21-22 81.5 · 22-23 82.5 · 23-24 83.5 · 24-25 88.0 · 25-26 95.5 · 26-27 104.0 · 27-28 113.5 (projected), then an assumed +5% a year. Minimum salary follows each season's CBA figure, rising to $1M by 2029-30.</p>
-  <p class="lim"><b>Limits:</b> stars come out "worth" far more than their pay. That's normal for value models, because the max salary, entry-level and RFA contracts keep the best players underpaid, so read the dollars as relative value. A partial current season uses each player's pace over 82 games, so early-season figures swing. Goalies aren't modeled.</p>
+  <p class="lim"><b>Limits:</b> stars come out "worth" far more than their pay. That's normal for value models, because the max salary, entry-level and RFA contracts keep the best players underpaid, so read the dollars as relative value. A partial current season uses each player's pace over 82 games, so early-season figures swing. Goalies have their own version, under <a href="#m-g-value">Goalie value</a>.</p>
 
   <h3 id="m-deal">Fair-value contract</h3>
   <div class="m">Starting point = his wins per 82, blended over 3 seasons (weights 3, 2, 1 × games)
@@ -234,7 +239,7 @@ Fair AAV for an N-year deal = average worth over those N years</div>
 
   <h3 id="m-trade">Trade machine</h3>
   <ul>
-    <li><strong>Players:</strong> his blended wins per 82 × the share of this season left, plus the projected wins for each future season you count ("years left"). Worth is priced the same way.</li>
+    <li><strong>Players:</strong> his blended wins per 82 × the share of this season left, plus the projected wins for each future season you count ("years left"). Worth is priced the same way. Goalies are on the rosters too, valued with the <a href="#m-g-value">goalie model</a> and priced at the goalie price of a win.</li>
     <li><strong>Cap hits:</strong> if you enter one, cost = cap hit × (share of this season left + future years), and surplus = worth − cost. Once every player has a cap hit, the verdict switches from value to surplus.</li>
     <li><strong>Draft picks:</strong> expected wins over a pick's cost-controlled years, by overall pick number. "Early" picks are #4, "middle" #16 and "late" #28 in each round. The value drops 10% for each year beyond the next draft.</li>
     <li><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster. They get the value of their draft slot, reduced 15% for each full year since the draft. They're listed under their drafting team (Arizona picks under Utah).</li>
@@ -266,11 +271,87 @@ distance = √(weighted average of squared differences); closest = smallest dist
 </section>
 
 <section class="panel">
+  <span class="eyebrow">Goalies · goalies.html</span>
+  <h2 id="m-goalies">Goalie page basics</h2>
+  <p>Goalies have their own page with the same four parts, because almost nothing a skater is judged on applies to them. Searching a goalie's name on the skater page sends you there, and the other way around. Goalies are only compared with goalies.</p>
+  <p><strong>Pools:</strong> <em>Regulars</em> have at least 25% of the season's games (minimum 5); <em>Starters</em> have started at least 45% of them. Percentiles work exactly as for skaters, flipped where lower is better (GAA, rebounds).</p>
+  <div class="m">Save %                 = 1 − goals against ÷ shots on goal
+Expected save %        = 1 − expected goals against ÷ shots on goal
+Sv% vs expected (pts)  = 100 × (expected goals against − goals against) ÷ shots on goal
+GSAx                   = expected goals against − goals against
+GSAx/60                = GSAx ÷ minutes × 60
+Danger sv% vs exp.     = 100 × (xGA − GA) ÷ shots, within MoneyPuck's low, mid or high danger group
+Rebounds vs exp. /60   = (rebounds allowed − expected rebounds) ÷ hours  (lower is better)
+Freezes vs exp. /60    = (pucks frozen − expected freezes) ÷ hours</div>
+  <p>Expected goals against include missed shots, which can't score, so they're compared with shots on goal for the expected save %. Empty-net time doesn't count: the goalie is on the bench.</p>
+  <p class="lim"><b>Limits:</b> MoneyPuck's expected-goals model knows shot location, type, angle, rebounds and rushes, but not screens, deflections in front or passes right before the shot. Goalies behind teams that allow a lot of those are shortchanged a little. And over one season, save % is roughly half skill and half luck, so single-season goalie numbers swing far more than skater numbers.</p>
+
+  <h3 id="m-g-rank">Goalie composite and stat board</h3>
+  <div class="m">Stopping              = avg(GSAx/60, Sv% vs expected, 5v5 GSAx/60)
+Danger &amp; situations   = avg(high-, mid- and low-danger sv% vs expected, PK GSAx/60, rebounds vs expected)
+Workload              = avg(starts, shots faced /60, xGA/60 faced)
+Composite             = weighted average of the three, using the sliders (default 50 / 30 / 20)</div>
+  <p>Workload is the goalie version of role difficulty: carrying the crease and facing a heavy, dangerous load is harder than a light backup schedule. Presets: Balanced, Pure saves (no workload) and Workhorse.</p>
+  <p><strong>Stat board:</strong> the same color-coded percentile matrix as for skaters, with workload, results, danger, situation, puck-control and record columns. "Most similar" uses the root-mean-square percentile difference across the save and workload columns (not wins or shutouts, which depend on the team).</p>
+  <p id="m-g-h2h"><strong>Head to head:</strong> a percentile radar (overall, 5v5, high/mid/low danger, PK, rebound control and workload) and a side-by-side table. Expected save % and xGA/60 describe the shots he faced, so they aren't marked as wins.</p>
+
+  <h3 id="m-g-env">Shot environment</h3>
+  <p>Left: xGA/60 faced against GSAx/60, so you can see whether a goalie's numbers came behind a strong or a leaky defense. Right: shots on goal per 60 against expected goals per unblocked shot, which separates volume from danger. Lines mark the medians (and zero GSAx).</p>
+  <h3 id="m-g-shots">Shot maps</h3>
+  <p>Built from the same MoneyPuck shot files as skater maps, but grouped by the goalie who faced each shot: 5 × 5 ft cells across his defensive zone, for all situations, 5v5 and the penalty kill. <em>Where shots came from</em> compares his share of shots from each cell with the league total for all goalies (orange = more often than average). <em>Saves vs expected</em> shows expected goals minus goals allowed in each cell with 5+ shots (blue = better than average from there).</p>
+  <h3 id="m-g-swap">Goalie swap</h3>
+  <div class="m">His rate          = (xGA − GA) ÷ xGA this season  (goals saved per expected goal)
+Goals against there = the replaced goalie's xGA × (1 − his rate)
+Goals saved       = replaced goalie's actual goals against − goals against there
+Wins              ≈ goals saved ÷ 6</div>
+  <p>Using the rate per expected goal (rather than per 60) makes his saves scale with how many chances the new team actually allows. The reverse swap is shown too.</p>
+  <p class="lim"><b>Limits:</b> assumes save talent travels unchanged and the team in front of him plays the same. Goalie systems, rebound handling and puck-playing interact with the defense in ways this doesn't capture.</p>
+
+  <h3 id="m-g-role">Workload and fit</h3>
+  <p>Starts and decisions come from the NHL's game-by-game goalie logs; shots, goals and expected goals from MoneyPuck's game-by-game goalie file.</p>
+  <div class="m">Start share   = his starts ÷ his team's games (while he was on each team, if traded)
+Role          65%+ workhorse starter · 50%+ starter · 40–50% 1A · 28–40% 1B · 12–28% backup · under 12% spot duty
+Results fit   = GSAx/60 blended over 3 seasons (weights 3, 2, 1 × minutes),
+                ranked among this season's regular goalies:
+                top third = starter results · middle = tandem · bottom = backup
+Flag          results level above his role → "Results earn more starts"
+              below → "Starting more than his results support"</div>
+  <p><strong>Rest:</strong> each start is grouped by days since his previous start: back-to-back (started yesterday too), 1, 2 or 3+ days of rest, with save %, expected save % and GSAx/60, next to the league rate for the same rest. <strong>Back-to-backs</strong> also count the team's second nights and how many he started. <strong>Quality starts</strong> use the Hockey Prospectus definition in the glossary. <strong>Pulled</strong> counts starts where another goalie came in and he played under 55 minutes. Home and road starts are split too.</p>
+  <h3 id="m-g-form">Form through the season</h3>
+  <p>GSAx per start averaged over his last 10 starts (shown from his 5th start on), by date. Faint dots are single starts.</p>
+  <h3 id="m-g-lineup">Team goalie card</h3>
+  <p>Every goalie who appeared for the team: games, starts, share and role, save %, GSAx, GSAx/60, quality-start rate, results fit and flag.</p>
+  <p class="lim"><b>Limits:</b> who starts depends on contracts, injuries, schedule and trust as much as on results, and a backup's numbers often come from easier nights. Rest splits are small samples.</p>
+
+  <h3 id="m-g-value">Goalie value and fair contract</h3>
+  <div class="m">Goals above replacement, for each situation (5v5, penalty kill, everything else)
+  = 0.5 × (GSAx − replacement rate × hours in that situation)
+Replacement rate = 20th percentile GSAx/60 among regular goalies, in that situation
+Wins = goals ÷ 6
+Price of a goalie win = 32 × (cap × 0.12 goalie share − 2 goalies × minimum salary)
+                        ÷ all positive goalie wins that season</div>
+  <p><strong>Why half credit:</strong> GSAx is the goalie's own number, but a season of it is roughly half signal and half noise and team effects the model can't see, so only half is credited. That also keeps goalie wins on a scale comparable with skater wins: in a typical season goalies produce about 13–15% of all positive wins, close to their 12% share of the cap.</p>
+  <div class="m">Projection   = 3-season blend (weights 3, 2, 1 × games), pulled 30% toward the average regular goalie
+Age factors  ≤24 ×1.08 · 25–27 ×1.03 · 28–31 ×1.00 · 32–33 ×0.95 · 34–35 ×0.90 · 36+ ×0.85</div>
+  <p>Goalies peak later and hold it longer than skaters, so the curve is shifted. Fair AAV for a term is the average projected worth over those years, as for skaters. The trade machine uses the same projection.</p>
+  <p class="lim"><b>Limits:</b> the noise in goalie seasons means projections are much less certain than for skaters; the 30% pull toward average only partly handles it. Contracts aren't known; type a cap hit to compare.</p>
+
+  <h3 id="m-g-career">Goalie careers, arcs and comps</h3>
+  <div class="m">League save % (each season) = 1 − goals against ÷ shots, all goalies with shot counts
+Save % vs league (×1000)    = 1000 × (his save % − league save %)
+GSAA                        = shots × (1 − league save %) − goals against
+Era-adjusted GAA            = GAA × 3.0 ÷ that season's league GAA</div>
+  <p>The NHL has recorded shots against since 1955-56, so save % and GSAA start there; earlier seasons have record, shutouts and GAA only. Expected goals (GSAx) start in 2008-09. "Same age" and "same career stage" work as for skaters, with a full season being 20+ games.</p>
+  <p><strong>Comps:</strong> goalies with at least 40 games (or half of his total) by his age, compared on save % vs league (weight 1.2, if both have shot counts for most games), era-adjusted GAA (0.8), games played (0.6) and GSAx/60 (1, if both have 50+ hours of 2008+ data), each standardized by its spread.</p>
+  <p class="lim"><b>Limits:</b> wins, shutouts and GAA depend heavily on the team. League save % rose steadily for decades with equipment and coaching, so save % vs league is the fairest cross-era measure here, but it still doesn't know shot quality before 2008-09.</p>
+</section>
+
+<section class="panel">
   <h2 id="sources">Sources and updates</h2>
   <ul>
-    <li><a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>: season summaries, lines and pairs, game-by-game skater data, and shot data from 2008-09 on. Free for non-commercial use with credit to MoneyPuck.com.</li>
-    <li>NHL stats API: every skater season since 1917-18, bios and league scoring.</li>
-    <li>NHL player and roster API: trophies, Hall of Fame, current rosters and draft picks.</li>
+    <li><a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>: skater and goalie season summaries, lines and pairs, game-by-game skater and goalie data, and shot data from 2008-09 on. Free for non-commercial use with credit to MoneyPuck.com.</li>
+    <li>NHL stats API: every skater and goalie season since 1917-18, bios, league scoring, and goalie game logs (starts and decisions).</li>
+    <li>NHL player and roster API: trophies (including the Vezina and Jennings), Hall of Fame, current rosters and draft picks.</li>
     <li>NHL EDGE API: skating speed, bursts, distance, shot speed and zone time, 2021-22 on.</li>
   </ul>
   <p>A GitHub Actions job rebuilds the data every morning (about 7 a.m. Eastern) after MoneyPuck's overnight update. Past seasons are kept; the current season is refreshed each day.</p>

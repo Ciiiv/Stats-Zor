@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Goalies · Stats-Zor</title>
+<meta name="description" content="NHL goalie analysis: goals saved above expected, shots faced, workload and rest, value, and careers across eras. Data from MoneyPuck.com and the NHL.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=202611150300">
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="trade.html">Trade machine →</a><a class="tradelink" href="about.html#m-goalies">How it works →</a></div>
+    <div class="pickers">
+      <div class="picker" id="pickA">
+        <label for="qA"><i class="dot a"></i>Goalie</label>
+        <input id="qA" type="search" autocomplete="off" placeholder="Search any NHL player">
+        <ul class="sugg" hidden></ul>
+      </div>
+      <div class="picker" id="pickB">
+        <label for="qB"><i class="dot b"></i>Compare with</label>
+        <input id="qB" type="search" autocomplete="off" placeholder="Search a second goalie">
+        <ul class="sugg" hidden></ul>
+      </div>
+      <div class="picker small">
+        <label for="season">Season</label>
+        <select id="season"></select>
+      </div>
+    </div>
+  </div>
+  <nav class="wrap tabs" id="nav" aria-label="Sections">
+    <div class="ng"><span class="nl">&nbsp;</span><div class="nls"><a href="#sec-profile">Profile</a></div></div>
+    <div class="ng" data-part="1"><span class="nl">1 · How he played</span><div class="nls">
+      <a href="#sec-rank">Ranking</a><a href="#sec-matrix">Stat board</a><a href="#sec-h2h">Head to head</a><a href="#sec-env">Shot environment</a><a href="#sec-shots">Shot maps</a><a href="#sec-swap">Goalie swap</a></div></div>
+    <div class="ng" data-part="2"><span class="nl">2 · How he's used</span><div class="nls">
+      <a href="#sec-role">Workload &amp; fit</a><a href="#sec-form">Form</a><a href="#sec-lineup">Team card</a></div></div>
+    <div class="ng" data-part="3"><span class="nl">3 · What he's worth</span><div class="nls">
+      <a href="#sec-value">Value &amp; worth</a><a href="#sec-deal">Fair contract</a></div></div>
+    <div class="ng" data-part="4"><span class="nl">4 · Vs. history</span><div class="nls">
+      <a href="#sec-career">Career vs career</a><a href="#sec-arcs">Arcs &amp; comps</a></div></div>
+  </nav>
+</header>
+
+<main class="wrap" id="main">
+  <p class="status" id="status">Loading data…</p>
+
+  <section class="panel" id="sec-profile"></section>
+
+  <div class="part"><span class="eyebrow">Part one · single season · MoneyPuck data</span><h2 class="part-h" id="part1-h">The season</h2>
+    <p class="sub">The core number is <strong>goals saved above expected</strong> (GSAx): the goals an average goalie would have allowed on the shots he faced, given where and how they were taken, minus the goals he actually allowed. Above zero means he stopped more than expected.</p></div>
+
+  <section class="panel" id="sec-rank">
+    <div class="head"><h2>Goalie composite</h2><a class="how" href="about.html#m-g-rank">How this works</a>
+      <p class="sub" id="rank-sub"></p></div>
+    <div class="ctl" id="rank-ctl"></div>
+    <div class="weights" id="weights"></div>
+    <div class="rank" id="rank"></div>
+    <div class="legend"><span><i class="seg-d"></i>Stopping</span><span><i class="seg-o"></i>Danger &amp; situations</span><span><i class="seg-c"></i>Workload</span><span>Score out of 100</span></div>
+  </section>
+
+  <section class="panel" id="sec-matrix">
+    <div class="head"><h2>Stat board</h2><a class="how" href="about.html#m-g-matrix">How this works</a>
+      <p class="sub">Cell color is the percentile against goalies, flipped where lower is better, so blue always means good. On workload columns, blue means more work or harder shots. Click a column to sort. Fill the board with the top-ranked goalies or the ones whose profile is most like his. Add anyone with the search box.</p></div>
+    <div class="ctl"><div class="picker inline" id="pickBoard"><input id="qBoard" type="search" autocomplete="off" placeholder="Add a goalie to the board"><ul class="sugg" hidden></ul></div>
+      <span class="toggle" id="mtoggle"></span></div>
+    <div class="scroll"><table class="matrix" id="matrix"></table></div>
+  </section>
+
+  <section class="panel" id="sec-h2h">
+    <div class="head"><h2>Head to head</h2><a class="how" href="about.html#m-g-h2h">How this works</a>
+      <p class="sub">Percentile profile against goalies. Lower-is-better stats are flipped, so farther out is always better.</p></div>
+    <div class="two"><svg id="radar" viewBox="-60 0 580 440" role="img" aria-label="Radar comparison"></svg><div id="h2h-table"></div></div>
+  </section>
+
+  <section class="panel" id="sec-env">
+    <div class="head"><h2>Shot environment</h2><a class="how" href="about.html#m-g-env">How this works</a>
+      <p class="sub">How much help he got, and what he did with it. Grey dots are every regular goalie. Left: expected goals against per 60 (the quality and volume of chances his team allowed) against goals saved above expected per 60. Right: shots on goal per 60 against expected goals per shot, which separates a busy night from a dangerous one.</p></div>
+    <div class="two"><svg id="sc1" viewBox="0 0 520 440" role="img" aria-label="xGA/60 vs GSAx/60"></svg><svg id="sc2" viewBox="0 0 520 440" role="img" aria-label="Shots per 60 vs xG per shot"></svg></div>
+  </section>
+
+  <section class="panel" id="sec-shots">
+    <div class="head"><h2>Shot maps · shots he faced</h2><a class="how" href="about.html#m-g-shots">How this works</a>
+      <p class="sub" id="shots-sub">Loading shot maps…</p></div>
+    <div id="shots"></div>
+  </section>
+
+  <section class="panel" id="sec-swap">
+    <div class="head"><h2>Goalie swap</h2><a class="how" href="about.html#m-g-swap">How this works</a>
+      <p class="sub">Put him behind another team's defense in place of one of its goalies. His rate of goals saved per expected goal is applied to the chances that team actually allowed in front of the goalie he replaces, and the other way around.</p></div>
+    <div class="ctl"><label class="lbl" for="swapTeam">Send to</label><select id="swapTeam"></select><label class="lbl" for="swapOut">replacing</label><select id="swapOut"></select></div>
+    <div id="swap"></div>
+  </section>
+
+  <div class="part"><span class="eyebrow">Part two · workload · NHL and MoneyPuck game-by-game data</span><h2 class="part-h">Workload and fit</h2>
+    <p class="sub">How often the coach started him, how he did on short rest and on the second night of back-to-backs, how his form moved through the season, and whether his results fit the role he was given.</p></div>
+
+  <section class="panel" id="sec-role">
+    <div class="head"><h2>Workload and fit</h2><a class="how" href="about.html#m-g-role">How this works</a><p class="sub" id="role-sub"></p></div>
+    <div id="role"></div>
+  </section>
+
+  <section class="panel" id="sec-form">
+    <div class="head"><h2>Form through the season</h2><a class="how" href="about.html#m-g-form">How this works</a>
+      <p class="sub" id="form-sub">Goals saved above expected per start, averaged over his last 10 starts at each point of the season. Above the line is better than an average goalie on the same shots.</p></div>
+    <svg id="form" viewBox="0 0 1080 300" role="img" aria-label="Rolling goals saved above expected"></svg>
+  </section>
+
+  <section class="panel" id="sec-lineup">
+    <div class="head"><h2>Team goalie card</h2><a class="how" href="about.html#m-g-lineup">How this works</a>
+      <p class="sub">Every goalie who played for a team: how the starts were split, and where each one's results say he fits. "Fit" ranks goals saved above expected per 60, blended over three seasons, among regular goalies: top third is starter quality, middle third tandem, bottom third backup.</p></div>
+    <div class="ctl"><label class="lbl" for="lineupTeam">Team</label><select id="lineupTeam"></select></div>
+    <div id="lineup"></div>
+  </section>
+
+  <div class="part"><span class="eyebrow">Part three · value · Stats-Zor model</span><h2 class="part-h">What he's worth</h2>
+    <p class="sub">Goals saved above a replacement-level goalie over the same minutes, credited at half (the other half is noise and team), turned into wins and priced with the goalie share of the salary cap. It estimates fair value; it doesn't know actual contracts.</p></div>
+
+  <section class="panel" id="sec-value">
+    <div class="head"><h2>Value and worth</h2><a class="how" href="about.html#m-g-value">How this works</a><p class="sub" id="value-sub"></p></div>
+    <div id="value"></div>
+  </section>
+
+  <section class="panel" id="sec-deal">
+    <div class="head"><h2>Fair-value contract</h2><a class="how" href="about.html#m-g-value">How this works</a><p class="sub" id="deal-sub"></p></div>
+    <div id="deal"></div>
+  </section>
+
+  <div class="part"><span class="eyebrow">Part four · careers across eras · NHL data</span><h2 class="part-h">Against history</h2>
+    <p class="sub">Raw save percentage and goals-against average from different eras aren't comparable: league save % sank to about .875 in the mid-1980s, peaked near .915 in the mid-2010s and has slipped to about .895 since. Era figures compare each season with that season's league average. The NHL has counted shots since 1955-56, so save % starts there; expected goals start in 2008-09.</p></div>
+
+  <section class="panel" id="sec-career">
+    <div class="head"><h2>Career vs. career</h2><a class="how" href="about.html#m-g-career">How this works</a>
+      <p class="sub">Full careers on the left. On the right both goalies frozen at the same point.</p></div>
+    <div class="ctl"><span class="lbl">Compare at</span><span class="toggle" id="cmode"><button type="button" data-m="age" aria-pressed="true">Same age</button><button type="button" data-m="stage" aria-pressed="false">Same career stage</button></span></div>
+    <div class="two"><div><p class="minihead">Tale of the tape · full career</p><table class="tape" id="tape"></table></div>
+      <div><p class="minihead" id="atlab">At the same point</p><table class="tape" id="atsame"></table></div></div>
+    <div class="two" style="margin-top:20px"><div><p class="minihead">Cumulative goals saved above league average, by age</p><svg id="cumu" viewBox="0 0 540 300" role="img" aria-label="Cumulative goals saved above average"></svg></div>
+      <div><p class="minihead">Save % above league average, each season (×1000)</p><svg id="seas" viewBox="0 0 540 300" role="img" aria-label="Save percentage above league by season"></svg></div></div>
+  </section>
+
+  <section class="panel" id="sec-arcs">
+    <div class="head"><h2>Career arcs and comps</h2><a class="how" href="about.html#m-g-career">How this works</a>
+      <p class="sub">Every season plotted by age. Add up to six goalies.</p></div>
+    <div class="ctl"><span class="lbl">Measure</span><span class="toggle" id="ametric"></span></div>
+    <div class="ctl"><div class="picker inline" id="pickArc"><input id="qArc" type="search" autocomplete="off" placeholder="Add a goalie to the chart"><ul class="sugg" hidden></ul></div></div>
+    <div class="chips" id="achips"></div>
+    <svg id="arc" viewBox="0 0 1080 400" role="img" aria-label="Career arcs"></svg>
+    <p class="sub small" id="arcnote"></p>
+    <p class="minihead" style="margin-top:22px" id="comps-h">Closest comps</p>
+    <p class="sub small" id="comps-sub"></p>
+    <div class="scroll"><table class="tbl" id="comps"></table></div>
+  </section>
+
+  <footer class="foot">
+    <p>Data: <a href="https://moneypuck.com" rel="noopener">MoneyPuck.com</a> goalie and shot data (2008-09 on) and the NHL's public stats API (careers, starts, trophies). Free for non-commercial use with credit to MoneyPuck. Updated automatically every morning.</p>
+    <p id="updated"></p>
+  </footer>
+</main>
+<script src="common.js?v=202611150300"></script>
+<script src="goalies.js?v=202611150300"></script>
+</body>
+</html>

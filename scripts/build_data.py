@@ -478,13 +478,25 @@ def build_index(careers, season_files, cur):
                 p[6] |= 1 << (y - MP_FIRST)
                 if y >= p[3]:
                     p[3], p[4] = y, team
+    # goalies, from the files build_goalies.py wrote on the last run (it refreshes them after this)
+    goalie_rows, goalie_seasons = [], []
+    try:
+        from build_goalies import GDIR, index_rows
+        goalie_rows = [r for r in index_rows() if r[0] not in players]
+        sdir = os.path.join(GDIR, "seasons")
+        if os.path.isdir(sdir):
+            goalie_seasons = sorted(int(fn[:-5]) for fn in os.listdir(sdir) if fn.endswith(".json"))
+    except Exception as e:  # noqa: BLE001
+        log(f"goalie index rows skipped: {e}")
+    rows = [[pid] + p for pid, p in players.items()] + goalie_rows
     return {
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "current": cur,
         "mp_first": MP_FIRST,
         "mp_seasons": sorted(season_files.keys()),
         "fields": ["id", "name", "pos", "first", "last", "team", "gp", "mp_mask"],
-        "players": [[pid] + p for pid, p in sorted(players.items(), key=lambda kv: kv[1][0] or "")],
+        "goalie_seasons": goalie_seasons,
+        "players": sorted(rows, key=lambda r: r[1] or ""),
     }
 
 

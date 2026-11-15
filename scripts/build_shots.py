@@ -8,6 +8,9 @@ Output: data/shots/{year}.json with, for every skater, a sparse grid of the offe
 (5 x 5 ft cells) holding attempts, goals and expected goals, split by situation
 (all, 5v5, power play), plus league totals by position group for comparison.
 
+Also writes data/goalies/shots/{year}.json: the same grid for the shots each goalie faced
+(all situations, 5v5, and with his team shorthanded), plus the league total for goalies.
+
 Regular season only; empty-net shots are left out. Default run rebuilds only the current season
 and any season that is missing; --full rebuilds everything.
 """
@@ -28,6 +31,7 @@ SHOTS_URL = "https://peter-tanner.com/moneypuck/downloads/shots_{y}.zip"
 X0, X1, Y0, Y1, CELL = 25, 100, -42.5, 42.5, 5  # offensive zone, feet
 NX, NY = int((X1 - X0) / CELL), int(round((Y1 - Y0) / CELL))
 SITS = ("all", "ev", "pp")
+GSITS = ("all", "ev", "pk")  # goalie view: 5v5 and his team shorthanded
 
 
 def col(row, *names, default=None):
@@ -50,6 +54,8 @@ def build(y: int):
     name = next(n for n in zf.namelist() if n.lower().endswith(".csv"))
     players = {}   # pid -> {sit: {cell: [n, g, xg]}}
     league = {}    # grp -> {sit: {cell: [n, g, xg]}}
+    goalies = {}   # goalie id -> {sit: {cell: [n, g, xg]}}, shots he faced
+    gleague = {}   # sit -> {cell: [n, g, xg]}
     pos_of = {}
     sp = os.path.join(DATA, "seasons", f"{y}.json")
     if os.path.exists(sp):
@@ -72,9 +78,11 @@ def build(y: int):
             if fnum(col(row, "shotOnEmptyNet"), 0) == 1:
                 continue
             pid = col(row, "shooterPlayerId")
-            if not pid or pid in ("0", "0.0"):
+            gid = col(row, "goalieIdForShot")
+            gid = int(float(gid)) if gid and gid not in ("0", "0.0") else None
+            if (not pid or pid in ("0", "0.0")) and not gid:
                 continue
-            pid = int(float(pid))
+            pid = int(float(pid)) if pid and pid not in ("0", "0.0") else None
             x = fnum(col(row, "xCordAdjusted", "arenaAdjustedXCordABS"), None)
             yv = fnum(col(row, "yCordAdjusted", "arenaAdjustedYCord", "arenaAdjustedYCordAbs"), None)
             if x is None or yv is None:
@@ -95,6 +103,16 @@ def build(y: int):
                 sits.append("ev")
             elif mine > opp:
                 sits.append("pp")
+            if gid:
+                gs = ["all"] + (["ev"] if "ev" in sits else ["pk"] if "pp" in sits else [])
+                for s_ in gs:
+                    for bucket in (goalies.setdefault(gid, {}).setdefault(s_, {}), gleague.setdefault(s_, {})):
+                        c = bucket.setdefault(cell, [0, 0, 0.0])
+                        c[0] += 1
+                        c[1] += g
+                        c[2] += xg
+            if pid is None:
+                continue
             if pid not in pos_of:
                 pos = (col(row, "playerPositionThatDidEvent", default="") or "").upper()[:1]
                 if pos in ("C", "L", "R", "D"):
@@ -113,9 +131,12 @@ def build(y: int):
             continue
         out_players[str(pid)] = {s: [[cell, c[0], c[1], round(c[2] * 100)] for cell, c in sorted(by[s].items())] for s in SITS if s in by}
     out_league = {grp: {s: [[cell, c[0], c[1], round(c[2] * 100)] for cell, c in sorted(by[s].items())] for s in SITS if s in by} for grp, by in league.items()}
-    log(f"shots {y}: {kept} shots, {len(out_players)} shooters")
-    return {"season": y, "grid": {"x0": X0, "x1": X1, "y0": Y0, "y1": Y1, "cell": CELL, "nx": NX, "ny": NY},
-            "fields": ["cell", "shots", "goals", "xg_x100"], "players": out_players, "league": out_league}
+    log(f"shots {y}: {kept} shots, {len(out_players)} shooters, {len(goalies)} goalies")
+    grid = {"x0": X0, "x1": X1, "y0": Y0, "y1": Y1, "cell": CELL, "nx": NX, "ny": NY}
+    pack = lambda by, sits: {s: [[cell, c[0], c[1], round(c[2] * 100)] for cell, c in sorted(by[s].items())] for s in sits if s in by}  # noqa: E731
+    gout = {str(gid): pack(by, GSITS) for gid, by in goalies.items() if sum(c[0] for c in by.get("all", {}).values()) >= 50}
+    return ({"season": y, "grid": grid, "fields": ["cell", "shots", "goals", "xg_x100"], "players": out_players, "league": out_league},
+            {"season": y, "grid": grid, "fields": ["cell", "shots", "goals", "xg_x100"], "players": gout, "league": pack(gleague, GSITS)})
 
 
 def main():
@@ -127,10 +148,13 @@ def main():
     errors = []
     for y in range(MP_FIRST, cur + 1):
         path = os.path.join(DATA, "shots", f"{y}.json")
-        if not args.full and y < cur and os.path.exists(path):
+        gpath = os.path.join(DATA, "goalies", "shots", f"{y}.json")
+        if not args.full and y < cur and os.path.exists(path) and os.path.exists(gpath):
             continue
         try:
-            write_json(path, build(y))
+            sk, gl = build(y)
+            write_json(path, sk)
+            write_json(gpath, gl)
         except Exception as e:  # noqa: BLE001
             errors.append(f"{y}: {e}")
             log(f"shots {y} FAILED: {e}")

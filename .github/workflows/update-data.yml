@@ -65,6 +65,15 @@ jobs:
             python scripts/build_edge.py
           fi
 
+      - name: Build goalies
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            python scripts/build_goalies.py --full
+          else
+            python scripts/build_goalies.py
+          fi
+
       - name: Build value, rosters and prospects
         continue-on-error: true
         run: python scripts/build_value.py

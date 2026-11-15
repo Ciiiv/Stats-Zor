@@ -3,28 +3,10 @@
    No server, no AI. Data is refreshed nightly by .github/workflows/update-data.yml. */
 
 // ------------------------------------------------------------------ helpers
-const $ = id => document.getElementById(id);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const nz = v => v !== null && v !== undefined && !Number.isNaN(v);
-const sub = (a, b) => nz(a) && nz(b) ? a - b : null;
-const share = (f, a) => nz(f) && nz(a) && f + a > 0 ? 100 * f / (f + a) : null;
-const avg = a => { const v = a.filter(nz); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
-const f0 = v => nz(v) ? Math.round(v).toLocaleString() : '—';
-const f1 = v => nz(v) ? v.toFixed(1) : '—';
-const f2 = v => nz(v) ? v.toFixed(2) : '—';
-const s1 = v => nz(v) ? (v > 0 ? '+' : '') + v.toFixed(1) : '—';
-const s2 = v => nz(v) ? (v > 0 ? '+' : '') + v.toFixed(2) : '—';
-const fmin = v => { if (!nz(v)) return '—'; let m = Math.floor(v), s = Math.round((v - m) * 60); if (s === 60) { m++; s = 0; } return m + ':' + String(s).padStart(2, '0'); };
-const sLabel = y => `${y}-${String(y + 1).slice(2)}`;
-const last = n => (n || '').split(' ').slice(-1)[0];
-const ord = n => !nz(n) ? '—' : n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
 const grpOf = pos => pos === 'D' ? 'D' : 'F';
 const GRP_NAME = { D: 'defensemen', F: 'forwards' };
-const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const BASE_GPG = 6.0;
 const MAJOR = ['Hart', 'Norris', 'Selke', 'Art Ross', 'Richard', 'Lindsay', 'Calder', 'Conn Smythe'];
-const getJSON = async url => { const r = await fetch(url, { cache: 'no-cache' }); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); };
-function safe(id, fn) { try { fn(); } catch (e) { console.error(id, e); const el = $(id); if (el) el.insertAdjacentHTML('beforeend', `<p class="empty">This section hit an error: ${esc(e.message)}</p>`); } }
 
 // ------------------------------------------------------------------ state
 const S = {
@@ -182,9 +164,6 @@ function ctot(Ss) {
     major: aw.filter(a => MAJOR.includes(a)).length, cups: aw.filter(a => a === 'Cup').length, aw,
   };
 }
-const awardLine = list => { const c = {}; list.forEach(a => { c[a] = (c[a] || 0) + 1; }); return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, v]) => v > 1 ? `${k} ×${v}` : k).join(', ') || '—'; };
-const ageNow = (birth, y) => { if (!birth) return null; const b = new Date(birth + 'T00:00:00'); const ref = new Date(y + 1, 1, 1); let a = ref.getFullYear() - b.getFullYear(); if (ref < new Date(ref.getFullYear(), b.getMonth(), b.getDate())) a--; return a; };
-const htFmt = h => nz(h) && h ? `${Math.floor(h / 12)}'${h % 12}"` : '';
 
 async function loadCareers() {
   if (CAR) return CAR;
@@ -201,67 +180,8 @@ async function loadCareers() {
 }
 
 // ------------------------------------------------------------------ search
-function makeSearch(inputId, onPick, opts = {}) {
-  const inp = $(inputId), ul = inp.parentElement.querySelector('.sugg');
-  let items = [], sel = -1;
-  const close = () => { ul.hidden = true; sel = -1; };
-  const show = () => {
-    const q = norm(inp.value.trim());
-    if (q.length < 2) { close(); return; }
-    const toks = q.split(/\s+/);
-    const res = [];
-    for (const p of S.idx.list) {
-      if (opts.filter && !opts.filter(p)) continue;
-      const n = p.n;
-      if (toks.every(t => n.includes(t))) {
-        let sc = p.gp; if (n.startsWith(q)) sc += 1e6; else if (n.split(' ').some(w => w.startsWith(toks[0]))) sc += 5e5;
-        res.push([sc, p]);
-      }
-    }
-    res.sort((a, b) => b[0] - a[0]);
-    items = res.slice(0, 12).map(r => r[1]);
-    ul.innerHTML = items.length ? items.map((p, i) => `<li role="option" data-i="${i}" aria-selected="${i === sel}">${esc(p.name)}<small>${p.pos} · ${p.first}–${String(p.last + 1).slice(2)} · ${esc(p.team)}</small></li>`).join('') : '<li class="empty">No match</li>';
-    ul.hidden = false;
-  };
-  inp.addEventListener('input', () => { sel = -1; show(); });
-  inp.addEventListener('focus', () => { if (inp.value.trim().length >= 2) show(); });
-  inp.addEventListener('keydown', e => {
-    if (ul.hidden) return;
-    if (e.key === 'ArrowDown') { sel = Math.min(items.length - 1, sel + 1); e.preventDefault(); }
-    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); e.preventDefault(); }
-    else if (e.key === 'Enter') { const p = items[Math.max(0, sel)]; if (p) { pick(p); } e.preventDefault(); return; }
-    else if (e.key === 'Escape') { close(); return; }
-    else return;
-    ul.querySelectorAll('li').forEach((li, i) => li.setAttribute('aria-selected', i === sel));
-  });
-  ul.addEventListener('mousedown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); pick(items[+li.dataset.i]); } });
-  inp.addEventListener('blur', () => setTimeout(close, 150));
-  function pick(p) { close(); inp.value = opts.keep ? p.name : ''; inp.blur(); onPick(p.id); }
-}
 
 // ------------------------------------------------------------------ svg helpers
-function axes(W, H, m, xd, yd, xt, yt, xl, yl, xf, yf) {
-  const X = v => m.l + (v - xd[0]) / (xd[1] - xd[0]) * (W - m.l - m.r);
-  const Y = v => H - m.b - (v - yd[0]) / (yd[1] - yd[0]) * (H - m.t - m.b);
-  let s = '';
-  xt.forEach(v => { s += `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}" class="ax" stroke-dasharray="2 4"/><text x="${X(v)}" y="${H - m.b + 15}" text-anchor="middle" class="lab">${xf ? xf(v) : v}</text>`; });
-  yt.forEach(v => { s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" class="ax" stroke-dasharray="2 4"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" class="lab">${yf ? yf(v) : v}</text>`; });
-  if (xl) s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle" font-size="12" font-weight="600">${esc(xl)}</text>`;
-  if (yl) s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle" font-size="12" font-weight="600">${esc(yl)}</text>`;
-  return { X, Y, s };
-}
-function niceStep(range, target = 6) { const raw = range / target; const p = Math.pow(10, Math.floor(Math.log10(raw))); const n = raw / p; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p; }
-function ticks(a, b, st) { const o = []; for (let v = Math.ceil(a / st - 1e-9) * st; v <= b + 1e-9; v += st) o.push(+v.toFixed(6)); return o; }
-function extent(vals, pad = 0.06) { const v = vals.filter(nz); if (!v.length) return [0, 1]; let lo = Math.min(...v), hi = Math.max(...v); if (lo === hi) { lo -= 1; hi += 1; } const p = (hi - lo) * pad; return [lo - p, hi + p]; }
-function placeLabels(svg) {
-  const labs = [...svg.querySelectorAll('text[data-l]')].sort((a, b) => +a.getAttribute('y') - +b.getAttribute('y'));
-  const placed = [];
-  for (const t of labs) {
-    const x = +t.getAttribute('x'); let y = +t.getAttribute('y');
-    for (let k = 0; k < 6; k++) { const hit = placed.find(q => Math.abs(q[0] - x) < 70 && Math.abs(q[1] - y) < 12); if (!hit) break; y = hit[1] + 13; }
-    t.setAttribute('y', y); placed.push([x, y]);
-  }
-}
 
 
 // ------------------------------------------------------------------ NHL EDGE tracking (2021-22 on)
@@ -396,10 +316,6 @@ function boardIds(sd, grp) {
   for (const id of auto) { if (ids.length >= 12 + S.extra.length) break; if (!S.removed.has(id)) add(id); }
   return ids;
 }
-function heat(v) {
-  if (!nz(v)) return 'transparent';
-  return v < 50 ? `color-mix(in srgb, var(--mid) ${v * 2}%, var(--lo))` : `color-mix(in srgb, var(--hi) ${(v - 50) * 2}%, var(--mid))`;
-}
 function renderMatrix() {
   const sd = S.seasons[S.season]; const A = seasonOf(S.A); const grp = A ? A.grp : 'D';
   const cols = COLS[grp]; const flat = cols.flatMap(c => c[1]);
@@ -472,7 +388,6 @@ function scatter(svgId, xk, yk, xl, yl, notes, refs) {
   s += mark(A, 'var(--a)', 7, true);
   const el = $(svgId); el.innerHTML = s; placeLabels(el);
 }
-const median = a => { const v = a.filter(nz).sort((x, y) => x - y); return v.length ? v[Math.floor(v.length / 2)] : null; };
 function renderEnv() {
   scatter('sc1', 'xga60', 'xgf60', 'xGA/60 at 5v5 (fewer is better →  left)', 'xGF/60 at 5v5', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Drives play, suppresses</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Bleeds chances, little offense</text>`, P => [median(P.map(p => p.xga60)), median(P.map(p => p.xgf60))]);
   scatter('sc2', 'dzs', 'rel_xgf_pct', 'Own-zone start % at 5v5 (tougher →  right)', 'Rel xGF% (team with him minus without)', (g, W, H, m) => `<text x="${W - m.r - 4}" y="${m.t + 12}" text-anchor="end" class="lab">Hard minutes, still lifts the team</text><text x="${m.l + 6}" y="${m.t + 12}" class="lab">Sheltered, lifts the team</text>`, P => [median(P.map(p => p.dzs)), 0]);
@@ -929,7 +844,6 @@ async function loadValue() {
   VAL = { ...v, seasons, by };
   return VAL;
 }
-const money = v => nz(v) ? '$' + v.toFixed(v >= 10 ? 1 : 2) + 'M' : '—';
 const COMPS = [['ev_off', '5v5 offense'], ['ev_def', '5v5 defense'], ['finishing', 'Finishing'], ['pp', 'Power play'], ['pk', 'Penalty kill'], ['penalties', 'Penalties']];
 function capKey(id) { return `sz-cap-${id}`; }
 function getCap(id) { try { const v = localStorage.getItem(capKey(id)); return v ? +v : null; } catch (e) { return null; } }
@@ -1031,9 +945,9 @@ function setA(id) { if (!id) return; if (id === S.B) S.B = S.A; S.A = id; S.extr
 function setB(id) { if (!id || id === S.A) return; S.B = id; if (!hasSeason(S.A, S.season) && hasSeason(id, S.season)) { /* keep */ } render(); }
 
 function wire() {
-  makeSearch('qA', setA); makeSearch('qB', setB);
-  makeSearch('qBoard', id => { if (!S.extra.includes(id)) S.extra.push(id); S.removed.delete(id); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); }, { filter: p => hasSeason(p.id, S.season) });
-  makeSearch('qArc', id => { if (!S.arcSel.includes(id) && id !== S.A) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
+  makeSearch('qA', setA, { cross: crossTo(false) }); makeSearch('qB', setB, { filter: p => p.pos !== 'G' });
+  makeSearch('qBoard', id => { if (!S.extra.includes(id)) S.extra.push(id); S.removed.delete(id); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); }, { filter: p => p.pos !== 'G' && hasSeason(p.id, S.season) });
+  makeSearch('qArc', id => { if (!S.arcSel.includes(id) && id !== S.A) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); }, { filter: p => p.pos !== 'G' });
   $('season').addEventListener('change', e => { S.season = +e.target.value; render(); });
   $('rank-ctl').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.pool) { S.pool = b.dataset.pool; S.cache = {}; } if (b.dataset.pre) { const p = PRESETS[+b.dataset.pre]; S.w = { d: p[1], o: p[2], c: p[3] }; } render(); });
   $('weights').addEventListener('input', e => { const k = e.target.dataset.w; if (!k) return; S.w[k] = +e.target.value; safe('sec-rank', renderRank); });
@@ -1063,7 +977,8 @@ async function init() {
     S.idx = idx; idx.list.forEach(p => S.byId.set(p.id, p));
     $('updated').textContent = `Data updated ${idx.updated.replace('T', ' ').replace('Z', ' UTC')}.`;
     const h = readHash();
-    const top = idx.list.filter(p => p.mask).sort((a, b) => b.gp - a.gp)[0];
+    const top = idx.list.filter(p => p.mask && p.pos !== 'G').sort((a, b) => b.gp - a.gp)[0];
+    if (S.byId.has(+h.a) && S.byId.get(+h.a).pos === 'G') { location.replace('goalies.html' + location.hash); return; }
     S.A = S.byId.has(+h.a) ? +h.a : S.byId.has(8481542) ? 8481542 : top.id;
     S.B = h.b === undefined ? (S.byId.has(8480069) && S.A !== 8480069 ? 8480069 : null) : (S.byId.has(+h.b) ? +h.b : null);
     S.season = idx.mp_seasons.includes(+h.s) ? +h.s : idx.mp_seasons[idx.mp_seasons.length - 1];
