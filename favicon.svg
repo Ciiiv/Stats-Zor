@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Stats-Zor mark: a face-off circle and dot (goal-line red) crossed by a blue line, on rink-night navy -->
+  <rect width="64" height="64" rx="14" fill="#0f1d2b"/>
+  <rect x="0" y="27" width="64" height="10" fill="#1d5ea8"/>
+  <circle cx="32" cy="32" r="19" fill="none" stroke="#ffffff" stroke-width="5"/>
+  <circle cx="32" cy="32" r="16.5" fill="none" stroke="#c8102e" stroke-width="3"/>
+  <circle cx="32" cy="32" r="6" fill="#c8102e"/>
+</svg>

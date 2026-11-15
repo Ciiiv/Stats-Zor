@@ -82,6 +82,7 @@ index.html  app.js                 skater page
 goalies.html  goalies.js           goalie page
 common.js                          shared helpers (formatting, charts, search)
 theme.js                           light/dark toggle in the header (auto follows the device)
+favicon.svg  favicon-32.png  apple-touch-icon.png   site icon (face-off dot on the blue line); PNGs are rendered from the SVG
 trade.html  trade.js               trade machine
 about.html                         how it works (methods and glossary)
 styles.css                         shared styles

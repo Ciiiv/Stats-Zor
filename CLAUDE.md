@@ -22,7 +22,7 @@ Read `README.md` (structure, pipeline, how to run) and `about.html` (every formu
 | Goalie page | `goalies.html`, `goalies.js` |
 | Trade machine | `trade.html`, `trade.js` (values players, prospects, picks; goalies priced at the goalie price of a win; rosters include players under team control who are off the active roster, `off_roster` in `rosters.json`; RFA team control from `birth`/`acc` in `value.json` projections; prospects carry an NHL `id` in `prospects.json`) |
 | Methods page | `about.html` (glossary + a section per page section; anchors `#m-…`, goalie ones `#m-g-…`) |
-| Shared front end | `common.js` (formatters, SVG axes, search with cross-page routing), `theme.js` (auto/dark/light toggle), `styles.css` |
+| Shared front end | `common.js` (formatters, SVG axes, search with cross-page routing), `theme.js` (auto/dark/light toggle), `styles.css`, site icon `favicon.svg` (+ `favicon-32.png`, `apple-touch-icon.png` rendered from it; re-render if the SVG changes) |
 | Pipeline | `scripts/build_data.py` → `build_shots.py` → `build_usage.py` → `build_edge.py` → `build_goalies.py` → `build_value.py` |
 | Nightly job | `.github/workflows/update-data.yml` (12:17 UTC; each step after the first is continue-on-error; input `full` rebuilds everything) |
 | Model settings | top of `scripts/build_value.py` (`CAP`, `MIN`, weights, `GOALIE_WEIGHT`, `GOALIE_SHOTS_K`, age curves) and top of `trade.js` (`pickWins`, discounts) |
