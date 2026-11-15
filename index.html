@@ -8,12 +8,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150031">
+<link rel="stylesheet" href="styles.css?v=202611150105">
 </head>
 <body>
 <header class="top">
   <div class="wrap top-in">
-    <div class="brandbox"><a class="brand" href="#">STATS<span>-</span>ZOR</a><a class="tradelink" href="trade.html">Trade machine →</a></div>
+    <div class="brandbox"><a class="brand" href="#">STATS<span>-</span>ZOR</a><a class="tradelink" href="trade.html">Trade machine →</a><a class="tradelink" href="about.html">How it works →</a></div>
     <div class="pickers">
       <div class="picker" id="pickA">
         <label for="qA"><i class="dot a"></i>Player</label>
@@ -52,7 +52,7 @@
   <div class="part"><span class="eyebrow">Part one · single season · MoneyPuck data</span><h2 class="part-h" id="part1-h">The season</h2></div>
 
   <section class="panel" id="sec-rank">
-    <div class="head"><h2>Two-way composite</h2>
+    <div class="head"><h2>Two-way composite</h2><a class="how" href="about.html#m-rank">How this works</a>
       <p class="sub" id="rank-sub"></p></div>
     <div class="ctl" id="rank-ctl"></div>
     <div class="weights" id="weights"></div>
@@ -61,7 +61,7 @@
   </section>
 
   <section class="panel" id="sec-matrix">
-    <div class="head"><h2>Stat board</h2>
+    <div class="head"><h2>Stat board</h2><a class="how" href="about.html#m-matrix">How this works</a>
       <p class="sub">Cell color is the percentile against the same position group, flipped where lower is better, so blue always means good. On role columns, blue means a harder job. Click a column to sort. Fill the board with the top-ranked players at his position, or with the players whose percentile profile is most like his. Add anyone with the search box.</p></div>
     <div class="ctl"><div class="picker inline" id="pickBoard"><input id="qBoard" type="search" autocomplete="off" placeholder="Add a player to the board"><ul class="sugg" hidden></ul></div>
       <span class="toggle" id="mtoggle"></span></div>
@@ -69,32 +69,32 @@
   </section>
 
   <section class="panel" id="sec-h2h">
-    <div class="head"><h2>Head to head</h2>
+    <div class="head"><h2>Head to head</h2><a class="how" href="about.html#m-h2h">How this works</a>
       <p class="sub">Percentile profile against each player's own position group. <strong>How to read it:</strong> the radar plots percentile rank, not raw stats, and stats where lower is better are flipped, so farther out is always better.</p></div>
     <div class="two"><svg id="radar" viewBox="-60 0 580 440" role="img" aria-label="Radar comparison"></svg><div id="h2h-table"></div></div>
   </section>
 
   <section class="panel" id="sec-env">
-    <div class="head"><h2>Shot environment and deployment</h2>
+    <div class="head"><h2>Shot environment and deployment</h2><a class="how" href="about.html#m-env">How this works</a>
       <p class="sub">Grey dots are every regular at the same position. Left: chances for and against per 60 at 5v5 (up and left is good). Right: own-zone start share against relative xGF%, the team's share with him on the ice minus its share with him on the bench.</p></div>
     <div class="two"><svg id="sc1" viewBox="0 0 520 440" role="img" aria-label="xGF/60 vs xGA/60"></svg><svg id="sc2" viewBox="0 0 520 440" role="img" aria-label="Zone starts vs relative xGF%"></svg></div>
   </section>
 
   <section class="panel" id="sec-shots">
-    <div class="head"><h2>Shot maps</h2>
+    <div class="head"><h2>Shot maps</h2><a class="how" href="about.html#m-shots">How this works</a>
       <p class="sub" id="shots-sub">Loading shot maps…</p></div>
     <div id="shots"></div>
   </section>
 
   <section class="panel" id="sec-mates">
-    <div class="head"><h2>Linemates and partners</h2>
+    <div class="head"><h2>Linemates and partners</h2><a class="how" href="about.html#m-mates">How this works</a>
       <p class="sub" id="mates-sub"></p></div>
     <div class="scroll"><table class="tbl" id="mates"></table></div>
     <div id="combos"></div>
   </section>
 
   <section class="panel" id="sec-swap">
-    <div class="head"><h2>Team swap</h2>
+    <div class="head"><h2>Team swap</h2><a class="how" href="about.html#m-swap">How this works</a>
       <p class="sub">Move the player to another team in place of one of its players. Each player's 5v5 impact (his on-ice rates minus his team's rates with him on the bench) is added to the other team's baseline without the replaced player.</p></div>
     <div class="ctl"><label class="lbl" for="swapTeam">Send to</label><select id="swapTeam"></select><label class="lbl" for="swapOut">replacing</label><select id="swapOut"></select></div>
     <div id="swap"></div>
@@ -104,12 +104,12 @@
     <p class="sub">How the coach used him each night, how he did in each role compared with what that role normally produces, and where his results say he fits best. Each game, forwards are slotted 1st–4th line and defensemen 1st–3rd pair by 5v5 ice time on their team that night; power-play and penalty-kill units come from special-teams ice time.</p></div>
 
   <section class="panel" id="sec-role">
-    <div class="head"><h2>Role and fit</h2><p class="sub" id="role-sub"></p></div>
+    <div class="head"><h2>Role and fit</h2><a class="how" href="about.html#m-role">How this works</a><p class="sub" id="role-sub"></p></div>
     <div id="role"></div>
   </section>
 
   <section class="panel" id="sec-lineup">
-    <div class="head"><h2>Team deployment card</h2>
+    <div class="head"><h2>Team deployment card</h2><a class="how" href="about.html#m-lineup">How this works</a>
       <p class="sub">Every regular on a team: where the coach used him at even strength and on special teams, against where his results say he fits. "5v5 fit" uses even strength only; "Overall fit" adds special teams and finishing; "Vs. role" is his 5v5 xGF% minus the average for the slots he played. The even-strength flag uses overall fit.</p></div>
     <div class="ctl"><label class="lbl" for="lineupTeam">Team</label><select id="lineupTeam"></select></div>
     <div id="lineup"></div>
@@ -119,12 +119,12 @@
     <p class="sub">Stats-Zor's own value model turns 5v5 impact, finishing, power play, penalty kill and penalties into goals and wins above a replacement-level player, then prices those wins with the salary cap. It estimates fair value; it doesn't know actual contracts.</p></div>
 
   <section class="panel" id="sec-value">
-    <div class="head"><h2>Value and worth</h2><p class="sub" id="value-sub"></p></div>
+    <div class="head"><h2>Value and worth</h2><a class="how" href="about.html#m-value">How this works</a><p class="sub" id="value-sub"></p></div>
     <div id="value"></div>
   </section>
 
   <section class="panel" id="sec-deal">
-    <div class="head"><h2>Fair-value contract</h2><p class="sub" id="deal-sub"></p></div>
+    <div class="head"><h2>Fair-value contract</h2><a class="how" href="about.html#m-deal">How this works</a><p class="sub" id="deal-sub"></p></div>
     <div id="deal"></div>
   </section>
 
@@ -132,7 +132,7 @@
     <p class="sub">Raw points from different eras aren't comparable. Era-adjusted figures rescale every season to a league scoring 6.0 goals per game. Advanced stats (expected goals) exist only from 2008-09 on.</p></div>
 
   <section class="panel" id="sec-career">
-    <div class="head"><h2>Career vs. career</h2>
+    <div class="head"><h2>Career vs. career</h2><a class="how" href="about.html#m-career">How this works</a>
       <p class="sub">Full careers on the left. On the right both players frozen at the same point, so you can see who was ahead at that stage.</p></div>
     <div class="ctl"><span class="lbl">Compare at</span><span class="toggle" id="cmode"><button type="button" data-m="age" aria-pressed="true">Same age</button><button type="button" data-m="stage" aria-pressed="false">Same career stage</button></span></div>
     <div class="two"><div><p class="minihead">Tale of the tape · full career</p><table class="tape" id="tape"></table></div>
@@ -142,7 +142,7 @@
   </section>
 
   <section class="panel" id="sec-arcs">
-    <div class="head"><h2>Career arcs and comps</h2>
+    <div class="head"><h2>Career arcs and comps</h2><a class="how" href="about.html#m-arcs">How this works</a>
       <p class="sub">Every season plotted by age. Add up to six players.</p></div>
     <div class="ctl"><span class="lbl">Measure</span><span class="toggle" id="ametric"></span></div>
     <div class="ctl"><div class="picker inline" id="pickArc"><input id="qArc" type="search" autocomplete="off" placeholder="Add a player to the chart"><ul class="sugg" hidden></ul></div></div>
@@ -160,6 +160,6 @@
     <p id="updated"></p>
   </footer>
 </main>
-<script src="app.js?v=202611150031"></script>
+<script src="app.js?v=202611150105"></script>
 </body>
 </html>

@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How It Works · Stats-Zor</title>
+<meta name="description" content="The math, logic and limits behind every section of Stats-Zor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=202611150105">
+<style>
+.doc{max-width:860px}
+.doc h2{font-size:28px;margin-top:6px}
+.doc h3{font-size:21px;margin:26px 0 6px;scroll-margin-top:20px}
+.doc p,.doc li{max-width:75ch}
+.doc ul{padding-left:20px;display:flex;flex-direction:column;gap:5px}
+.doc .m{font:13px/1.6 var(--f-mono);background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:10px 12px;overflow-x:auto;white-space:pre-wrap}
+.doc .lim{margin:10px 0 0}
+.doc .lim b{color:var(--ink)}
+.toc{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr));gap:14px;font-size:14px}
+.toc b{display:block;font:600 11px var(--f-mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.toc a{display:block;text-decoration:none;padding:2px 0}
+.gl{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:8px 18px;font-size:14.5px}
+.gl dt{font-weight:700}
+.gl dd{margin:0;color:var(--muted)}
+@media (max-width:560px){.gl{grid-template-columns:1fr}.gl dd{margin-bottom:6px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in" style="align-items:center">
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Player analysis</a></div>
+    <div style="flex:1;min-width:0"><h1 style="font-size:clamp(26px,4vw,36px)">How it works</h1></div>
+  </div>
+</header>
+<main class="wrap doc">
+
+<section class="panel">
+  <p style="margin-top:0">Every number on Stats-Zor is computed from public data by code you can read in the <a href="https://github.com/Ciiiv/Stats-Zor">GitHub repo</a>. Nothing is hand-entered except the cap figures listed under <a href="#m-value">Value and worth</a>. This page explains, section by section, what each part shows, how it's calculated, why it's built that way, and what it can't see.</p>
+  <div class="toc">
+    <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a></div>
+    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
+    <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
+    <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
+  </div>
+</section>
+
+<section class="panel">
+  <h2 id="glossary">Glossary</h2>
+  <dl class="gl">
+    <dt>5v5</dt><dd>Five skaters a side, no power play. Most even-strength stats here are 5v5 only, because special teams change everything about shot rates.</dd>
+    <dt>xG (expected goals)</dt><dd>MoneyPuck's estimate of how likely each shot is to score, from its location, type, angle, rebound and rush status. Adding them up measures chance quality better than goals, which swing on luck and goaltending.</dd>
+    <dt>xGF / xGA</dt><dd>Expected goals for and against while the player is on the ice.</dd>
+    <dt>xGF%</dt><dd>xGF ÷ (xGF + xGA). 50% is break-even; above 50% means his team controls the chances while he's out there.</dd>
+    <dt>Per 60</dt><dd>A rate per 60 minutes of ice time, so players with different minutes can be compared fairly.</dd>
+    <dt>Relative (rel)</dt><dd>His team's results with him on the ice minus its results with him on the bench. It removes much of the "good team makes everyone look good" effect. A rel xGA/60 of −0.6 means the team allows 0.6 fewer expected goals per 60 with him on.</dd>
+    <dt>CF% / CA</dt><dd>Corsi: all shot attempts (on goal, missed and blocked). A rough possession measure.</dd>
+    <dt>HD xGA</dt><dd>Expected goals against from high-danger shots, mostly from the slot and crease.</dd>
+    <dt>Zone starts</dt><dd>Where a player's shifts begin on a faceoff. A high own-zone share means harder, defensive deployment.</dd>
+    <dt>ixG, ig</dt><dd>Individual expected goals and goals: the player's own shots only.</dd>
+    <dt>Goals above expected</dt><dd>Goals minus individual xG. Positive means he finishes better than an average shooter from the same spots.</dd>
+    <dt>Percentile</dt><dd>The share of the comparison pool he's better than. 90th means better than 90% of them.</dd>
+    <dt>Wins above replacement</dt><dd>Stats-Zor's estimate of how many wins a player adds over a replacement-level call-up. See <a href="#m-value">Value and worth</a>.</dd>
+    <dt>Era-adjusted</dt><dd>Scoring rescaled to a common league-wide scoring level, so a 1980s point and a 2020s point can be compared. See <a href="#m-career">Career vs. career</a>.</dd>
+    <dt>Age</dt><dd>Age on February 1 of the season, the same convention Hockey-Reference uses.</dd>
+  </dl>
+</section>
+
+<section class="panel">
+  <h2 id="pools">Pools and percentiles</h2>
+  <p>Most colors, scores and ranks are percentiles against a <strong>pool</strong> of players at the same position in the same season. Forwards are compared with forwards and defensemen with defensemen, never across positions.</p>
+  <ul>
+    <li><strong>Regulars</strong> (default): at least 12 minutes a game for forwards or 16 for defensemen, and at least 35% of the season's games (minimum 5).</li>
+    <li><strong>Top-pair D / top-six F</strong>: at least 20 minutes for defensemen or 16 for forwards. A tougher comparison group.</li>
+  </ul>
+  <div class="m">percentile = (players below him + half of players tied with him) ÷ pool size × 100</div>
+  <p>For stats where lower is better (xGA/60, giveaways, PK xGA/60 and so on) the percentile is flipped, so a higher percentile always means better. Faceoff percentile is computed among centers with 100+ draws only.</p>
+  <p class="lim"><b>Limits:</b> percentiles say how a player ranks, not by how much. Near the middle of the pack, a small difference in the raw stat can move a percentile a lot.</p>
+</section>
+
+<section class="panel">
+  <h2 id="m-profile">Profile</h2>
+  <p>The two cards at the top show the season line (goals, assists, points, games), ice time, 5v5 xGF% and relative xGF%, plus three scores from the <a href="#m-rank">two-way composite</a>: defense, offense and role difficulty. Trophies and Cups come from the NHL's records. Age, size and handedness come from NHL bios.</p>
+</section>
+
+<section class="panel">
+  <span class="eyebrow">Part one · how he played</span>
+  <h3 id="m-rank">Two-way composite</h3>
+  <p>Three scores, each an average of percentiles, then combined with the weight sliders.</p>
+  <div class="m">Defensemen
+  Defense = 75% × avg(xGA/60, rel xGA/60, HD xGA/60, CA/60, PK xGA/60)
+          + 25% × avg(blocks/60, takeaways/60, DZ giveaways/60 [lower better], hits/60)
+  Offense = avg(xGF/60, rel xGF/60, ixG/60, 5v5 points/60, PP points/60)
+  Role    = avg(TOI, PK TOI, own-zone start %, team xGF% without him [lower = harder])
+
+Forwards
+  Defense = 80% × avg(xGA/60, rel xGA/60, HD xGA/60, PK xGA/60)
+          + 20% × avg(takeaways/60, giveaways/60 [lower better])
+  Offense = avg(goals/60, 5v5 points/60, ixG/60, xGF/60, rel xGF/60, PP points/60)
+  Role    = avg(TOI, PK TOI, own-zone start %, team xGF% without him, faceoff % [centers only])
+
+Composite = (Defense × wD + Offense × wO + Role × wR) ÷ (wD + wO + wR)</div>
+  <p><strong>Why:</strong> raw points reward offense only. This puts suppression, deployment and teammate context on equal footing, and the sliders let you decide how much each matters. "Role difficulty" credits players who carry hard minutes on weak teams. A missing piece (no PK time, say) is skipped, not counted as zero.</p>
+  <p class="lim"><b>Limits:</b> hits, blocks, takeaways and giveaways are recorded by arena scorers and vary by building, so they get a small weight. On-ice stats are shared with linemates.</p>
+
+  <h3 id="m-matrix">Stat board</h3>
+  <p>A grid of raw values, each colored by its percentile in the pool: blue is good, orange is poor. On role columns, blue means a harder job. Two ways to fill it:</p>
+  <ul>
+    <li><strong>Top-ranked:</strong> the highest composite scores at his position.</li>
+    <li><strong>Most similar:</strong> the players whose percentile profile across every board column is closest to his.</li>
+  </ul>
+  <div class="m">match % = 100 − √(average of (his percentile − their percentile)² across columns)
+(players missing more than 40% of the columns are skipped)</div>
+  <p>Your comparison player and anyone you add always stay on the board.</p>
+
+  <h3 id="m-h2h">Head to head</h3>
+  <p>A radar of eight percentiles, each player against his own position group. Defensemen: ice time, own-zone starts, xGA/60, rel xGA/60, PK xGA/60, blocks + takeaways (average of the two percentiles), rel xGF/60 and 5v5 points/60. Forwards: ice time, goals/60, points/60, ixG/60, rel xGF/60, rel xGA/60, PK xGA/60, and faceoffs for centers or takeaways for wingers. Lower-is-better stats are flipped, so farther out is always better. The table beside it shows raw values, with a dot on the better one.</p>
+
+  <h3 id="m-env">Shot environment and deployment</h3>
+  <ul>
+    <li><strong>Left chart:</strong> 5v5 xGF/60 against xGA/60 for every regular at the position. Gray lines mark the medians. Up and left means more chances for and fewer against.</li>
+    <li><strong>Right chart:</strong> own-zone start share against relative xGF%. Right means tougher starts; up means the team is better with him on the ice.</li>
+  </ul>
+
+  <h3 id="m-shots">Shot maps</h3>
+  <p>Unblocked shot attempts (on goal, missed and goals; MoneyPuck's shot file doesn't include blocked shots) in the offensive zone, in 5 × 5 ft cells. Regular season only; empty-net shots are left out.</p>
+  <ul>
+    <li><strong>Where he shoots:</strong> his share of attempts from each cell minus the league share for his position. It's full blue at 1.2 percentage points more than average and full orange at 1.2 less. Rings mark goals.</li>
+    <li><strong>Finishing:</strong> goals minus expected goals per cell, for cells with at least 3 attempts. Full color at ±2.5 goals.</li>
+    <li><strong>Slot share:</strong> attempts from 20 ft in front of the net out to the goal line, within 10 ft of center.</li>
+  </ul>
+  <p>Situations: all, 5v5 (5 skaters a side), or power play (his team has more skaters).</p>
+  <p class="lim"><b>Limits:</b> cells with few shots are noisy, especially in finishing view. Coordinates are MoneyPuck's arena-adjusted locations.</p>
+
+  <h3 id="m-mates">Linemates and partners</h3>
+  <p>Built from MoneyPuck's 5v5 line and pair data: forward trios for forwards, defense pairs for defensemen.</p>
+  <div class="m">together           = sum of every line/pair containing both players
+him without partner = his 5v5 totals − together
+partner without him = partner's 5v5 totals − together</div>
+  <p>Teammates with at least 30 minutes together are shown. xGF% is left blank under 10 minutes.</p>
+  <p class="lim"><b>Limits:</b> "without" is everything else he played, mostly with other partners, so it isn't a clean test. Forward-and-defense combinations aren't available in the data.</p>
+
+  <h3 id="m-swap">Team swap</h3>
+  <p>Projects a player's 5v5 impact onto another team in place of one of its players.</p>
+  <div class="m">his impact        = his on-ice rate − his team's rate with him on the bench   (xGF/60 and xGA/60)
+him on new team   = that team's rates without the replaced player + his impact
+xG differential   = (xGF/60 − xGA/60) × his 5v5 minutes per game × 82 ÷ 60
+wins              ≈ xG differential ÷ 6</div>
+  <p class="lim"><b>Limits:</b> it assumes a player's impact moves with him unchanged. New partners, coaches, systems and roles all change that in reality. Treat it as the direction and rough size of the change.</p>
+</section>
+
+<section class="panel">
+  <span class="eyebrow">Part two · how he's used</span>
+  <h3 id="m-role">Role and fit</h3>
+  <p><strong>Slots, every game:</strong> from MoneyPuck's game-by-game data, each team's players are ranked by 5v5 ice time that night.</p>
+  <ul>
+    <li><strong>Even strength:</strong> forwards 1–3 = 1st line, 4–6 = 2nd, 7–9 = 3rd, 10+ = 4th. Defensemen 1–2 = 1st pair, 3–4 = 2nd, 5+ = 3rd.</li>
+    <li><strong>Power play:</strong> the top 5 skaters by 5-on-4 time are PP1, the next 5 are PP2 (30+ seconds needed).</li>
+    <li><strong>Penalty kill:</strong> within forwards and defensemen separately, the top 2 by 4-on-5 time are PK1 and the next 2 are PK2.</li>
+    <li><strong>Zone nights:</strong> 2+ more offensive- than defensive-zone starts makes an offensive-zone-heavy night, the reverse a defensive-zone-heavy night, otherwise balanced.</li>
+  </ul>
+  <p><strong>Season role labels:</strong> his average slot across games. PP1 means PP1 in at least half his games; PP2 means a PP unit in at least half. Spot PP means at least 15% of games. Same for PK.</p>
+  <p><strong>Role averages:</strong> the league's combined 5v5 results for everyone in each slot. Every "Role avg" in the tables comes from these.</p>
+  <p><strong>Three ways to judge fit:</strong></p>
+  <div class="m">5v5 results  = weighted percentile of
+                 forwards:    xGF% 35%, rel xGF% 25%, 5v5 points/60 40%
+                 defensemen:  xGF% 35%, rel xGF% 25%, rel xGA/60 25%, 5v5 points/60 15%
+Overall value = percentile of wins above replacement per 82 games (Part 3 model)
+Both are blended over up to 3 seasons: weights 3, 2, 1 (most recent first) × games played.
+
+fits slot     = slots + 0.5 − slots × percentile ÷ 100   (4 slots for forwards, 3 for D)
+                → top quarter of forwards ≈ 1st line ... bottom quarter ≈ 4th line
+
+Against his role = his 5v5 xGF% − league xGF% for the slots he played, weighted by his minutes in each</div>
+  <p><strong>Flags:</strong></p>
+  <ul>
+    <li><strong>Even strength and overall:</strong> his average slot vs. his fit slot. A gap of 0.6 slot or more either way is flagged.</li>
+    <li><strong>Against his role:</strong> ±1.5 points of xGF% or more is flagged.</li>
+    <li><strong>Power play:</strong> needs 0.75+ PP minutes a game. PP points/60 in the 70th percentile or higher is PP1 production, 40th–70th is PP2. Unused players in the 70th percentile or higher for 5v5 scoring are "worth a PP look."</li>
+    <li><strong>Penalty kill:</strong> needs 0.75+ PK minutes a game. PK xGA/60 in the 65th percentile or higher is PK1 results, 40th–65th is PK2. Unused players in the 70th percentile or higher for rel xGA/60 are "PK candidates."</li>
+    <li><strong>Zone starts:</strong> "Can take own-zone starts" needs 50+ minutes on defensive-zone-heavy nights, a defense score of 60+, and xGF% no more than 4 points worse than on offensive-zone nights. "Best sheltered" means an offense score of 60+ with a defense score under 45.</li>
+  </ul>
+  <p><strong>Why three views:</strong> a power-play specialist or elite finisher can read low at 5v5 but high overall. A first-liner facing top competition can read low on both but hold up against his role. Reading all three together avoids one-number verdicts.</p>
+  <p class="lim"><b>Limits:</b></p>
+  <ul>
+    <li><b>Competition:</b> who a player was on the ice against isn't in the public data, which biases 5v5 numbers against first-liners. "Against his role" is the best available correction.</li>
+    <li><b>Cause and effect:</b> coaches move players partly because of form, injuries and matchups, and promotion usually brings better linemates.</li>
+    <li><b>Small samples:</b> under 30 minutes is left blank, and one season is noisy, hence the three-season blend.</li>
+  </ul>
+
+  <h3 id="m-lineup">Team deployment card</h3>
+  <p>Every regular on a team with at least 25% of the season's games. It shows his average slot ("used as"), 5v5 fit, overall fit and vs. role, with power-play and penalty-kill use and fit, and zone fit, all as defined above. The even-strength flag here uses overall fit. Traded players show their whole season.</p>
+</section>
+
+<section class="panel">
+  <span class="eyebrow">Part three · what he's worth</span>
+  <h3 id="m-value">Value and worth</h3>
+  <p>Stats-Zor's own wins-above-replacement model. It's simpler than commercial models like Evolving-Hockey's GAR, but every piece is visible.</p>
+  <div class="m">Goals above replacement (per season)
+  5v5 offense   = 0.5 × (rel xGF/60 − replacement) × 5v5 hours
+  5v5 defense   = 0.5 × (replacement − rel xGA/60) × 5v5 hours
+  Finishing     = 0.5 × (goals − individual xG), all situations
+  Power play    = 0.3 × (on-ice PP xGF/60 − replacement) × PP hours
+  Penalty kill  = 0.25 × (replacement − on-ice PK xGA/60) × PK hours
+  Penalties     = 0.15 × (penalties drawn − penalties taken)
+Replacement = 20th percentile among regulars at the position (80th for the against stats),
+              roughly what a call-up provides.
+Wins = goals ÷ 6</div>
+  <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so 5v5 and special-teams credit is scaled down. Only half of finishing is counted, because shooting luck regresses. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <div class="m">Price of a win = 32 teams × (cap × 0.88 skater share − 20 skaters × minimum salary)
+                 ÷ all positive wins produced that season
+Worth          = minimum salary + max(0, wins per 82 games) × price of a win
+% of cap       = worth ÷ that season's cap</div>
+  <p>Caps used ($M): 2008-09 56.7 · 09-10 56.8 · 10-11 59.4 · 11-12 64.3 · 12-13 60.0 (lockout) · 13-14 64.3 · 14-15 69.0 · 15-16 71.4 · 16-17 73.0 · 17-18 75.0 · 18-19 79.5 · 19-20 to 21-22 81.5 · 22-23 82.5 · 23-24 83.5 · 24-25 88.0 · 25-26 95.5 · 26-27 104.0 · 27-28 113.5 (projected), then an assumed +5% a year. Minimum salary follows each season's CBA figure, rising to $1M by 2029-30.</p>
+  <p class="lim"><b>Limits:</b> stars come out "worth" far more than their pay. That's normal for value models, because the max salary, entry-level and RFA contracts keep the best players underpaid, so read the dollars as relative value. A partial current season uses each player's pace over 82 games, so early-season figures swing. Goalies aren't modeled.</p>
+
+  <h3 id="m-deal">Fair-value contract</h3>
+  <div class="m">Starting point = his wins per 82, blended over 3 seasons (weights 3, 2, 1 × games)
+Each future year: wins × age factor for that age
+  ≤23 ×1.10 · 24–26 ×1.03 · 27–28 ×1.00 · 29–30 ×0.95 · 31–32 ×0.90 · 33+ ×0.85
+Worth that year = minimum salary + wins × price of a win (scaled to that year's cap)
+Fair AAV for an N-year deal = average worth over those N years</div>
+  <p>Terms run 1–7 years, from next season. The current CBA allows 7 years to re-sign with your own team and 6 as a free agent.</p>
+  <p class="lim"><b>Limits:</b> this is what his projected value would justify, not a prediction of what he'll sign for. RFA rights, arbitration, the max-salary cap, cap crunches and market quirks all move real contracts.</p>
+
+  <h3 id="m-trade">Trade machine</h3>
+  <ul>
+    <li><strong>Players:</strong> his blended wins per 82 × the share of this season left, plus the projected wins for each future season you count ("years left"). Worth is priced the same way.</li>
+    <li><strong>Cap hits:</strong> if you enter one, cost = cap hit × (share of this season left + future years), and surplus = worth − cost. Once every player has a cap hit, the verdict switches from value to surplus.</li>
+    <li><strong>Draft picks:</strong> expected wins over a pick's cost-controlled years, by overall pick number. "Early" picks are #4, "middle" #16 and "late" #28 in each round. The value drops 10% for each year beyond the next draft.</li>
+    <li><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster. They get the value of their draft slot, reduced 15% for each full year since the draft. They're listed under their drafting team (Arizona picks under Utah).</li>
+    <li><strong>Verdict:</strong> "About even" if the gap is under 0.4 wins ($1.5M in surplus mode) or under 8% of everything traded.</li>
+  </ul>
+  <div class="m">pick value (wins) = 6 × e^(−0.045 × (pick number − 1)) + 0.15
+→ #1 ≈ 6.2 · #16 ≈ 3.2 · #32 ≈ 1.6 · #64 ≈ 0.5</div>
+  <p class="lim"><b>Limits:</b> who actually owns which picks isn't in the free data, so picks are generic. Cap space, retained salary, trade clauses and team needs aren't checked. Contracts aren't included; cap hits you type stay in your browser.</p>
+</section>
+
+<section class="panel">
+  <span class="eyebrow">Part four · vs. history</span>
+  <h3 id="m-career">Career vs. career</h3>
+  <div class="m">League scoring rate  = all goals ÷ (team games ÷ 2), from NHL team totals each season
+Era-adjusted points  = points × 6.0 ÷ that season's league scoring rate
+Per 82               = adjusted points ÷ games × 82</div>
+  <p>6.0 goals a game is a neutral baseline. Since the 1940s, league scoring has ranged from about 4.8 goals a game (early 1950s) to 8.0 (early 1980s). "Same age" freezes both players at the main player's latest completed age. "Same career stage" uses his number of full seasons (40%+ of the schedule played). Ice time only exists from 1997-98 on, and expected-goal stats from 2008-09 on.</p>
+  <p class="lim"><b>Limits:</b> era adjustment doesn't account for roster size, schedule differences or how assists were awarded in different eras. Trophies are winners only; Norris and Hart voting finishes aren't in the NHL's public data.</p>
+
+  <h3 id="m-arcs">Career arcs and comps</h3>
+  <p>The arcs chart plots every season by age, for any measure in the buttons (era-adjusted points or goals per 82, ice time, games, or relative xGF%/xGA/60 for 2008+).</p>
+  <p><strong>Comps:</strong> players at the same position with enough games (100, or half of his total, whichever is more) by his current age, compared through that age.</p>
+  <div class="m">features (weight): era-adj points/82 (1), era-adj goals/82 (0.6),
+                   ice time (1, if both have it for 60%+ of games),
+                   rel xGF% and rel xGA/60 (1 each, if both have 100+ games of 2008+ data)
+each feature standardized by its spread across candidates
+distance = √(weighted average of squared differences); closest = smallest distance</div>
+  <p class="lim"><b>Limits:</b> it compares production and on-ice impact, not size, style or role. Older comps are matched on scoring only.</p>
+</section>
+
+<section class="panel">
+  <h2 id="sources">Sources and updates</h2>
+  <ul>
+    <li><a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>: season summaries, lines and pairs, game-by-game skater data, and shot data from 2008-09 on. Free for non-commercial use with credit to MoneyPuck.com.</li>
+    <li>NHL stats API: every skater season since 1917-18, bios and league scoring.</li>
+    <li>NHL player and roster API: trophies, Hall of Fame, current rosters and draft picks.</li>
+  </ul>
+  <p>A GitHub Actions job rebuilds the data every morning (about 7 a.m. Eastern) after MoneyPuck's overnight update. Past seasons are kept; the current season is refreshed each day.</p>
+</section>
+</main>
+</body>
+</html>

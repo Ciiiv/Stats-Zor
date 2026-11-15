@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150031">
+<link rel="stylesheet" href="styles.css?v=202611150105">
 <style>
 .tm{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:20px}
 .tm > *{min-width:0}
@@ -36,7 +36,7 @@
 <body>
 <header class="top">
   <div class="wrap top-in" style="align-items:center">
-    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Player analysis</a></div>
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Player analysis</a><a class="tradelink" href="about.html">How it works →</a></div>
     <div style="flex:1;min-width:0"><h1 style="font-size:clamp(26px,4vw,36px)">Trade machine</h1></div>
   </div>
 </header>
@@ -48,11 +48,11 @@
   </section>
   <section class="panel sum" id="summary"></section>
   <section class="panel">
-    <div class="head"><h2>How values are set</h2></div>
+    <div class="head"><h2>How values are set</h2><a class="how" href="about.html#m-trade">Full method</a></div>
     <div class="sub" id="method"></div>
   </section>
   <footer class="foot"><p>Data: <a href="https://moneypuck.com" rel="noopener">MoneyPuck.com</a> and the NHL's public API. Contracts aren't included; cap hits you type stay in this page only.</p></footer>
 </main>
-<script src="trade.js?v=202611140452"></script>
+<script src="trade.js?v=202611150105"></script>
 </body>
 </html>

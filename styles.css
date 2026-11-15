@@ -186,3 +186,6 @@ table{border-collapse:collapse}
 .lim{border-left:3px solid var(--c2);padding:6px 0 6px 12px;margin:0 0 16px;font-size:14px;color:var(--muted)}
 .lim summary{cursor:pointer;font-weight:700;color:var(--ink)}
 .lim ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:90ch}
+.how{align-self:flex-start;font:600 11.5px var(--f-mono);letter-spacing:.04em;color:var(--b);text-decoration:none}
+.how:hover{text-decoration:underline}
+.how::before{content:"ⓘ ";}
