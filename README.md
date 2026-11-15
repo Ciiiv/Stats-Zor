@@ -77,6 +77,7 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 ## Files
 
 ```
+CLAUDE.md                          working notes for Claude sessions (rules, conventions, testing)
 index.html  app.js                 skater page
 goalies.html  goalies.js           goalie page
 common.js                          shared helpers (formatting, charts, search)
