@@ -183,3 +183,6 @@ table{border-collapse:collapse}
 .comp .trk b{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--muted)}
 .capin{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px;font-size:14px}
 .capin input{width:110px;font:600 15px var(--f-body);padding:6px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink)}
+.lim{border-left:3px solid var(--c2);padding:6px 0 6px 12px;margin:0 0 16px;font-size:14px;color:var(--muted)}
+.lim summary{cursor:pointer;font-weight:700;color:var(--ink)}
+.lim ul{margin:8px 0 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;max-width:90ch}

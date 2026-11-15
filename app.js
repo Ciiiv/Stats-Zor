@@ -722,13 +722,28 @@ function profile(U, sd, id) {
   const G = slots.reduce((a, s) => a + s.g, 0);
   const avgSlot = slots.reduce((a, s, k) => a + s.g * (k + 1), 0) / (G || 1);
   const all = evsum(slots);
-  // "plays like": where his 5v5 results rank among regulars at his position, mapped onto the lineup
-  // (top quarter of forwards = 1st line ... bottom quarter = 4th line; thirds for defensemen)
-  const W = grp === 'F' ? [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['ipts60', 0.4]] : [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['rel_xga60', 0.25], ['ipts60', 0.15]];
-  let ws = 0, wt = 0; W.forEach(([k, w]) => { const v = pk(sd, p, k); if (nz(v)) { ws += v * w; wt += w; } });
-  const resPct = wt ? ws / wt : 50;
-  const eq = Math.max(1, Math.min(n, n + 0.5 - n * resPct / 100));
+  // 5v5 results fit: where his 5v5 results rank among regulars at his position, mapped onto the lineup
+  // (top quarter of forwards = 1st line ... bottom quarter = 4th line; thirds for defensemen).
+  // Blended over up to three seasons, most recent weighted 3-2-1 times games played.
+  const RES_W = grp === 'F' ? [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['ipts60', 0.4]] : [['xgf_pct', 0.35], ['rel_xgf_pct', 0.25], ['rel_xga60', 0.25], ['ipts60', 0.15]];
+  const res1 = (sdx, px) => { let ws = 0, wt = 0; RES_W.forEach(([k, w]) => { const v = pk(sdx, px, k); if (nz(v)) { ws += v * w; wt += w; } }); return wt ? ws / wt : null; };
+  const hist = [[sd, p]];
+  [1, 2].forEach(d => { const s2 = S.seasons[sd.y - d]; const p2 = s2 && s2.byId.get(id); if (p2 && grpOf(p2.pos) === grp && p2.gp >= 10) hist.push([s2, p2]); });
+  let bs = 0, bw = 0; const per = [];
+  hist.forEach(([sx, px], i) => { const r = res1(sx, px); if (nz(r)) { const w = (3 - i) * px.gp; bs += r * w; bw += w; per.push([sx.y, Math.round(r)]); } });
+  const resPct1 = res1(sd, p) ?? 50;
+  const resPct = bw ? bs / bw : resPct1;
+  const toSlot = pc => Math.max(1, Math.min(n, n + 0.5 - n * pc / 100));
+  const eq = toSlot(resPct), eq1 = toSlot(resPct1);
+  // overall fit: the all-situations value model (5v5, power play, penalty kill, finishing, penalties), blended the same way
+  let os = 0, ow = 0;
+  hist.forEach(([sx, px], i) => { const pc = warPct(sx.y, id, grp); if (nz(pc)) { const w = (3 - i) * px.gp; os += pc * w; ow += w; } });
+  const ovPct = ow ? os / ow : null;
+  const eqAll = nz(ovPct) ? toSlot(ovPct) : null;
   const usual = slots.reduce((b, s, k) => s.g > slots[b].g ? k : b, 0);
+  // against his role: his 5v5 xGF% vs the league average for the slots he actually played, minutes-weighted
+  const exAll = all.t ? slots.reduce((a, s, k) => a + (s.t ? s.t * base[k].xp : 0), 0) / all.t : null;
+  const vsRole = nz(all.xp) && nz(exAll) ? all.xp - exAll : null;
   const bucket = ks => { const ss = ks.map(k => slots[k]).filter(s => s.g); const e = evsum(ss); const t = ss.reduce((a, s) => a + s.t, 0); const ex = t ? ks.reduce((a, k) => a + (slots[k].t ? slots[k].t * base[k].xp : 0), 0) / t : null; const ep = t ? ks.reduce((a, k) => a + (slots[k].t ? slots[k].t * base[k].pts60 : 0), 0) / t : null; return { e, ex, ep }; };
   const range = (a, b) => { const o = []; for (let k = a; k <= b; k++) o.push(k); return o; };
   const splits = [['Moved up', range(0, usual - 1)], [`Usual role (${SLOT[grp][usual]})`, [usual]], ['Moved down', range(usual + 1, n - 1)]].map(([l, ks]) => ({ l, ...bucket(ks) }));
@@ -745,7 +760,10 @@ function profile(U, sd, id) {
   // fits
   const enough = all.t >= 6000;
   const gap = avgSlot - eq;
-  const evFit = !enough ? ['ok', 'Too few minutes to judge'] : gap >= 0.6 ? ['up', 'Results fit a bigger role'] : gap <= -0.6 ? ['down', 'Used above his results'] : ['ok', 'Used about right'];
+  const evFit = !enough ? ['ok', 'Too few minutes to judge'] : gap >= 0.6 ? ['up', '5v5 results fit a bigger role'] : gap <= -0.6 ? ['down', 'Used above his 5v5 results'] : ['ok', 'Used about right at 5v5'];
+  const gapAll = nz(eqAll) ? avgSlot - eqAll : null;
+  const allFit = !nz(gapAll) ? ['ok', 'No value data'] : gapAll >= 0.6 ? ['up', 'Overall value fits a bigger role'] : gapAll <= -0.6 ? ['down', 'Used above his overall value'] : ['ok', 'Used about right overall'];
+  const roleFit = !enough || !nz(vsRole) ? ['ok', 'Too few minutes'] : vsRole >= 1.5 ? ['up', 'Beats his role\'s average'] : vsRole <= -1.5 ? ['down', 'Below his role\'s average'] : ['ok', 'In line with his role'];
   const pctPP = pk(sd, p, 'pp_pts60'), pctOff = pk(sd, p, 'ipts60');
   const ppFit = nz(p.pp_pts60) && p.pp >= 0.75
     ? (pctPP >= 70 ? ['up', 'PP1 production'] : pctPP >= 40 ? ['ok', 'PP2 production'] : ['down', 'Weak PP production'])
@@ -758,7 +776,16 @@ function profile(U, sd, id) {
   const ozx = zone[0].t >= 3000 ? zone[0].xp : null, dzx = zone[2].t >= 3000 ? zone[2].xp : null;
   const zFit = nz(dzx) && sc.d >= 60 && (!nz(ozx) || ozx - dzx <= 4) ? ['up', 'Can take own-zone starts']
     : sc.o >= 60 && sc.d < 45 ? ['ok', 'Best sheltered: offensive-zone starts'] : nz(dzx) && nz(ozx) && ozx - dzx > 8 ? ['down', 'Struggles on own-zone nights'] : ['ok', 'Neutral starts'];
-  return { p, u, grp, n, slots, base, G, avgSlot, all, eq, resPct, gap, usual, splits, zone, pp, pk: pkd, bpp, bpk, ppL, pkL, zL, evFit, ppFit, pkFit, zFit, enough };
+  return { p, u, grp, n, slots, base, G, avgSlot, all, eq, eq1, resPct, resPct1, per, ovPct, eqAll, allFit, vsRole, exAll, roleFit, gap, usual, splits, zone, pp, pk: pkd, bpp, bpk, ppL, pkL, zL, evFit, ppFit, pkFit, zFit, enough };
+}
+function warPct(y, id, grp) {
+  if (!VAL || !VAL.seasons[y] || !S.seasons[y]) return null;
+  const ck = `war|${y}|${grp}`;
+  let arr = S.cache[ck];
+  if (!arr) { const gpm = S.seasons[y].gpmax; arr = S.cache[ck] = [...VAL.seasons[y].map.values()].filter(r => grpOf(r.pos) === grp && r.gp >= 0.35 * gpm).map(r => r.war82).sort((a, b) => a - b); }
+  const r = VAL.seasons[y].map.get(id); if (!r || !arr.length) return null;
+  let below = 0, eq = 0; for (const v of arr) { if (v < r.war82) below++; else if (v === r.war82) eq++; }
+  return 100 * (below + eq / 2) / arr.length;
 }
 const slotName = (grp, x) => SLOT[grp][Math.max(0, Math.min(SLOT[grp].length - 1, Math.round(x) - 1))];
 const flag = f => `<span class="flag ${f[0]}">${esc(f[1])}</span>`;
@@ -766,11 +793,14 @@ const dcls = v => nz(v) ? (v > 0.05 ? 'pos' : v < -0.05 ? 'neg' : '') : '';
 function roleCard(P, col) {
   const { p, grp } = P;
   const bar = P.slots.map((s, k) => s.g ? `<i style="width:${100 * s.g / P.G}%;background:${SLOTC[k]}" title="${SLOT[grp][k]}: ${s.g} games">${s.g / P.G > 0.1 ? SLOT[grp][k].replace(' line', 'L').replace(' pair', 'P').replace('st', '').replace('nd', '').replace('rd', '').replace('th', '') : ''}</i>` : '').join('');
-  const sum = `Plays like a <strong>${slotName(grp, P.eq)}</strong> ${grp === 'F' ? 'forward' : 'defenseman'} (${P.eq.toFixed(1)}); used as a <strong>${slotName(grp, P.avgSlot)}</strong> (${P.avgSlot.toFixed(1)}), ${P.ppL}, ${P.pkL}, ${P.zL.toLowerCase()}.`;
+  const sum = `5v5 results fit a <strong>${slotName(grp, P.eq)}</strong> (${P.eq.toFixed(1)})${nz(P.eqAll) ? `; overall value fits a <strong>${slotName(grp, P.eqAll)}</strong> (${P.eqAll.toFixed(1)})` : ''}. Used as a <strong>${slotName(grp, P.avgSlot)}</strong> (${P.avgSlot.toFixed(1)}), ${P.ppL}, ${P.pkL}, ${P.zL.toLowerCase()}.`;
+  const perTxt = P.per.map(([y, r]) => `${sLabel(y)}: ${ord(r)}`).join(', ');
   const v = (t, f, txt) => `<div class="v"><b>${t}</b>${flag(f)}<p>${txt}</p></div>`;
   const ppU = P.pp[0].g + P.pp[1].g, pkU = P.pk[0].g + P.pk[1].g;
   const verdicts = `<div class="verdict">
-    ${v('Even strength', P.evFit, `His 5v5 results (${f1(P.all.xp)}% xGF, ${f2(P.all.pts60)} pts/60) rank in the ${ord(Math.round(P.resPct))} percentile of regular ${grp === 'F' ? 'forwards' : 'defensemen'}, which fits a ${slotName(grp, P.eq)}; he averaged ${slotName(grp, P.avgSlot)} minutes.`)}
+    ${v('5v5 results', P.evFit, `Blended rank among regular ${grp === 'F' ? 'forwards' : 'defensemen'}: ${ord(Math.round(P.resPct))} percentile, a ${slotName(grp, P.eq)}${P.per.length > 1 ? ` (${perTxt})` : ''}. This season alone: ${slotName(grp, P.eq1)}.`)}
+    ${v('Overall value', P.allFit, nz(P.ovPct) ? `Adding power play, penalty kill, finishing and penalties (the Part 3 value model), he ranks in the ${ord(Math.round(P.ovPct))} percentile, a ${slotName(grp, P.eqAll)}.` : 'Value data not available for this season.')}
+    ${v('Against his role', P.roleFit, nz(P.vsRole) ? `${f1(P.all.xp)}% 5v5 xGF against ${f1(P.exAll)}% for the average player in the same slots (${s1(P.vsRole)}). The closest stand-in for facing similar competition.` : 'Not enough 5v5 minutes.')}
     ${v('Power play', P.ppFit, ppU ? `On a PP unit in ${ppU} of ${P.G} games; ${f2(p.pp_pts60)} PP pts/60.` : `Not used on the PP. 5v5 scoring ranks in the ${ord(pk(S.seasons[S.season], p, 'ipts60'))} percentile.`)}
     ${v('Penalty kill', P.pkFit, pkU ? `On a PK unit in ${pkU} of ${P.G} games; ${f2(p.pk_xga60)} xGA/60 shorthanded.` : `Not used on the PK. 5v5 chance suppression ranks in the ${ord(pk(S.seasons[S.season], p, 'rel_xga60'))} percentile.`)}
     ${v('Zone starts', P.zFit, `${P.zone[0].g} offensive-zone-heavy nights, ${P.zone[2].g} defensive-zone-heavy. xGF% ${f1(P.zone[0].xp)} vs ${f1(P.zone[2].xp)}.`)}
@@ -791,9 +821,17 @@ async function renderRole() {
   const y = S.season; const sd = S.seasons[y]; const U = await loadUsage(y);
   if (y !== S.season) return;
   if (!U) { $('role-sub').textContent = `Deployment data for ${sLabel(y)} hasn't been built yet. It's added by the nightly update.`; $('role').innerHTML = ''; $('lineup').innerHTML = ''; return; }
+  await Promise.all([y - 1, y - 2].filter(z => S.idx.mp_seasons.includes(z)).map(z => loadSeason(z).catch(() => null)).concat([loadValue().catch(() => null)]));
+  if (y !== S.season) return;
   const PA = profile(U, sd, S.A), PB = S.B ? profile(U, sd, S.B) : null;
-  $('role-sub').innerHTML = `Green and red mark results better or worse than the league average for the same role. "Plays like" ranks his 5v5 results (xGF%, relative xGF%, points per 60, and for defensemen relative xGA/60) against regulars at his position, then maps that rank onto the lineup: top quarter of forwards = 1st line, bottom quarter = 4th; thirds for defensemen. Samples under 30 minutes are left blank. Being moved up usually also means better linemates and tougher opponents, and coaches move players partly because of form, so treat the splits as evidence, not proof.`;
-  $('role').innerHTML = PA ? `<div class="rolegrid">${roleCard(PA, 'a')}${PB ? roleCard(PB, 'b') : ''}</div>` : '<p class="empty">No game-by-game data for this player and season.</p>';
+  $('role-sub').innerHTML = `Three ways to judge fit. <strong>5v5 results</strong> ranks his even-strength results (xGF%, relative xGF%, points per 60, and for defensemen relative xGA/60) among regulars at his position and maps that onto the lineup: top quarter of forwards = 1st line, bottom quarter = 4th; thirds for defensemen. <strong>Overall value</strong> does the same with the all-situations value model from Part 3. <strong>Against his role</strong> compares him only to players used in the same slots. The first two blend the last three seasons, most recent counting most. In the tables, green and red mark results better or worse than the league average for that role; samples under 30 minutes are left blank.`;
+  const lim = `<details class="lim" open><summary>What these numbers can and can't see</summary><ul>
+    <li><strong>Competition isn't in the public data.</strong> Top-line players face the other team's best every night, so their raw 5v5 numbers look worse than the same play would against depth lines. That biases the 5v5 fit against first-liners and top-pair defensemen. "Against his role" is the best available correction, since it compares him only with others in the same slot.</li>
+    <li><strong>The 5v5 fit is even strength only.</strong> A power-play specialist or elite finisher can read low there. Check "Overall value," which counts special teams and finishing.</li>
+    <li><strong>One season is noisy.</strong> Shooting luck, injuries and linemates swing a single year, which is why the fits blend three. This season alone is shown too.</li>
+    <li><strong>Usage isn't only ability.</strong> Coaches move players for form, injuries and matchups, and moving up usually brings better linemates. The moved up/down splits are evidence, not proof.</li>
+    <li><strong>Team quality still leaks in.</strong> Relative stats remove some of it, but on a weak team even good players' on-ice numbers sag.</li></ul></details>`;
+  $('role').innerHTML = PA ? lim + `<div class="rolegrid">${roleCard(PA, 'a')}${PB ? roleCard(PB, 'b') : ''}</div>` : '<p class="empty">No game-by-game data for this player and season.</p>';
   renderLineup(U, sd);
 }
 function renderLineup(U, sd) {
@@ -805,8 +843,8 @@ function renderLineup(U, sd) {
   const tbl = grp => {
     const rs = rows.filter(r => r.grp === grp).sort((a, b) => a.avgSlot - b.avgSlot);
     if (!rs.length) return '';
-    return `<p class="minihead" style="margin-top:12px">${grp === 'F' ? 'Forwards' : 'Defensemen'}</p><div class="scroll"><table class="tbl"><thead><tr><th>Player</th><th>GP</th><th>Used as</th><th>Plays like</th><th>Even strength</th><th>PP use</th><th>PP fit</th><th>PK use</th><th>PK fit</th><th>Zone starts</th></tr></thead><tbody>` +
-      rs.map(r => `<tr class="${r.p.id === S.A ? 'isA' : ''}"><td><a href="#" data-seta="${r.p.id}">${esc(r.p.name)}</a> <span class="lab">${r.p.pos}</span></td><td>${r.G}</td><td style="white-space:nowrap">${slotName(grp, r.avgSlot)} <span class="lab">${r.avgSlot.toFixed(1)}</span></td><td style="white-space:nowrap">${r.enough ? slotName(grp, r.eq) + ` <span class="lab">${r.eq.toFixed(1)}</span>` : '—'}</td><td>${flag(r.evFit)}</td><td style="white-space:nowrap">${r.ppL}</td><td>${flag(r.ppFit)}</td><td style="white-space:nowrap">${r.pkL}</td><td>${flag(r.pkFit)}</td><td>${flag(r.zFit)}</td></tr>`).join('') + '</tbody></table></div>';
+    return `<p class="minihead" style="margin-top:12px">${grp === 'F' ? 'Forwards' : 'Defensemen'}</p><div class="scroll"><table class="tbl"><thead><tr><th>Player</th><th>GP</th><th>Used as</th><th>5v5 fit (3 yr)</th><th>Overall fit</th><th>Vs. role</th><th>Even strength</th><th>PP use</th><th>PP fit</th><th>PK use</th><th>PK fit</th><th>Zone starts</th></tr></thead><tbody>` +
+      rs.map(r => `<tr class="${r.p.id === S.A ? 'isA' : ''}"><td><a href="#" data-seta="${r.p.id}">${esc(r.p.name)}</a> <span class="lab">${r.p.pos}</span></td><td>${r.G}</td><td style="white-space:nowrap">${slotName(grp, r.avgSlot)} <span class="lab">${r.avgSlot.toFixed(1)}</span></td><td style="white-space:nowrap">${r.enough ? slotName(grp, r.eq) + ` <span class="lab">${r.eq.toFixed(1)}</span>` : '—'}</td><td style="white-space:nowrap">${nz(r.eqAll) ? slotName(grp, r.eqAll) + ` <span class="lab">${r.eqAll.toFixed(1)}</span>` : '—'}</td><td class="${r.enough ? dcls(r.vsRole) : ''}">${r.enough ? s1(r.vsRole) : '—'}</td><td>${flag(r.allFit)}</td><td style="white-space:nowrap">${r.ppL}</td><td>${flag(r.ppFit)}</td><td style="white-space:nowrap">${r.pkL}</td><td>${flag(r.pkFit)}</td><td>${flag(r.zFit)}</td></tr>`).join('') + '</tbody></table></div>';
   };
   $('lineup').innerHTML = rows.length ? tbl('F') + tbl('D') + `<p class="sub small">Regulars with ${minG}+ games for ${S.lineupTeam} in ${sLabel(S.season)}. A player traded mid-season shows his whole season, including games for his other team.</p>` : '<p class="empty">No deployment data for this team.</p>';
 }
