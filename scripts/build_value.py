@@ -15,6 +15,10 @@ Value model (Stats-Zor's own, simple and transparent; not Evolving-Hockey's GAR)
 Dollar worth: the league's skater cap pool above minimum salaries, divided by all positive
 wins in the league, gives a market price per win. Worth = minimum salary + wins x price.
 
+Goalie projections keep shots / (shots + GOALIE_SHOTS_K) of the gap between his 3-season rate
+and the league-average goalie, so one hot season counts for much less than three, and are
+valued at his own workload (games per season), since no goalie plays 82.
+
 Goalies (data/goalies/seasons): goals saved above expected (expected goals minus goals
 against) in each situation, measured against a replacement-level goalie over the same
 minutes (the 20th percentile rate among regulars), times GOALIE_WEIGHT. Goalies are priced
@@ -70,7 +74,7 @@ def pctile(vals, q):
 AGE_MULT = [(23, 1.10), (26, 1.03), (28, 1.0), (30, 0.95), (32, 0.90), (99, 0.85)]
 # goalies develop later and hold their peak longer
 AGE_MULT_G = [(24, 1.08), (27, 1.03), (31, 1.0), (33, 0.95), (35, 0.90), (99, 0.85)]
-GOALIE_REGRESS = 0.3   # projections pull a goalie's blended rate 30% toward the average regular goalie
+GOALIE_SHOTS_K = 3000  # goalie projections keep shots / (shots + K) of the gap to an average goalie (3 seasons of shots)
 
 
 def age_mult(age, table=AGE_MULT):
@@ -146,7 +150,7 @@ def season_value(sf, usage):
     return out, repl, gpmax
 
 
-def project(seasons, birth, cur, proj, war82_i, table, regress, goalie=False):
+def project(seasons, birth, cur, proj, war82_i, table):
     """3-season weighted rate (3/2/1 by recency, weighted by games), then age-adjusted for 7 seasons."""
     by = {}
     for y, s in seasons.items():
@@ -154,8 +158,6 @@ def project(seasons, birth, cur, proj, war82_i, table, regress, goalie=False):
             by.setdefault(r[0], []).append((y, r))
     ref_y = cur - 1 if (cur - 1) in seasons else max(seasons)
     per_win_ref = seasons[ref_y]["per_win"]
-    regs = [r[war82_i] for r in seasons[ref_y]["rows"] if r[3] >= 20]
-    mean = sum(regs) / len(regs) if regs else 0.0
     for pid, lst in by.items():
         lst.sort()
         if lst[-1][0] < cur - 1:
@@ -168,8 +170,6 @@ def project(seasons, birth, cur, proj, war82_i, table, regress, goalie=False):
         if den < 20:
             continue
         base = num / den
-        if regress:  # pull toward the average regular, since one goalie season is mostly noise
-            base = mean + (base - mean) * (1 - regress)
         age0 = None
         b = birth.get(pid)
         if b:
@@ -186,10 +186,65 @@ def project(seasons, birth, cur, proj, war82_i, table, regress, goalie=False):
             war = war * (age_mult(age, table) if age is not None else 1.0)
             pw = per_win_ref * cap(y) / cap(ref_y)
             rows.append([y, age, round(war, 2), round(min_sal(y) + max(0.0, war) * pw, 2), cap(y)])
-        entry = {"base_war82": round(base, 2), "age": age0, "years": rows}
-        if goalie:
-            entry["g"] = 1
-        proj[str(pid)] = entry
+        proj[str(pid)] = {"base_war82": round(base, 2), "age": age0, "years": rows}
+
+
+def project_goalies(gseasons, birth, cur, proj, shots):
+    """Goalie projection in wins per season at his own workload.
+
+    rate     = wins per 82 games, 3-season blend (weights 3, 2, 1 x games)
+    kept     = shots faced in those seasons / (shots + GOALIE_SHOTS_K)
+    rate'    = league-average goalie rate + kept x (rate - league-average rate)
+    workload = his games per season, same 3/2/1 blend (an unfinished season at pace, weighted by how much is played), max 65
+    wins     = rate' x workload / 82, then the goalie age curve each year
+    """
+    by = {}
+    for y, s in gseasons.items():
+        for r in s["rows"]:
+            by.setdefault(r[0], []).append((y, r, s["progress"] or 1))
+    ref_y = cur - 1 if (cur - 1) in gseasons else max(gseasons)
+    per_win_ref = gseasons[ref_y]["per_win"]
+    rows_ref = gseasons[ref_y]["rows"]
+    gp_all = sum(r[3] for r in rows_ref)
+    lg_rate = sum(r[8] for r in rows_ref) / gp_all * 82 if gp_all else 0.0  # games-weighted league average
+    for pid, lst in by.items():
+        lst.sort(key=lambda x: x[0])
+        if lst[-1][0] < cur - 1:
+            continue
+        num = den = gnum = gden = 0.0
+        for i, (y, r, prog) in enumerate(reversed(lst[-3:])):
+            w = 3 - i
+            num += r[9] * w * r[3]
+            den += w * r[3]
+            gnum += w * prog * min(65.0, r[3] / prog)  # an unfinished season counts in proportion to how much is played
+            gden += w * prog
+        if den < 20:
+            continue
+        rate = num / den
+        n = sum(shots.get((pid, y), 0) for y, _, _ in lst[-3:])
+        kept = n / (n + GOALIE_SHOTS_K)
+        rate_p = lg_rate + kept * (rate - lg_rate)
+        games = gnum / gden
+        base = rate_p * games / 82
+        age0 = None
+        b = birth.get(pid)
+        if b:
+            try:
+                bd = dt.date.fromisoformat(b[:10])
+                ref = dt.date(cur + 1, 2, 1)
+                age0 = ref.year - bd.year - ((ref.month, ref.day) < (bd.month, bd.day))
+            except ValueError:
+                age0 = None
+        out, war = [], base
+        for t in range(1, 8):
+            y = cur + t
+            age = (age0 + t) if age0 is not None else None
+            war = war * (age_mult(age, AGE_MULT_G) if age is not None else 1.0)
+            pw = per_win_ref * cap(y) / cap(ref_y)
+            out.append([y, age, round(war, 2), round(min_sal(y) + max(0.0, war) * pw, 2), cap(y)])
+        proj[str(pid)] = {"g": 1, "base_war82": round(base, 2), "per": "season", "age": age0, "years": out,
+                          "rate": round(rate, 2), "lg_rate": round(lg_rate, 2), "kept": round(kept, 3), "shots": n,
+                          "games": round(games, 1)}
 
 
 def main():
@@ -232,11 +287,19 @@ def main():
         per_win = pool / pos_war if pos_war else 0
         for r in rows:
             war82 = r[8] / r[3] * 82 if r[3] else 0
-            worth = min_sal(y) + max(0.0, war82) * per_win
+            # goalies never play 82 games, so worth uses his own season (at pace if it's unfinished)
+            worth = min_sal(y) + max(0.0, r[8] / prog if prog else 0) * per_win
             r.extend([round(war82, 2), round(worth, 2), round(100 * worth / cap(y), 2)])
         gseasons[y] = {"cap": cap(y), "min": min_sal(y), "per_win": round(per_win, 3), "progress": round(prog, 3),
                        "repl": {k: round(v, 4) for k, v in repl.items()}, "rows": rows}
         log(f"goalie value {y}: {len(rows)} goalies, ${per_win:.2f}M per win, {pos_war:.0f} positive wins")
+    gshots = {}
+    for y in gseasons:
+        sf = read_json(os.path.join(DATA, "goalies", "seasons", f"{y}.json")) or {}
+        if sf:
+            ix = {k: i for i, k in enumerate(sf["fields"])}
+            for r in sf["players"]:
+                gshots[(r[ix["id"]], y)] = r[ix["sa"]] or 0
     gbirth = {}
     gcar = read_json(os.path.join(DATA, "goalies", "careers.json"))
     if gcar:
@@ -244,9 +307,9 @@ def main():
 
     # projections from a 3-season weighted rate (3/2/1 by recency, weighted by games)
     proj = {}
-    project(seasons, birth, cur, proj, war82_i=12, table=AGE_MULT, regress=0.0)
+    project(seasons, birth, cur, proj, war82_i=12, table=AGE_MULT)
     if gseasons:
-        project(gseasons, gbirth, cur, proj, war82_i=9, table=AGE_MULT_G, regress=GOALIE_REGRESS, goalie=True)
+        project_goalies(gseasons, gbirth, cur, proj, gshots)
 
     write_json(os.path.join(DATA, "value.json"), {
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),

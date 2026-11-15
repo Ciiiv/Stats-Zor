@@ -63,7 +63,7 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 ### Model assumptions in code
 - **Era adjustment:** `adjusted = actual × 6.0 ÷ that season's league goals per game`.
 - **Salary cap and minimum salary by season:** the `CAP` and `MIN` tables at the top of `scripts/build_value.py`. Published caps run through 2027-28 ($113.5M); the model assumes 5% a year after that. Update these when the league announces new figures.
-- **Value weights, replacement level, age curves:** also in `scripts/build_value.py`. Goalies use `GOALIE_WEIGHT` (half credit for goals saved), `GOALIE_REGRESS` (projections pulled 30% toward average), `AGE_MULT_G` and the goalie cap share (1 − `SKATER_SHARE`).
+- **Value weights, replacement level, age curves:** also in `scripts/build_value.py`. Goalies use `GOALIE_WEIGHT` (half credit for goals saved), `GOALIE_SHOTS_K` (projections keep shots ÷ (shots + 3,000) of a goalie's edge over average, and use his own workload), `AGE_MULT_G` and the goalie cap share (1 − `SKATER_SHARE`).
 - **Pick and prospect values:** `pickWins`, `FUTURE_DISCOUNT` and `PROSPECT_DECAY` at the top of `trade.js`.
 
 ## Running the update yourself

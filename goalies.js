@@ -544,7 +544,7 @@ async function renderValue() {
   const y = S.season; const sv = V.seasons[y];
   if (!sv) { $('value').innerHTML = '<p class="empty">No value data for this season.</p>'; $('deal').innerHTML = ''; return; }
   const partial = sv.progress < 0.99;
-  $('value-sub').innerHTML = `${sLabel(y)} cap ${money(sv.cap)}; the model prices one goalie win at about <strong>${money(sv.per_win)}</strong> (the goalie share of the cap above minimum salaries, divided by all the wins goalies produced).${partial ? ` ${sLabel(y)} is ${Math.round(sv.progress * 100)}% complete, so worth uses each goalie's pace over 82 games.` : ''} Replacement level is the 20th percentile rate among regular goalies in each situation, roughly a call-up.`;
+  $('value-sub').innerHTML = `${sLabel(y)} cap ${money(sv.cap)}; the model prices one goalie win at about <strong>${money(sv.per_win)}</strong> (the goalie share of the cap above minimum salaries, divided by all the wins goalies produced). Worth uses the wins he actually produced in his games, not a per-82 rate, since no goalie plays every game.${partial ? ` ${sLabel(y)} is ${Math.round(sv.progress * 100)}% complete, so worth projects his wins at this pace to a full season.` : ''} Replacement level is the 20th percentile rate among regular goalies in each situation, roughly a call-up.`;
   const ids = [S.A, S.B].filter(Boolean); const rows = ids.map(id => sv.map.get(id)).filter(Boolean);
   const scale = Math.max(1, ...rows.flatMap(r => GCOMPS.map(([k]) => Math.abs(r[k]))));
   const sd = S.seasons[y];
@@ -554,7 +554,7 @@ async function renderValue() {
     const comps = GCOMPS.map(([k, l]) => { const v = r[k]; const w = Math.abs(v) / scale * 50; return `<span>${l}</span><div class="trk"><b></b><i style="${v >= 0 ? `left:50%;width:${w}%;background:var(--hi)` : `left:${50 - w}%;width:${w}%;background:var(--lo)`}"></i></div><span class="mono" style="text-align:right">${s1(v)}</span>`; }).join('');
     return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:24px">${esc(nameOf(r.id))}</h3>
       <div class="tiles" style="margin-top:8px"><div class="tile"><b>${f1(r.war)}</b><span>Wins above replacement${partial ? ' so far' : ''}</span></div><div class="tile"><b>${f1(r.war82)}</b><span>Per 82 games</span></div>
-        <div class="tile"><b>${money(r.worth)}</b><span>Worth (${f1(r.worth_pct)}% of cap)</span></div><div class="tile"><b>${rankOf(r)}</b><span>Rank among goalies</span></div></div>
+        <div class="tile"><b>${money(r.worth)}</b><span>Worth${partial ? ' at this pace' : ''} (${f1(r.worth_pct)}% of cap)</span></div><div class="tile"><b>${rankOf(r)}</b><span>Rank among goalies</span></div></div>
       <p class="minihead" style="margin-top:14px">Where the value comes from · goals above replacement</p><div class="comp">${comps}</div>
       <div class="capin"><label for="cap-${r.id}">His cap hit ($M)</label><input id="cap-${r.id}" data-capid="${r.id}" type="number" step="0.05" min="0" placeholder="e.g. 5.5" value="${nz(cap) ? cap : ''}"><span id="pay-${r.id}">${payLine(r.worth, cap)}</span></div>
       <p class="sub small">Type his cap hit from <a href="https://puckpedia.com" rel="noopener">PuckPedia</a> or his team to compare. It stays in your browser only.</p></div>`;
@@ -580,10 +580,10 @@ function renderDeal(V, ids) {
     if (!P || !P.g) return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(nameOf(id))}</h3><p class="empty">No projection: he needs recent NHL games.</p></div>`;
     const yrs = P.years.map(r => ({ y: r[0], age: r[1], war: r[2], worth: r[3], cap: r[4] }));
     const rows = [1, 2, 3, 4, 5, 6, 7].map(n => { const sp = yrs.slice(0, n); const aav = avg(sp.map(x => x.worth)); return `<tr><td>${n} yr</td><td style="white-space:nowrap">${n > 1 ? `${sLabel(sp[0].y)} – ${sLabel(sp[n - 1].y)}` : sLabel(sp[0].y)}</td><td style="white-space:nowrap">${n > 1 ? `${sp[0].age ?? '?'}–${sp[n - 1].age ?? '?'}` : (sp[0].age ?? '?')}</td><td>${money(aav)}</td><td>${f1(100 * aav / sp[0].cap)}%</td><td>${f2(avg(sp.map(x => x.war)))}</td></tr>`; }).join('');
-    return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(nameOf(id))}</h3><p class="sub small">Starting point: ${f2(P.base_war82)} wins per 82 games, a weighted blend of his last three seasons pulled 30% toward the average regular goalie${nz(P.age) ? `; age ${P.age} this season` : ''}.</p>
+    return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(nameOf(id))}</h3><p class="sub small">Starting point: <strong>${f2(P.base_war82)} wins a season</strong>. His last three seasons blend to ${f2(P.rate)} wins per 82 games; with ${f0(P.shots)} shots faced in them, the model keeps ${f0(100 * P.kept)}% of his gap to the league-average goalie (${f2(P.lg_rate)}), then scales to his workload of about ${f0(P.games)} games a season${nz(P.age) ? `. Age ${P.age} this season` : ''}.</p>
       <div class="scroll"><table class="tbl" style="min-width:560px"><thead><tr><th>Term</th><th>Seasons</th><th>Ages</th><th>Fair AAV</th><th>% of first-year cap</th><th>Avg wins / yr</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   });
-  $('deal-sub').innerHTML = `What a new contract starting next season would be worth if it paid exactly his projected value. Goalies age later than skaters in the model: improving to 27, flat to 31, then declining. ${esc(V.cap_assumption || '')} Fair value under the model, not a prediction of what he'll sign for.`;
+  $('deal-sub').innerHTML = `What a new contract starting next season would be worth if it paid exactly his projected value. Goalie seasons swing a lot, so the projection trusts his record in proportion to how many shots it rests on: one season as a starter keeps about a third of his edge over an average goalie, three seasons about 60%. It's valued at his own workload, since no goalie plays 82 games, and goalies age later than skaters in the model: improving to 27, flat to 31, then declining. ${esc(V.cap_assumption || '')} Fair value under the model, not a prediction of what he'll sign for.`;
   $('deal').innerHTML = `<div class="valgrid">${cards.join('')}</div>`;
 }
 

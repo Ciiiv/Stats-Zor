@@ -239,7 +239,7 @@ Fair AAV for an N-year deal = average worth over those N years</div>
 
   <h3 id="m-trade">Trade machine</h3>
   <ul>
-    <li><strong>Players:</strong> his blended wins per 82 × the share of this season left, plus the projected wins for each future season you count ("years left"). Worth is priced the same way. Goalies are on the rosters too, valued with the <a href="#m-g-value">goalie model</a> and priced at the goalie price of a win.</li>
+    <li><strong>Players:</strong> his blended wins per 82 × the share of this season left, plus the projected wins for each future season you count ("years left"). Worth is priced the same way. Goalies are on the rosters too, valued with the <a href="#m-g-value">goalie model</a> in wins per season at their own workload, and priced at the goalie price of a win.</li>
     <li><strong>Cap hits:</strong> if you enter one, cost = cap hit × (share of this season left + future years), and surplus = worth − cost. Once every player has a cap hit, the verdict switches from value to surplus.</li>
     <li><strong>Draft picks:</strong> expected wins over a pick's cost-controlled years, by overall pick number. "Early" picks are #4, "middle" #16 and "late" #28 in each round. The value drops 10% for each year beyond the next draft.</li>
     <li><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster. They get the value of their draft slot, reduced 15% for each full year since the draft. They're listed under their drafting team (Arizona picks under Utah).</li>
@@ -329,12 +329,21 @@ Flag          results level above his role → "Results earn more starts"
 Replacement rate = 20th percentile GSAx/60 among regular goalies, in that situation
 Wins = goals ÷ 6
 Price of a goalie win = 32 × (cap × 0.12 goalie share − 2 goalies × minimum salary)
-                        ÷ all positive goalie wins that season</div>
-  <p><strong>Why half credit:</strong> GSAx is the goalie's own number, but a season of it is roughly half signal and half noise and team effects the model can't see, so only half is credited. That also keeps goalie wins on a scale comparable with skater wins: in a typical season goalies produce about 13–15% of all positive wins, close to their 12% share of the cap.</p>
-  <div class="m">Projection   = 3-season blend (weights 3, 2, 1 × games), pulled 30% toward the average regular goalie
-Age factors  ≤24 ×1.08 · 25–27 ×1.03 · 28–31 ×1.00 · 32–33 ×0.95 · 34–35 ×0.90 · 36+ ×0.85</div>
-  <p>Goalies peak later and hold it longer than skaters, so the curve is shifted. Fair AAV for a term is the average projected worth over those years, as for skaters. The trade machine uses the same projection.</p>
-  <p class="lim"><b>Limits:</b> the noise in goalie seasons means projections are much less certain than for skaters; the 30% pull toward average only partly handles it. Contracts aren't known; type a cap hit to compare.</p>
+                        ÷ all positive goalie wins that season
+Worth                 = minimum salary + max(0, his wins this season) × price of a goalie win
+                        (an unfinished season is projected at his pace)</div>
+  <p><strong>Why half credit:</strong> GSAx is the goalie's own number, but a season of it is roughly half signal and half noise and team effects the model can't see, so only half is credited. That also keeps goalie wins on a scale comparable with skater wins: in a typical season goalies produce about 13–15% of all positive wins, close to their 12% share of the cap. (Dollar worth barely depends on this weight: doubling everyone's wins would halve the price of a win.)</p>
+  <p><strong>Why not per 82 games:</strong> skater worth uses wins per 82, because skaters play most games. No goalie plays 82, so goalie worth uses the wins he actually produced, and projections use his own workload.</p>
+  <div class="m">Rate        = wins per 82 games, 3-season blend (weights 3, 2, 1 × games)
+Kept share  = shots faced in those seasons ÷ (shots faced + 3,000)
+Projected   = league-average goalie rate + kept share × (his rate − league-average rate)
+Workload    = his games per season, same 3/2/1 blend (up to 65; an unfinished season
+              counts in proportion to how much of it is played)
+Wins a year = projected rate × workload ÷ 82, then the age factor for each year
+Age factors ≤24 ×1.08 · 25–27 ×1.03 · 28–31 ×1.00 · 32–33 ×0.95 · 34–35 ×0.90 · 36+ ×0.85</div>
+  <p><strong>Trusting repeated results:</strong> one season as a starter (about 1,600 shots) keeps roughly a third of his edge over an average goalie; three full seasons (about 4,800) keep roughly 60%. So a single hot season doesn't project like an established elite goalie, while three strong seasons in a row still do. A call-up with a few hundred shots projects close to average. The 3,000-shot setting (<code>GOALIE_SHOTS_K</code>) is a judgment call, roughly where save % is as much skill as luck. Skaters keep their own, simpler projection.</p>
+  <p>Goalies peak later and hold it longer than skaters, so the age curve is shifted. Fair AAV for a term is the average projected worth over those years, as for skaters. The trade machine uses the same projection, in wins per season.</p>
+  <p class="lim"><b>Limits:</b> the noise in goalie seasons means projections are much less certain than for skaters; the pull toward average only partly handles it, and the workload assumes his recent share of starts continues. Contracts aren't known; type a cap hit to compare.</p>
 
   <h3 id="m-g-career">Goalie careers, arcs and comps</h3>
   <div class="m">League save % (each season) = 1 − goals against ÷ shots, all goalies with shot counts
