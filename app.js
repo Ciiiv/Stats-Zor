@@ -965,7 +965,8 @@ function wire() {
   new IntersectionObserver(es => { if (es.some(x => x.isIntersecting) && !S.shotsSeen) { S.shotsSeen = true; renderShots().catch(e => console.error(e)); } }, { rootMargin: '600px' }).observe($('sec-shots'));
   $('lineupTeam').addEventListener('change', e => { S.lineupTeam = e.target.value; const U = USAGE[S.season]; if (U) renderLineup(U, S.seasons[S.season]); });
   $('lineup').addEventListener('click', e => { const a = e.target.closest('[data-seta]'); if (!a) return; e.preventDefault(); setA(+a.dataset.seta); });
-  $('value').addEventListener('input', e => { const id = e.target.dataset.capid; if (!id) return; const v = e.target.value === '' ? null : +e.target.value; setCap(+id, v); const r = VAL && VAL.seasons[S.season] && VAL.seasons[S.season].map.get(+id); $('pay-' + id).innerHTML = r ? payLine(r.worth, v) : ''; });
+  $('value').addEventListener('change', e => { const id = e.target.dataset.capid; if (!id) return; const v = getCap(+id); if (nz(v) && +e.target.value !== v) e.target.value = v; });
+  $('value').addEventListener('input', e => { const id = e.target.dataset.capid; if (!id) return; let v = e.target.value === '' ? null : +e.target.value; if (nz(v) && v >= 1000) v = Math.round(v / 1e4) / 100; setCap(+id, v); const r = VAL && VAL.seasons[S.season] && VAL.seasons[S.season].map.get(+id); $('pay-' + id).innerHTML = r ? payLine(r.worth, v) : ''; });
   window.addEventListener('hashchange', () => { const h = readHash(); const a = +h.a, b = +h.b, s = +h.s; let ch = false; if (a && a !== S.A && S.byId.has(a)) { S.A = a; ch = true; } if (b && b !== S.B && S.byId.has(b)) { S.B = b; ch = true; } if (s && s !== S.season && S.idx.mp_seasons.includes(s)) { S.season = s; ch = true; } if (ch) render(); });
 }
 

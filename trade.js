@@ -7,6 +7,8 @@ const money = v => nz(v) ? (v < 0 ? '−' : '') + '$' + Math.abs(v).toFixed(Math
 const f1 = v => nz(v) ? v.toFixed(1) : '—';
 const getJSON = async u => { const r = await fetch(u, { cache: 'no-cache' }); if (!r.ok) throw new Error(u); return r.json(); };
 const sLabel = y => `${y}-${String(y + 1).slice(2)}`;
+// cap hits are in $ millions; a number typed in dollars (8700000) is converted to millions (8.7)
+const toM = v => !nz(v) ? null : v >= 1000 ? Math.round(v / 1e4) / 100 : v;
 
 // Expected wins over a pick's cost-controlled years, by overall pick number.
 const pickWins = n => 6 * Math.exp(-0.045 * (n - 1)) + 0.15;
@@ -52,14 +54,14 @@ function sideHTML(i) {
     if (a.type === 'player') {
       nm = `${esc(a.name)}<small>${a.pos}${a.off ? ' · not on active roster' : ''} · ${v.hasProj ? f1(v.base) + (D.proj[a.id].per === 'season' ? ' wins/season' : ' wins/82') : 'no recent NHL data'}</small>`;
       det = `<label>Years left on contract after this one <input type="number" min="0" max="7" step="1" placeholder="add" value="${nz(a.after) ? a.after : ''}" data-i="${i}" data-k="${k}" data-f="after"></label>
-        <label>Cap hit $M <input type="number" min="0" step="0.05" placeholder="optional" value="${nz(a.cap) ? a.cap : ''}" data-i="${i}" data-k="${k}" data-f="cap"></label>
+        <label>Cap hit ($M) <input type="number" min="0" step="0.05" placeholder="e.g. 8.7" value="${nz(a.cap) ? a.cap : ''}" data-i="${i}" data-k="${k}" data-f="cap"></label>
         <span>Worth ${money(v.worth)}${nz(v.cost) ? ` · paid ${money(v.cost)} · surplus <b class="${v.surplus >= 0 ? 'pos' : 'neg'}">${money(v.surplus)}</b>` : ''}</span>`;
     } else if (a.type === 'pick') {
       nm = `${a.year} ${['1st', '2nd', '3rd', '4th', '5th', '6th', '7th'][a.round - 1]}-round pick<small>${esc(a.from)} · projected ${a.slot} (around #${v.overall})</small>`;
-      det = `<span>Expected value from a pick at that slot${a.year > D.nextDraft ? `, discounted ${a.year - D.nextDraft} year${a.year - D.nextDraft > 1 ? 's' : ''} out` : ''}</span>`;
+      det = `<span>Expected value from a pick at that slot${a.year > D.nextDraft ? `, discounted ${a.year - D.nextDraft} year${a.year - D.nextDraft > 1 ? 's' : ''} out` : ''} · worth ${money(v.worth)}</span>`;
     } else {
       nm = `${esc(a.name)}<small>${a.pos} prospect · #${a.overall} in ${a.draft_year} by ${esc(a.drafted_by)}${a.nhl_gp ? ` · ${a.nhl_gp} NHL GP` : ''}</small>`;
-      det = `<span>Value from his draft slot, reduced for each year since the draft he hasn't stuck in the NHL</span>`;
+      det = `<span>Value from his draft slot, reduced for each year since the draft he hasn't stuck in the NHL · worth ${money(v.worth)}</span>`;
     }
     return `<div class="asset"><div class="nm">${nm}</div><div style="display:flex;gap:10px;align-items:center"><span class="val">${f1(v.wins)} W</span><button type="button" data-rm="${i}:${k}" aria-label="Remove">×</button></div><div class="det">${det}</div></div>`;
   }).join('');
@@ -79,26 +81,28 @@ function summary() {
   const sum = (l, k) => l.reduce((s, v) => s + (v[k] || 0), 0);
   const players = T.assets.flat().filter(a => a.type === 'player');
   const salaryMode = players.length > 0 && players.every(a => nz(a.cap));
-  const key = salaryMode ? 'surplus' : 'wins';
-  const sent = tot.map(l => sum(l, key));
-  // Team A receives what B sends
-  const getA = sent[1], getB = sent[0];
-  const unit = salaryMode ? money : (v => f1(v) + ' wins');
-  const diff = getA - getB;
-  const total = Math.abs(getA) + Math.abs(getB) || 1;
-  const close = Math.abs(diff) < (salaryMode ? 1.5 : 0.4) || Math.abs(diff) / total < 0.08;
+  const side = k => { const sent = tot.map(l => sum(l, k)); return { getA: sent[1], getB: sent[0], diff: sent[1] - sent[0] }; }; // Team A receives what B sends
+  const W = side('wins'), M = salaryMode ? side('surplus') : null;
+  const H = M || W; const unit = M ? money : (v => f1(v) + ' wins');
+  const total = Math.abs(H.getA) + Math.abs(H.getB) || 1;
+  const isClose = (d, tot, s) => Math.abs(d) < (s ? 1.5 : 0.4) || Math.abs(d) / (tot || 1) < 0.08;
+  const winner = (d, tot, s) => isClose(d, tot, s) ? 'about even' : `${d > 0 ? T.team[0] : T.team[1]} comes out ahead`;
   const verdict = !T.assets[0].length && !T.assets[1].length ? 'Add assets to both sides to see who wins.'
-    : close ? 'About even' : `${diff > 0 ? T.team[0] : T.team[1]} wins this trade`;
+    : isClose(H.diff, total, !!M) ? 'About even' : `${H.diff > 0 ? T.team[0] : T.team[1]} wins this trade`;
   const capA = sum(tot[1], 'cost') - sum(tot[0], 'cost');
   const capNote = salaryMode ? `<p class="sub small">Cap change for the rest of the deals: ${T.team[0]} ${capA >= 0 ? 'takes on' : 'sheds'} ${money(Math.abs(capA))} in total salary; ${T.team[1]} the opposite. Cap space and roster limits aren't checked.</p>`
-    : players.length ? `<p class="sub small">Enter every player's cap hit to switch the verdict to surplus value (worth minus salary). Right now it compares on-ice value only, so an overpaid player still counts as a plus.</p>` : '';
+    : players.length ? `<p class="sub small">Enter every player's cap hit (in millions, like 8.7) to add surplus value (worth minus salary) and base the verdict on it. Right now it compares on-ice value only, so an overpaid player still counts as a plus.</p>` : '';
   const noYears = players.filter(a => !nz(a.after));
   const yearsNote = noYears.length ? `<p class="sub small"><b class="neg">Years left missing</b> for ${noYears.map(a => esc(a.name)).join(', ')}: counting only the rest of this season for ${noYears.length > 1 ? 'them' : 'him'}. Add years left on the contract after this one (0 for a rental) to count the rest of the deal.</p>` : '';
-  const wA = Math.max(0, getA) / (Math.max(0, getA) + Math.max(0, getB) || 1) * 100;
-  $('summary').innerHTML = `<div class="head"><h2>${esc(verdict)}</h2><p class="sub">Compared on ${salaryMode ? 'surplus value: projected worth minus salary over each contract' : 'projected wins above replacement over the years each asset is controlled'}.</p></div>
-    <div class="meter"><i style="width:${wA}%;background:var(--a)">${wA > 12 ? T.team[0] + ' gets ' + unit(getA) : ''}</i><i style="width:${100 - wA}%;background:var(--b)">${100 - wA > 12 ? T.team[1] + ' gets ' + unit(getB) : ''}</i></div>
-    <div class="sumgrid"><div class="v a"><b>${T.team[0]}</b><p>Gets ${unit(getA)}, gives ${unit(getB)}: net <strong class="${diff >= 0 ? 'pos' : 'neg'}">${diff >= 0 ? '+' : '−'}${unit(Math.abs(diff))}</strong></p></div>
-    <div class="v b"><b>${T.team[1]}</b><p>Gets ${unit(getB)}, gives ${unit(getA)}: net <strong class="${-diff >= 0 ? 'pos' : 'neg'}">${-diff >= 0 ? '+' : '−'}${unit(Math.abs(diff))}</strong></p></div></div>${yearsNote}${capNote}`;
+  const wA = Math.max(0, H.getA) / (Math.max(0, H.getA) + Math.max(0, H.getB) || 1) * 100;
+  const sgn = (v, f) => `<strong class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : '−'}${f(Math.abs(v))}</strong>`;
+  const wf = v => f1(v) + ' wins';
+  const rows = [['Wins above replacement', W, wf, 'On the ice']].concat(M ? [['Surplus value (worth − salary)', M, money, 'With salary']] : []);
+  const table = `<div class="scroll"><table class="tbl" style="margin-top:10px"><thead><tr><th></th><th>${T.team[0]} gets</th><th>${T.team[0]} gives</th><th>${T.team[0]} net</th><th>${T.team[1]} net</th><th>Verdict</th></tr></thead><tbody>` +
+    rows.map(([l, x, f, short]) => `<tr><td>${l}</td><td>${f(x.getA)}</td><td>${f(x.getB)}</td><td>${sgn(x.diff, f)}</td><td>${sgn(-x.diff, f)}</td><td>${short}: ${winner(x.diff, Math.abs(x.getA) + Math.abs(x.getB), f === money)}</td></tr>`).join('') + '</tbody></table></div>';
+  $('summary').innerHTML = `<div class="head"><h2>${esc(verdict)}</h2><p class="sub">Verdict on ${M ? 'surplus value: projected worth minus salary over each contract. Wins above replacement are shown too' : 'projected wins above replacement over the years each asset is controlled'}. Prospects and picks count their projected wins, and their worth with no salary against it.</p></div>
+    <div class="meter"><i style="width:${wA}%;background:var(--a)">${wA > 12 ? T.team[0] + ' gets ' + unit(H.getA) : ''}</i><i style="width:${100 - wA}%;background:var(--b)">${100 - wA > 12 ? T.team[1] + ' gets ' + unit(H.getB) : ''}</i></div>
+    ${table}${yearsNote}${capNote}`;
 }
 function render() {
   $('tm').innerHTML = sideHTML(0) + sideHTML(1);
@@ -116,7 +120,7 @@ function wire() {
     const t = e.target; if (!t.dataset.f) return;
     const a = T.assets[+t.dataset.i][+t.dataset.k];
     if (t.dataset.f === 'after') a.after = t.value === '' ? null : Math.max(0, Math.min(7, Math.round(+t.value || 0)));
-    if (t.dataset.f === 'cap') a.cap = t.value === '' ? null : +t.value;
+    if (t.dataset.f === 'cap') a.cap = t.value === '' ? null : toM(+t.value);
     clearTimeout(wire.t); wire.t = setTimeout(() => { const pos = [t.dataset.i, t.dataset.k, t.dataset.f]; render(); const el = tm.querySelector(`[data-i="${pos[0]}"][data-k="${pos[1]}"][data-f="${pos[2]}"]`); if (el) { el.focus(); const v = el.value; el.value = ''; el.value = v; } }, 500);
   });
   tm.addEventListener('click', e => {
