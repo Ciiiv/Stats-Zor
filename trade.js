@@ -17,7 +17,7 @@ const FUTURE_DISCOUNT = 0.9;   // per year a pick is further away
 const PROSPECT_DECAY = 0.85;   // per year since a prospect was drafted without becoming a regular
 
 const D = { cur: null, nextDraft: null, perWin: null, progress: 1, proj: {}, rows: new Map(), rosters: {}, prospects: [], teams: [] };
-const T = { team: [null, null], assets: [[], []] };
+const T = { team: [null, null], assets: [[], []], mode: ['neutral', 'neutral'], pk: [{ year: null, round: 1, slot: 'mid' }, { year: null, round: 1, slot: 'mid' }] };
 
 // ---- team control: an estimate of the CBA rule. A player can't become an unrestricted free agent
 // until he's 27 (as of June 30 when his deal ends) or has 7 accrued seasons; until then his team keeps
@@ -47,27 +47,43 @@ function playerValue(a) {
   const wins = base * frac + fut.reduce((s, r) => s + r[2], 0);
   const worthNow = D.minNow + Math.max(0, base) * (P && P.g ? D.perWinG : D.perWin);
   const worth = worthNow * frac + fut.reduce((s, r) => s + r[3], 0);
-  // salary: his cap hit for the rest of this season and his contract; RFA seasons are assumed paid fair value
-  const cost = nz(a.cap) ? a.cap * (frac + C.contract) + fut.slice(C.contract).reduce((s, r) => s + r[3], 0) : null;
-  return { wins, worth, cost, surplus: nz(cost) ? worth - cost : null, base, hasProj: !!P, C };
+  // salary: his cap hit for the rest of this season and his contract (real salary), plus RFA seasons
+  // assumed paid his fair value (unknown salary, so they add wins but no surplus)
+  const contractCost = nz(a.cap) ? a.cap * (frac + C.contract) : null;
+  const rfaCost = fut.slice(C.contract).reduce((s, r) => s + r[3], 0);
+  const cost = nz(a.cap) ? contractCost + rfaCost : null;
+  const ws = [base * frac, ...fut.map(r => r[2])]; // wins by season: this season, then each season after
+  return { wins, worth, cost, contractCost, rfaCost, surplus: nz(cost) ? worth - cost : null, base, hasProj: !!P, C, ws };
 }
 function pickValue(a) {
   const overall = SLOTS[a.slot] + (a.round - 1) * 32;
   const wins = pickWins(overall) * Math.pow(FUTURE_DISCOUNT, a.year - D.nextDraft);
-  return { wins, worth: wins * D.perWin, cost: 0, surplus: wins * D.perWin, overall };
+  return { wins, worth: wins * D.perWin, cost: 0, contractCost: 0, surplus: wins * D.perWin, overall, ws: spread(wins, a.year + 2) };
 }
 const NHL_BLEND_MIN = 40;  // NHL games before a prospect's own record counts; full weight at 100
 function prospectValue(a) {
   const wins = pickWins(a.overall) * Math.pow(PROSPECT_DECAY, Math.max(0, D.nextDraft - 1 - a.draft_year));
-  const draft = { wins, worth: wins * D.perWin };
-  if (!(a.id && D.proj[a.id] && a.nhl_gp >= NHL_BLEND_MIN)) return { ...draft, cost: 0, surplus: draft.worth };
+  const draft = { wins, worth: wins * D.perWin, ws: spread(wins, Math.max(D.cur + 1, a.draft_year + 3)) };
+  if (!(a.id && D.proj[a.id] && a.nhl_gp >= NHL_BLEND_MIN)) return { ...draft, cost: 0, contractCost: 0, surplus: draft.worth };
   // blend his own NHL projection (over the seasons his team controls) with the draft-slot value
   const w = Math.min(1, a.nhl_gp / 100);
   const nhl = playerValue(a);
   const worth = w * nhl.worth + (1 - w) * draft.worth;
   const cost = nz(a.cap) ? nhl.cost : 0;
-  return { wins: w * nhl.wins + (1 - w) * draft.wins, worth, cost, surplus: worth - cost, w, nhl, draft, base: nhl.base, C: nhl.C };
+  const ws = Array.from({ length: 8 }, (_, k) => w * (nhl.ws[k] || 0) + (1 - w) * (draft.ws[k] || 0));
+  return { wins: w * nhl.wins + (1 - w) * draft.wins, worth, cost, contractCost: nz(a.cap) ? nhl.contractCost : 0, rfaCost: nhl.rfaCost, surplus: worth - cost, w, nhl, draft, base: nhl.base, C: nhl.C, ws };
 }
+// ---- timing: when each asset's wins arrive, and how a team weighs them by its plans
+// A draft pick or a prospect without NHL games is assumed to help over three seasons starting two
+// seasons after his draft (three for an already-drafted prospect), or next season at the earliest.
+function spread(wins, firstSeason) { const ws = Array(8).fill(0); const k0 = Math.max(1, firstSeason - D.cur); for (let k = k0; k < k0 + 3 && k < 8; k++) ws[k] = wins / 3; return ws; }
+// weight of a win by season: this season, next season, then each season after
+const MODES = {
+  neutral: { l: 'Neutral', w: [1, 1, 1, 1, 1, 1, 1, 1] },
+  contend: { l: 'Contending', w: [1, 1, 0.85, 0.72, 0.61, 0.52, 0.44, 0.38] },
+  rebuild: { l: 'Rebuilding', w: [0.5, 0.8, 1, 1, 1, 1, 1, 1] },
+};
+const timed = (v, mode) => (v.ws || []).reduce((s, x, k) => s + x * MODES[mode].w[Math.min(k, 7)], 0);
 const valueOf = a => a.type === 'player' ? playerValue(a) : a.type === 'pick' ? pickValue(a) : prospectValue(a);
 
 function contractHTML(a, v, i, k) {
@@ -77,7 +93,7 @@ function contractHTML(a, v, i, k) {
     : `<span>${nz(C.ufa) ? 'Unrestricted free agent when this deal ends' : 'Age unknown: team control not estimated'}</span>`;
   return `<label>Years left on contract after this one <input type="number" min="0" max="7" step="1" placeholder="add" value="${nz(a.after) ? a.after : ''}" data-i="${i}" data-k="${k}" data-f="after"></label>
     <label>Cap hit ($M) <input type="number" min="0" step="0.05" placeholder="e.g. 8.7" value="${nz(a.cap) ? a.cap : ''}" data-i="${i}" data-k="${k}" data-f="cap"></label>${rfa}
-    <span>Worth ${money(v.worth)}${nz(a.cap) ? ` · paid ${money(v.cost)} · surplus <b class="${v.surplus >= 0 ? 'pos' : 'neg'}">${money(v.surplus)}</b>` : ''}</span>`;
+    <span>Worth ${money(v.worth)} in total over the seasons counted${nz(a.cap) ? ` · paid ${money(v.contractCost)} in salary (${money(a.cap)} a year for the rest of this season${C.contract ? ` and ${C.contract} more` : ''})${C.rfaSeasons && v.rfaCost ? ` + about ${money(v.rfaCost)} assumed for ${C.rfaSeasons} RFA season${C.rfaSeasons > 1 ? 's' : ''} (~${money(v.rfaCost / C.rfaSeasons)} a year, his fair value)` : ''} · surplus <b class="${v.surplus >= 0 ? 'pos' : 'neg'}">${money(v.surplus)}</b>` : ''}</span>`;
 }
 function sideHTML(i) {
   const team = T.team[i]; const cls = i ? 'b' : '';
@@ -102,13 +118,13 @@ function sideHTML(i) {
     }
     return `<div class="asset"><div class="nm">${nm}</div><div style="display:flex;gap:10px;align-items:center"><span class="val">${f1(v.wins)} W</span><button type="button" data-rm="${i}:${k}" aria-label="Remove">×</button></div><div class="det">${det}</div></div>`;
   }).join('');
-  return `<div class="side ${cls}"><h2><span>${i ? 'Team B' : 'Team A'}</span><select data-team="${i}" aria-label="${i ? 'Team B' : 'Team A'}">${D.teams.map(t => `<option${t === team ? ' selected' : ''}>${t}</option>`).join('')}</select><span style="font-size:16px;color:var(--muted)">sends</span></h2>
+  return `<div class="side ${cls}"><h2><span>${i ? 'Team B' : 'Team A'}</span><select data-team="${i}" aria-label="${i ? 'Team B' : 'Team A'}">${D.teams.map(t => `<option${t === team ? ' selected' : ''}>${t}</option>`).join('')}</select><span style="font-size:16px;color:var(--muted)">sends</span><select data-mode="${i}" aria-label="${team} plans" title="How ${team} weighs wins now against wins later" style="width:auto;font:600 13px var(--f-body);margin-left:auto">${Object.entries(MODES).map(([k, m]) => `<option value="${k}"${T.mode[i] === k ? ' selected' : ''}>${m.l}</option>`).join('')}</select></h2>
     <div class="adders">
       <div class="row"><select data-addp="${i}" aria-label="Add a player"><option value="">+ Add a player</option>${roster.map(r => `<option value="${r.id}">${esc(r.name)} · ${r.pos}${r.off ? ' · not on active roster' : ''}${nz(r.base) ? ' · ' + f1(r.base) + (D.proj[r.id].per === 'season' ? ' W/season' : ' W/82') : ''}</option>`).join('')}</select></div>
       <div class="row"><select data-addq="${i}" aria-label="Add a prospect"><option value="">+ Add a prospect (${pros.length})</option>${pros.map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${p.pos} · #${p.overall} in ${p.draft_year}</option>`).join('')}</select></div>
-      <div class="row"><select data-pky="${i}" aria-label="Pick year">${years.map(y => `<option>${y}</option>`).join('')}</select>
-        <select data-pkr="${i}" aria-label="Round">${[1, 2, 3, 4, 5, 6, 7].map(r => `<option value="${r}">Round ${r}</option>`).join('')}</select>
-        <select data-pks="${i}" aria-label="Projected slot"><option value="early">Early (top 8)</option><option value="mid" selected>Middle</option><option value="late">Late (playoff team)</option></select>
+      <div class="row"><select data-pky="${i}" aria-label="Pick year">${years.map(y => `<option${(T.pk[i].year || years[0]) === y ? ' selected' : ''}>${y}</option>`).join('')}</select>
+        <select data-pkr="${i}" aria-label="Round">${[1, 2, 3, 4, 5, 6, 7].map(r => `<option value="${r}"${T.pk[i].round === r ? ' selected' : ''}>Round ${r}</option>`).join('')}</select>
+        <select data-pks="${i}" aria-label="Projected slot">${[['early', 'Early (top 8)'], ['mid', 'Middle'], ['late', 'Late (playoff team)']].map(([k, l]) => `<option value="${k}"${T.pk[i].slot === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
         <button type="button" data-addk="${i}">+ Add pick</button></div>
     </div>
     ${assets || `<p class="empty-side">Nothing added yet.</p>`}</div>`;
@@ -126,8 +142,8 @@ function summary() {
   const winner = (d, tot, s) => isClose(d, tot, s) ? 'about even' : `${d > 0 ? T.team[0] : T.team[1]} comes out ahead`;
   const verdict = !T.assets[0].length && !T.assets[1].length ? 'Add assets to both sides to see who wins.'
     : isClose(H.diff, total, !!M) ? 'About even' : `${H.diff > 0 ? T.team[0] : T.team[1]} wins this trade`;
-  const capA = sum(tot[1], 'cost') - sum(tot[0], 'cost');
-  const capNote = salaryMode ? `<p class="sub small">Cap change for the rest of the deals: ${T.team[0]} ${capA >= 0 ? 'takes on' : 'sheds'} ${money(Math.abs(capA))} in total salary; ${T.team[1]} the opposite. Cap space and roster limits aren't checked.</p>`
+  const capA = sum(tot[1], 'contractCost') - sum(tot[0], 'contractCost');
+  const capNote = salaryMode ? `<p class="sub small">Cap change for the rest of the deals: ${T.team[0]} ${capA >= 0 ? 'takes on' : 'sheds'} ${money(Math.abs(capA))} in total contract salary (cap hits you entered, over the years left you entered; assumed RFA pay isn't included); ${T.team[1]} the opposite. Cap space and roster limits aren't checked.</p>`
     : players.length ? `<p class="sub small">Enter every player's cap hit (in millions, like 8.7) to add surplus value (worth minus salary) and base the verdict on it. Right now it compares on-ice value only, so an overpaid player still counts as a plus.</p>` : '';
   const noYears = players.filter(a => !nz(a.after) && !playerValue(a).C.rfaOn);
   const yearsNote = noYears.length ? `<p class="sub small"><b class="neg">Years left missing</b> for ${noYears.map(a => esc(a.name)).join(', ')}: counting only the rest of this season for ${noYears.length > 1 ? 'them' : 'him'}. Add years left on the contract after this one (0 for a rental) to count the rest of the deal. Young players whose team keeps their rights already count those seasons.</p>` : '';
@@ -135,11 +151,17 @@ function summary() {
   const sgn = (v, f) => `<strong class="${v >= 0 ? 'pos' : 'neg'}">${v >= 0 ? '+' : '−'}${f(Math.abs(v))}</strong>`;
   const wf = v => f1(v) + ' wins';
   const rows = [['Wins above replacement', W, wf, 'On the ice']].concat(M ? [['Surplus value (worth − salary)', M, money, 'With salary']] : []);
+  const anyMode = T.mode.some(m => m !== 'neutral');
+  const tw = i => { const gets = tot[1 - i].reduce((s, v) => s + timed(v, T.mode[i]), 0), gives = tot[i].reduce((s, v) => s + timed(v, T.mode[i]), 0); return gets - gives; };
+  const tA = tw(0), tB = tw(1);
+  const both = tA > 0.2 && tB > 0.2;
+  const timeRow = anyMode ? `<tr><td>Wins by each team's plans<br><small class="lab">${T.team[0]} ${MODES[T.mode[0]].l.toLowerCase()} · ${T.team[1]} ${MODES[T.mode[1]].l.toLowerCase()}</small></td><td colspan="2"></td><td>${sgn(tA, wf)}</td><td>${sgn(tB, wf)}</td><td>${both ? 'Works for both sides' : tA > tB ? `${T.team[0]} comes out ahead` : `${T.team[1]} comes out ahead`}</td></tr>` : '';
+  const timeNote = anyMode ? `<p class="sub small">By each team's plans, every team weighs wins by when they arrive: contending teams count this season and next fully and each later season about 15% less; rebuilding teams count this season at half and next season at 80%. Each team judges what it gets and gives on its own scale, so both can come out ahead. Picks are assumed to help over three seasons starting two years after their draft.</p>` : '';
   const table = `<div class="scroll"><table class="tbl" style="margin-top:10px"><thead><tr><th></th><th>${T.team[0]} gets</th><th>${T.team[0]} gives</th><th>${T.team[0]} net</th><th>${T.team[1]} net</th><th>Verdict</th></tr></thead><tbody>` +
-    rows.map(([l, x, f, short]) => `<tr><td>${l}</td><td>${f(x.getA)}</td><td>${f(x.getB)}</td><td>${sgn(x.diff, f)}</td><td>${sgn(-x.diff, f)}</td><td>${short}: ${winner(x.diff, Math.abs(x.getA) + Math.abs(x.getB), f === money)}</td></tr>`).join('') + '</tbody></table></div>';
+    rows.map(([l, x, f, short]) => `<tr><td>${l}</td><td>${f(x.getA)}</td><td>${f(x.getB)}</td><td>${sgn(x.diff, f)}</td><td>${sgn(-x.diff, f)}</td><td>${short}: ${winner(x.diff, Math.abs(x.getA) + Math.abs(x.getB), f === money)}</td></tr>`).join('') + timeRow + '</tbody></table></div>';
   $('summary').innerHTML = `<div class="head"><h2>${esc(verdict)}</h2><p class="sub">Verdict on ${M ? 'surplus value: projected worth minus salary over each contract. Wins above replacement are shown too' : 'projected wins above replacement over the years each asset is controlled'}. Prospects and picks count their projected wins, and their worth with no salary against it.</p></div>
     <div class="meter"><i style="width:${wA}%;background:var(--a)">${wA > 12 ? T.team[0] + ' gets ' + unit(H.getA) : ''}</i><i style="width:${100 - wA}%;background:var(--b)">${100 - wA > 12 ? T.team[1] + ' gets ' + unit(H.getB) : ''}</i></div>
-    ${table}${yearsNote}${capNote}`;
+    ${table}${timeNote}${yearsNote}${capNote}`;
 }
 function render() {
   $('tm').innerHTML = sideHTML(0) + sideHTML(1);
@@ -149,6 +171,10 @@ function wire() {
   const tm = $('tm');
   tm.addEventListener('change', e => {
     const t = e.target;
+    if (t.dataset.pky) { T.pk[+t.dataset.pky].year = +t.value; return; }
+    if (t.dataset.pkr) { T.pk[+t.dataset.pkr].round = +t.value; return; }
+    if (t.dataset.pks) { T.pk[+t.dataset.pks].slot = t.value; return; }
+    if (t.dataset.mode) { T.mode[+t.dataset.mode] = t.value; summary(); return; }
     if (t.dataset.team) { const i = +t.dataset.team; T.team[i] = t.value; T.assets[i] = []; render(); return; }
     if (t.dataset.addp) { const i = +t.dataset.addp; const r = (D.rosters[T.team[i]] || []).find(x => String(x[0]) === t.value); if (r) T.assets[i].push({ type: 'player', id: r[0], name: r[1], pos: r[2], off: r[4] === 1, after: null, cap: null }); render(); return; }
     if (t.dataset.f === 'rfa') { T.assets[+t.dataset.i][+t.dataset.k].rfa = t.checked; render(); return; }
@@ -197,6 +223,7 @@ async function init() {
     $('method').innerHTML = `<p><strong>Players:</strong> his projected wins above replacement for the rest of ${sLabel(D.cur)} (${Math.round((1 - D.progress) * 100)}% of the season left) plus each season left on his contract after this one (you enter it; 0 for a rental), adjusted for age. Until you enter it, only the rest of this season counts. The starting point blends his last three seasons. Dollar worth prices a skater win at about ${money(D.perWin)} and a goalie win at about ${money(D.perWinG)} this season (each from its share of the cap), scaled up with the projected cap in later years. Goalie projections are in wins per season at his own workload, and trust his record in proportion to the shots it rests on (one season as a starter keeps about a third of his edge over an average goalie, three seasons about 60%).</p>
       <p><strong>Team control (RFA):</strong> a player can't become an unrestricted free agent until he's ${UFA_AGE} (as of June 30 when his deal ends) or has ${UFA_ACC} accrued seasons, estimated here as seasons with 40+ NHL games (25+ for goalies). Until then his team keeps his rights. The "Team keeps his rights" box is checked for players who'd still be restricted free agents when their contract ends, and adds his projected seasons up to that point. You can uncheck it. Salary for those seasons isn't known, so they're assumed paid fair value: they add wins, not surplus.</p>
       <p><strong>Prospects with NHL games:</strong> from ${NHL_BLEND_MIN} NHL games, a prospect's own NHL projection (over the seasons his team controls) is blended with his draft-slot value, weighted by games (40 games = 40% his record, 75 = 75%). He also gets the years, cap hit and team-control boxes.</p>
+      <p><strong>Team plans:</strong> each team can be set to Neutral (every win counts the same), Contending (this season and next count fully, then about 15% less each season) or Rebuilding (this season counts half, next season 80%, later seasons fully). The value and surplus verdicts stay neutral; the plans add a row showing each team's result on its own timeline.</p>
       <p><strong>Not on the active roster:</strong> players who played in the last two seasons, aren't on any team's active roster right now, but whose NHL player record still lists a team (sitting out, unsigned restricted free agents, long-term injury). They're listed with that team and marked.</p>
       <p><strong>Draft picks:</strong> expected value of a pick at that slot over a player's cost-controlled years (about ${f1(pickWins(1))} wins for 1st overall, ${f1(pickWins(16))} for 16th, ${f1(pickWins(32))} for 32nd, ${f1(pickWins(64))} for 64th), discounted ${Math.round((1 - FUTURE_DISCOUNT) * 100)}% for each year further out.</p>
       <p><strong>Prospects:</strong> drafted in the last five drafts, under 100 NHL games, and not on an NHL roster right now (players on a roster are listed as players). Same value as their draft slot, reduced ${Math.round((1 - PROSPECT_DECAY) * 100)}% for each full year since the draft. Listed under the team that drafted them, so a prospect who has since been traded shows under his old team.</p>
