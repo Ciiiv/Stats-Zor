@@ -28,6 +28,9 @@
 .gl{display:grid;grid-template-columns:minmax(120px,190px) 1fr;gap:8px 18px;font-size:14.5px}
 .gl dt{font-weight:700}
 .gl dd{margin:0;color:var(--muted)}
+/* page title: centered across the header on desktop, under the logo on phones */
+.pagetitle{flex:1;min-width:0}
+@media (min-width:900px){.top .top-in{position:relative}.pagetitle{position:absolute;left:0;right:0;text-align:center;pointer-events:none}.pagetitle h1{pointer-events:auto}}
 @media (max-width:560px){.gl{grid-template-columns:1fr}.gl dd{margin-bottom:6px}}
 </style>
 </head>
@@ -35,7 +38,7 @@
 <header class="top">
   <div class="wrap top-in" style="align-items:center">
     <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="goalies.html">← Goalies</a></div>
-    <div style="flex:1;min-width:0"><h1 style="font-size:clamp(26px,4vw,36px)">How it works</h1></div>
+    <div class="pagetitle"><h1 style="font-size:clamp(26px,4vw,36px)">How it works</h1></div>
   </div>
 </header>
 <main class="wrap doc">
