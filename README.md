@@ -68,7 +68,8 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 
 ## Running the update yourself
 
-- **Nightly:** runs on its own. If GitHub pauses scheduled jobs after a long quiet stretch, re-enable it in the Actions tab.
+- **Nightly:** runs on its own, and picks up each new season (from September 1) as soon as MoneyPuck and the NHL publish it. GitHub switches off scheduled jobs in a repo with 60 days of no activity, which can happen over the summer when there's no new data to commit, so each September check the Actions tab and click **Enable workflow** if it's been paused.
+- **Each year:** when the league announces a new salary cap, update the `CAP` and `MIN` tables in `scripts/build_value.py`.
 - **On demand:** Actions tab → **Update data** → **Run workflow**.
 - **Full rebuild:** tick **full** when you run it. This re-downloads every season and takes about 1–2 hours, mostly the game-by-game and shot files. Normal runs only refresh the current season and fill in anything missing.
 - **Locally:** run the six scripts in order: `python scripts/build_data.py`, then `build_shots.py`, `build_usage.py`, `build_edge.py`, `build_goalies.py` and `build_value.py`. Add `--full` to the first five to rebuild everything. They use only the Python standard library.
