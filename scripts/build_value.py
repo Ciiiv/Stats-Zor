@@ -18,6 +18,9 @@ Value model (Stats-Zor's own, simple and transparent; not Evolving-Hockey's GAR)
 Dollar worth: the league's skater cap pool above minimum salaries, divided by all positive
 wins in the league, gives a market price per win. Worth = minimum salary + wins x price.
 
+Skater projections from fewer than SKATER_GAMES_FULL games over the 3-season window are pulled
+toward an average regular at the position (keeping games / SKATER_GAMES_FULL of the gap).
+
 Goalie projections keep shots / (shots + GOALIE_SHOTS_K) of the gap between his 3-season rate
 and the league-average goalie, so one hot season counts for much less than three, and are
 valued at his own workload (games per season), since no goalie plays 82.
@@ -78,7 +81,9 @@ def pctile(vals, q):
 AGE_MULT = [(23, 1.10), (26, 1.03), (28, 1.0), (30, 0.95), (32, 0.90), (99, 0.85)]
 # goalies develop later and hold their peak longer
 AGE_MULT_G = [(24, 1.08), (27, 1.03), (31, 1.0), (33, 0.95), (35, 0.90), (99, 0.85)]
-GOALIE_SHOTS_K = 3000  # goalie projections keep shots / (shots + K) of the gap to an average goalie (3 seasons of shots)
+GOALIE_SHOTS_K = 3000
+SKATER_GAMES_FULL = 150  # skater projections from fewer games in the 3-season window keep games / 150 of their gap
+                         # to an average regular at the position (backtest 2011-26: best of 120/150/200)  # goalie projections keep shots / (shots + K) of the gap to an average goalie (3 seasons of shots)
 
 
 def age_mult(age, table=AGE_MULT):
@@ -211,6 +216,10 @@ def project(seasons, birth, cur, proj, war82_i, table):
             by.setdefault(r[0], []).append((y, r))
     ref_y = cur - 1 if (cur - 1) in seasons else max(seasons)
     per_win_ref = seasons[ref_y]["per_win"]
+    prior = {}  # games-weighted wins per 82 of regulars (40+ games) by position, last complete season
+    for g in ("F", "D"):
+        rs = [r for r in seasons[ref_y]["rows"] if ("D" if r[2] == "D" else "F") == g and r[3] >= 40]
+        prior[g] = sum(r[war82_i] * r[3] for r in rs) / sum(r[3] for r in rs) if rs else 0.0
     for pid, lst in by.items():
         lst.sort()
         if lst[-1][0] < cur - 1:
@@ -222,7 +231,11 @@ def project(seasons, birth, cur, proj, war82_i, table):
             den += w
         if den < 20:
             continue
-        base = num / den
+        base = raw = num / den
+        games = sum(r[3] for _, r in lst[-3:])
+        if games < SKATER_GAMES_FULL:  # small sample: pull toward an average regular at his position
+            pr = prior.get("D" if lst[-1][1][2] == "D" else "F", 0.0)
+            base = pr + (raw - pr) * games / SKATER_GAMES_FULL
         age0 = None
         b = birth.get(pid)
         if b:
@@ -239,7 +252,8 @@ def project(seasons, birth, cur, proj, war82_i, table):
             war = war * (age_mult(age, table) if age is not None else 1.0)
             pw = per_win_ref * cap(y) / cap(ref_y)
             rows.append([y, age, round(war, 2), round(min_sal(y) + max(0.0, war) * pw, 2), cap(y)])
-        proj[str(pid)] = {"base_war82": round(base, 2), "age": age0, "years": rows}
+        proj[str(pid)] = {"base_war82": round(base, 2), "age": age0, "years": rows, "games": games,
+                          **({"raw_war82": round(raw, 2), "prior": round(prior["D" if lst[-1][1][2] == "D" else "F"], 2)} if base != raw else {})}
 
 
 def project_goalies(gseasons, birth, cur, proj, shots):

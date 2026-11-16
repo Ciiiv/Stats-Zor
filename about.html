@@ -171,8 +171,9 @@ worth 20 hours of ice time, so a player needs a real sample to move far from 0.<
   <h3 id="m-shots">Shot maps</h3>
   <p>Unblocked shot attempts (on goal, missed and goals; MoneyPuck's shot file doesn't include blocked shots) in the offensive zone, in 5 × 5 ft cells. Regular season only; empty-net shots are left out.</p>
   <ul>
-    <li><strong>Where he shoots:</strong> his share of attempts from each cell minus the league share for his position. It's full blue at 1.2 percentage points more than average and full orange at 1.2 less. Rings mark goals.</li>
-    <li><strong>Finishing:</strong> goals minus expected goals per cell, for cells with at least 3 attempts. Full color at ±2.5 goals.</li>
+    <li><strong>Where he shoots:</strong> his share of attempts from each spot minus the league share for his position. Rings mark goals.</li>
+    <li><strong>Finishing:</strong> goals minus expected goals. Smoothed, it's per attempt (full color at ±0.06 goals per attempt, faded where he rarely shoots); in cells, it's the total per cell with at least 3 attempts (full color at ±2.5 goals).</li>
+    <li><strong>Smoothed (default) or cells:</strong> smoothed blends each spot with its neighbours, weighting cells by a bell curve about 7 ft wide (a Gaussian with a 7 ft standard deviation), so one lucky night from an odd spot doesn't paint a whole cell. It's drawn every 1.25 ft and fades where few shots come from. Full color for where he shoots is 0.6 percentage points per cell. Cells shows the raw 5 × 5 ft counts (full color at 1.2 points). Hover a cell for its numbers in either view.</li>
     <li><strong>Slot share:</strong> attempts from 20 ft in front of the net out to the goal line, within 10 ft of center.</li>
   </ul>
   <p>Situations: all, 5v5 (5 skaters a side), or power play (his team has more skaters).</p>
@@ -267,12 +268,16 @@ Worth over last 3 seasons = minimum salary + max(0, blended wins per 82) × this
 
   <h3 id="m-deal">Fair-value contract</h3>
   <div class="m">Starting point = his wins per 82, blended over 3 seasons (weights 3, 2, 1 × games)
+  If those seasons add up to fewer than 150 games:
+  starting point = average regular + (his blend − average regular) × games ÷ 150
+  (average regular = games-weighted wins per 82 of players with 40+ games at his position, last complete season)
 Each future year: wins × age factor for that age
   ≤23 ×1.10 · 24–26 ×1.03 · 27–28 ×1.00 · 29–30 ×0.95 · 31–32 ×0.90 · 33+ ×0.85
 Worth that year = minimum salary + wins × price of a win (scaled to that year's cap)
 Fair AAV for an N-year deal = average worth over those N years</div>
   <p>Terms run 1–7 years, from next season. The current CBA allows 7 years to re-sign with your own team and 6 as a free agent.</p>
-  <p class="lim"><b>Limits:</b> this is what his projected value would justify, not a prediction of what he'll sign for. RFA rights, arbitration, the max-salary cap, cap crunches and market quirks all move real contracts.</p>
+  <p><strong>Small samples:</strong> a hot 20-game start used to project like an established star (Tristan Luneau, with 28 NHL games, projected as the third-best defenseman). Now a projection built on fewer than 150 games keeps only its share of the gap to an average regular, so 28 games keeps 19% of it. Players with 150+ games in the window aren't touched. Tested on every season from 2011-12 on (does the blend predict next season?): this cut the error for small-sample players by about a quarter. Pulling everyone toward average predicted slightly better still, but it would have marked down established stars by about 15%, so it isn't used. The card says when a player's projection was pulled.</p>
+  <p class="lim"><b>Limits:</b> this is what his projected value would justify, not a prediction of what he'll sign for. RFA rights, arbitration, the max-salary cap, cap crunches and market quirks all move real contracts. The model also uses one average price per win, so it can't show the premium teams pay for true stars: in 2026 Cale Makar signed for $20.4M a year and Leo Carlsson for $18M (about 16–18% of the cap), while the model's fair value for top players sits around 12–15%.</p>
 
   <h3 id="m-trade">Trade machine</h3>
   <ul>
@@ -344,7 +349,7 @@ Composite             = weighted average of the three, using the sliders (defaul
   <h3 id="m-g-env">Shot environment</h3>
   <p>Left: xGA/60 faced against GSAx/60, so you can see whether a goalie's numbers came behind a strong or a leaky defense. Right: shots on goal per 60 against expected goals per unblocked shot, which separates volume from danger. Lines mark the medians (and zero GSAx).</p>
   <h3 id="m-g-shots">Shot maps</h3>
-  <p>Built from the same MoneyPuck shot files as skater maps, but grouped by the goalie who faced each shot: 5 × 5 ft cells across his defensive zone, for all situations, 5v5 and the penalty kill. <em>Where shots came from</em> compares his share of shots from each cell with the league total for all goalies (orange = more often than average). <em>Saves vs expected</em> shows expected goals minus goals allowed in each cell with 5+ shots (blue = better than average from there).</p>
+  <p>Built from the same MoneyPuck shot files as skater maps, but grouped by the goalie who faced each shot: 5 × 5 ft cells across his defensive zone, for all situations, 5v5 and the penalty kill. <em>Where shots came from</em> compares his share of shots from each spot with the league total for all goalies (orange = more often than average; full color at 0.25 percentage points per cell, since a goalie's mix of shots stays close to the league's). <em>Saves vs expected</em> shows expected goals minus goals allowed per shot (blue = better than average from there; full color at ±0.06 per shot). Drawn smoothed by default, the same way as skater maps; <em>Cells</em> shows the raw cells (5+ shots for saves vs expected).</p>
   <h3 id="m-g-swap">Goalie swap</h3>
   <div class="m">His rate          = (xGA − GA) ÷ xGA this season  (goals saved per expected goal)
 Goals against there = the replaced goalie's xGA × (1 − his rate)

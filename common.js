@@ -88,3 +88,58 @@ const median = a => { const v = a.filter(nz).sort((x, y) => x - y); return v.len
 const money = v => nz(v) ? '$' + v.toFixed(v >= 10 ? 1 : 2) + 'M' : '—';
 // players on the other page: goalies live on goalies.html, skaters on index.html
 const crossTo = isGoaliePage => p => (p.pos === 'G') === isGoaliePage ? null : `${isGoaliePage ? './' : 'goalies.html'}#a=${p.id}`;
+
+// ------------------------------------------------------------------ smoothed shot maps
+// The shot files hold 5 x 5 ft cells. For the smoothed view each quantity is averaged over nearby cells
+// with a Gaussian weight (SMOOTH_SIGMA feet), sampled every 1.25 ft into a small canvas, and placed as an
+// <image> inside the rink SVG (clipped to the rink like the cells).
+const SMOOTH_SIGMA = 7;
+function cssRGB(name) {
+  const el = document.createElement('i'); el.style.color = `var(${name})`; el.style.display = 'none';
+  document.body.appendChild(el); const c = getComputedStyle(el).color; el.remove();
+  const m = c.match(/[\d.]+/g) || [128, 128, 128]; return m.slice(0, 3).map(Number);
+}
+// layers: arrays of per-cell values (index cy * nx + cx); combine(avgs) returns [t in -1..1, alpha 0..1]
+function smoothHeat(G, k, layers, combine, posVar, negVar) {
+  const s = 4, cw = G.ny * s, ch = G.nx * s, sg = SMOOTH_SIGMA, R = 3 * sg, two = 2 * sg * sg;
+  const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+  const ctx = cv.getContext('2d'); if (!ctx) return '';
+  const img = ctx.createImageData(cw, ch);
+  const pos = cssRGB(posVar), neg = cssRGB(negVar), mid = cssRGB('--mid');
+  const L = layers.length, acc = new Float64Array(L);
+  for (let py = 0; py < ch; py++) {
+    const x = G.x1 - (py + 0.5) * G.cell / s;
+    const cx0 = Math.max(0, Math.floor((x - R - G.x0) / G.cell)), cx1 = Math.min(G.nx - 1, Math.floor((x + R - G.x0) / G.cell));
+    for (let px = 0; px < cw; px++) {
+      const y = G.y0 + (px + 0.5) * G.cell / s;
+      const cy0 = Math.max(0, Math.floor((y - R - G.y0) / G.cell)), cy1 = Math.min(G.ny - 1, Math.floor((y + R - G.y0) / G.cell));
+      acc.fill(0); let ws = 0;
+      for (let cy = cy0; cy <= cy1; cy++) {
+        const dy = G.y0 + (cy + 0.5) * G.cell - y;
+        for (let cx = cx0; cx <= cx1; cx++) {
+          const dx = G.x0 + (cx + 0.5) * G.cell - x; const w = Math.exp(-(dx * dx + dy * dy) / two);
+          const c = cy * G.nx + cx; ws += w;
+          for (let l = 0; l < L; l++) acc[l] += w * layers[l][c];
+        }
+      }
+      for (let l = 0; l < L; l++) acc[l] /= ws || 1;
+      const [t0, a0] = combine(acc); const t = Math.max(-1, Math.min(1, t0 || 0)), a = Math.max(0, Math.min(1, a0 || 0));
+      const to = t >= 0 ? pos : neg, f = Math.abs(t), i = (py * cw + px) * 4;
+      img.data[i] = mid[0] + (to[0] - mid[0]) * f; img.data[i + 1] = mid[1] + (to[1] - mid[1]) * f; img.data[i + 2] = mid[2] + (to[2] - mid[2]) * f; img.data[i + 3] = 255 * a;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return `<image href="${cv.toDataURL()}" x="0" y="0" width="${G.ny * G.cell * k}" height="${G.nx * G.cell * k}" preserveAspectRatio="none"/>`;
+}
+// per-cell arrays from a Map of cells {n, g, xg}
+function cellArrays(G, m) {
+  const N = G.nx * G.ny, n = new Float64Array(N), g = new Float64Array(N), xg = new Float64Array(N);
+  for (const [c, v] of m) { if (c < N) { n[c] = v.n; g[c] = v.g; xg[c] = v.xg; } }
+  return { n, g, xg };
+}
+// redraw when the theme changes (toggle or device setting)
+(function () {
+  const fire = () => window.dispatchEvent(new Event('themechange'));
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fire); } catch (e) { /* old browsers */ }
+  new MutationObserver(fire).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+})();

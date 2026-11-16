@@ -661,7 +661,7 @@ function renderComps() {
 
 // ------------------------------------------------------------------ shot maps
 const SHOTS = {};
-const SH = { sit: 'all', view: 'freq' };
+const SH = { sit: 'all', view: 'freq', smooth: true };
 async function loadShots(y) {
   if (SHOTS[y] !== undefined) return SHOTS[y];
   try { SHOTS[y] = await getJSON(`data/shots/${y}.json`); } catch (e) { SHOTS[y] = null; }
@@ -677,6 +677,12 @@ function rinkSVG(d, m, lg, title, col) {
   const r = 28 * k;
   const shape = `M0,${H} L0,${r} Q0,0 ${r},0 L${W - r},0 Q${W},0 ${W},${r} L${W},${H} Z`;
   let cells = '';
+  if (SH.smooth) {
+    const P = cellArrays(G, m), Lg = cellArrays(G, lg);
+    cells += SH.view === 'freq'
+      ? smoothHeat(G, k, [P.n.map(v => v / tot.n), Lg.n.map(v => v / ltot.n)], ([sp, ls]) => [(sp - ls) * 100 / 0.6, Math.max(sp, ls) / 0.0025], '--hi', '--lo')
+      : smoothHeat(G, k, [P.n, P.g, P.xg], ([n, g, xg]) => [n ? (g - xg) / n / 0.06 : 0, n / 0.8], '--hi', '--lo');
+  }
   for (let cy = 0; cy < G.ny; cy++) for (let cx = 0; cx < G.nx; cx++) {
     const c = cy * G.nx + cx; const v = m.get(c); const l = lg.get(c);
     let fill = null, tip = '';
@@ -694,7 +700,7 @@ function rinkSVG(d, m, lg, title, col) {
       fill = t >= 0 ? `color-mix(in srgb, var(--hi) ${Math.round(t * 100)}%, var(--mid))` : `color-mix(in srgb, var(--lo) ${Math.round(-t * 100)}%, var(--mid))`;
       tip = `${v.n} attempts, ${v.g} goals, ${v.xg.toFixed(1)} expected (${gax >= 0 ? '+' : ''}${gax.toFixed(1)})`;
     }
-    cells += `<rect x="${px(y0)}" y="${py(x0 + G.cell)}" width="${G.cell * k}" height="${G.cell * k}" fill="${fill}"><title>${tip}</title></rect>`;
+    cells += `<rect x="${px(y0)}" y="${py(x0 + G.cell)}" width="${G.cell * k}" height="${G.cell * k}" fill="${SH.smooth ? 'transparent' : fill}"><title>${tip}</title></rect>`;
     if (SH.view === 'freq' && v && v.g) cells += `<circle cx="${px(y0 + G.cell / 2)}" cy="${py(x0 + G.cell / 2)}" r="${Math.min(9, 2 + v.g)}" fill="none" stroke="var(--ink)" stroke-width="1.4"><title>${v.g} goals</title></circle>`;
   }
   const line = (x, cls, w) => `<line x1="0" x2="${W}" y1="${py(x)}" y2="${py(x)}" stroke="${cls}" stroke-width="${w}"/>`;
@@ -715,10 +721,11 @@ async function renderShots() {
   const d = await loadShots(y);
   if (y !== S.season) return;
   if (!d) { $('shots-sub').textContent = `Shot maps for ${sLabel(y)} haven't been built yet. They're added by the nightly update.`; box.innerHTML = ''; return; }
-  $('shots-sub').innerHTML = `Unblocked shot attempts (shots on goal, misses and goals) in the offensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells; empty-net shots are left out. <strong>Where he shoots:</strong> blue cells are spots he shoots from more often than the average ${'${grp}'}, orange less often; rings mark goals. <strong>Finishing:</strong> goals minus expected goals in each cell with 3+ attempts; blue means he scored more than an average shooter would from there.`.replace('${grp}', A.grp === 'D' ? 'defenseman' : 'forward');
+  $('shots-sub').innerHTML = `Unblocked shot attempts (shots on goal, misses and goals) in the offensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells; empty-net shots are left out. <strong>Where he shoots:</strong> blue areas are spots he shoots from more often than the average ${'${grp}'}, orange less often; rings mark goals. <strong>Finishing:</strong> goals minus expected goals; blue means he scored more than an average shooter would from there. <strong>Smoothed</strong> blends each spot with its neighbours (within about 7 ft) so a few lucky shots don't paint a cell; <strong>Cells</strong> shows the raw 5 × 5 ft counts (hover a cell for numbers in either view).`.replace('${grp}', A.grp === 'D' ? 'defenseman' : 'forward');
   const B = seasonOf(S.B);
   const ctl = `<div class="ctl"><span class="lbl">Situation</span><span class="toggle" id="shsit">${[['all', 'All'], ['ev', '5v5'], ['pp', 'Power play']].map(([k, l]) => `<button type="button" data-sit="${k}" aria-pressed="${SH.sit === k}">${l}</button>`).join('')}</span>
-    <span class="lbl">View</span><span class="toggle" id="shview">${[['freq', 'Where he shoots'], ['fin', 'Finishing']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${SH.view === k}">${l}</button>`).join('')}</span></div>`;
+    <span class="lbl">View</span><span class="toggle" id="shview">${[['freq', 'Where he shoots'], ['fin', 'Finishing']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${SH.view === k}">${l}</button>`).join('')}</span>
+    <span class="lbl">Draw</span><span class="toggle">${[[1, 'Smoothed'], [0, 'Cells']].map(([k, l]) => `<button type="button" data-smooth="${k}" aria-pressed="${SH.smooth === !!k}">${l}</button>`).join('')}</span></div>`;
   const ps = [A, B].filter(Boolean);
   const maps = ps.map((p, i) => { const m = shotCells((d.players[p.id] || {})[SH.sit]); const lg = shotCells((d.league[p.grp] || {})[SH.sit]); return { p, m, lg, t: shotTotals(m), col: i ? 'var(--b)' : 'var(--a)' }; });
   const svgs = maps.map(x => x.t.n ? rinkSVG(d, x.m, x.lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no attempts in this situation.</p>`);
@@ -986,7 +993,7 @@ function renderDeal(V, ids) {
     if (!P) return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(name)}</h3><p class="empty">No projection: he needs recent NHL games.</p></div>`;
     const yrs = P.years.map(r => ({ y: r[0], age: r[1], war: r[2], worth: r[3], cap: r[4] }));
     const rows = [1, 2, 3, 4, 5, 6, 7].map(n => { const span = yrs.slice(0, n); const aav = avg(span.map(x => x.worth)); return `<tr><td style="white-space:nowrap">${n} yr</td><td style="white-space:nowrap">${n > 1 ? `${sLabel(span[0].y)} – ${sLabel(span[n - 1].y)}` : sLabel(span[0].y)}</td><td style="white-space:nowrap">${n > 1 ? `${span[0].age ?? '?'}–${span[n - 1].age ?? '?'}` : (span[0].age ?? '?')}</td><td>${money(aav)}</td><td>${f1(100 * aav / span[0].cap)}%</td><td>${f2(avg(span.map(x => x.war)))}</td></tr>`; }).join('');
-    return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(name)}</h3><p class="sub small">Starting point: ${f2(P.base_war82)} wins per 82 games, a weighted blend of his last three seasons (most recent counts most)${nz(P.age) ? `; age ${P.age} this season` : ''}.</p>
+    return `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(name)}</h3><p class="sub small">Starting point: ${f2(P.base_war82)} wins per 82 games, a weighted blend of his last three seasons (most recent counts most)${nz(P.raw_war82) ? `, pulled toward an average regular (${f2(P.prior)}) because it rests on only ${P.games} games (his own rate: ${f2(P.raw_war82)})` : ''}${nz(P.age) ? `; age ${P.age} this season` : ''}.</p>
       <div class="scroll"><table class="tbl" style="min-width:560px"><thead><tr><th>Term</th><th>Seasons</th><th>Ages</th><th>Fair AAV</th><th>% of first-year cap</th><th>Avg wins / yr</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
   });
   $('deal-sub').innerHTML = `What a new contract starting next season would be worth if it paid exactly his projected value. Each year's value is adjusted for age (rising into the mid-20s, flat to 28, then declining) and priced at that year's projected cap. ${esc(V.cap_assumption)} New CBA limits: 7 years to re-sign with his own team, 6 as a free agent. This is fair value under the model, not a prediction of what he'll sign for. It doesn't know about RFA rights, arbitration, or market quirks.`;
@@ -1048,7 +1055,8 @@ function wire() {
   $('ametric').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.arcMetric = b.dataset.am; safe('sec-arcs', renderArcs); });
   $('achips').addEventListener('click', e => { const b = e.target.closest('[data-rmarc]'); if (!b) return; const id = +b.dataset.rmarc; S.arcSel = S.arcSel.filter(x => x !== id); if (id === S.B) S.B = null; render(); });
   $('comps').addEventListener('click', e => { const a = e.target.closest('[data-addarc]'); if (!a) return; e.preventDefault(); const id = +a.dataset.addarc; if (!S.arcSel.includes(id)) { S.arcSel.push(id); if (arcPlayers().length > 6) S.arcSel.shift(); } safe('sec-arcs', renderArcs); });
-  $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) SH.sit = b.dataset.sit; if (b.dataset.view) SH.view = b.dataset.view; renderShots(); });
+  $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) SH.sit = b.dataset.sit; if (b.dataset.view) SH.view = b.dataset.view; if (b.dataset.smooth) SH.smooth = b.dataset.smooth === '1'; renderShots(); });
+  window.addEventListener('themechange', () => { if (S.shotsSeen) renderShots().catch(e => console.error(e)); });
   new IntersectionObserver(es => { if (es.some(x => x.isIntersecting) && !S.shotsSeen) { S.shotsSeen = true; renderShots().catch(e => console.error(e)); } }, { rootMargin: '600px' }).observe($('sec-shots'));
   $('lineupTeam').addEventListener('change', e => { S.lineupTeam = e.target.value; const U = USAGE[S.season]; if (U) renderLineup(U, S.seasons[S.season]); });
   $('lineup').addEventListener('click', e => { const a = e.target.closest('[data-seta]'); if (!a) return; e.preventDefault(); setA(+a.dataset.seta); });

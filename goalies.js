@@ -13,7 +13,7 @@ const S = {
   A: null, B: null, season: null,
   pool: 'reg', w: { d: 50, o: 30, c: 20 }, extra: [], removed: new Set(), sortKey: null, showPct: false,
   boardMode: 'top', cmode: 'age', arcMetric: 'svp', arcSel: [], swapTeam: null, swapOut: null, lineupTeam: null,
-  sh: { sit: 'all', view: 'freq' },
+  sh: { sit: 'all', view: 'freq', smooth: true },
 };
 
 // ------------------------------------------------------------------ metrics
@@ -319,6 +319,12 @@ function rinkSVG(d, m, lg, title, col) {
   const shape = `M0,${H} L0,${r} Q0,0 ${r},0 L${W - r},0 Q${W},0 ${W},${r} L${W},${H} Z`;
   const col2 = t => t >= 0 ? `color-mix(in srgb, var(--hi) ${Math.round(t * 100)}%, var(--mid))` : `color-mix(in srgb, var(--lo) ${Math.round(-t * 100)}%, var(--mid))`;
   let cells = '';
+  if (S.sh.smooth) {
+    const P = cellArrays(G, m), Lg = cellArrays(G, lg);
+    cells += S.sh.view === 'freq'
+      ? smoothHeat(G, k, [P.n.map(v => v / tot.n), Lg.n.map(v => v / ltot.n)], ([sp, ls]) => [(sp - ls) * 100 / 0.25, Math.max(sp, ls) / 0.0025], '--lo', '--hi')
+      : smoothHeat(G, k, [P.n, P.g, P.xg], ([n, g, xg]) => [n ? (xg - g) / n / 0.06 : 0, n / 1.5], '--hi', '--lo');
+  }
   for (let cy = 0; cy < G.ny; cy++) for (let cx = 0; cx < G.nx; cx++) {
     const c = cy * G.nx + cx; const v = m.get(c); const l = lg.get(c);
     const x0 = G.x0 + cx * G.cell, y0 = G.y0 + cy * G.cell; let fill, tip;
@@ -334,7 +340,7 @@ function rinkSVG(d, m, lg, title, col) {
       fill = col2(t);
       tip = `${v.n} shots, ${v.g} goals against, ${v.xg.toFixed(1)} expected (${sax >= 0 ? '+' : ''}${sax.toFixed(1)} saved above expected)`;
     }
-    cells += `<rect x="${px(y0)}" y="${py(x0 + G.cell)}" width="${G.cell * k}" height="${G.cell * k}" fill="${fill}"><title>${tip}</title></rect>`;
+    cells += `<rect x="${px(y0)}" y="${py(x0 + G.cell)}" width="${G.cell * k}" height="${G.cell * k}" fill="${S.sh.smooth ? 'transparent' : fill}"><title>${tip}</title></rect>`;
     if (S.sh.view === 'freq' && v && v.g) cells += `<circle cx="${px(y0 + G.cell / 2)}" cy="${py(x0 + G.cell / 2)}" r="${Math.min(9, 2 + v.g / 2)}" fill="none" stroke="var(--ink)" stroke-width="1.4"><title>${v.g} goals against</title></circle>`;
   }
   const line = (x, c, w) => `<line x1="0" x2="${W}" y1="${py(x)}" y2="${py(x)}" stroke="${c}" stroke-width="${w}"/>`;
@@ -350,10 +356,11 @@ async function renderShots() {
   const d = await loadShots(y);
   if (y !== S.season) return;
   if (!d) { box.innerHTML = ''; $('shots-sub').textContent = `Shot maps for ${sLabel(y)} haven't been built yet. They're added by the nightly update.`; return; }
-  $('shots-sub').innerHTML = `Unblocked shots he faced (on goal, missed and goals) in his defensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells, drawn with his net at the top. <strong>Where shots came from:</strong> orange cells are spots he faced shots from more often than the average goalie, blue less often; rings mark goals against. <strong>Saves vs expected:</strong> expected goals minus goals allowed in each cell with 5+ shots; blue means he stopped more than an average goalie would from there.`;
+  $('shots-sub').innerHTML = `Unblocked shots he faced (on goal, missed and goals) in his defensive zone, ${sLabel(y)} regular season, in 5 × 5 ft cells, drawn with his net at the top. <strong>Where shots came from:</strong> orange cells are spots he faced shots from more often than the average goalie, blue less often; rings mark goals against. <strong>Saves vs expected:</strong> expected goals minus goals allowed; blue means he stopped more than an average goalie would from there. <strong>Smoothed</strong> blends each spot with its neighbours (within about 7 ft); <strong>Cells</strong> shows the raw 5 × 5 ft counts (hover a cell for numbers).`;
   const B = seasonOf(S.B); const sit = S.sh.sit;
   const ctl = `<div class="ctl"><span class="lbl">Situation</span><span class="toggle" id="shsit">${[['all', 'All'], ['ev', '5v5'], ['pk', 'Penalty kill']].map(([k, l]) => `<button type="button" data-sit="${k}" aria-pressed="${sit === k}">${l}</button>`).join('')}</span>
-    <span class="lbl">View</span><span class="toggle">${[['freq', 'Where shots came from'], ['fin', 'Saves vs expected']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${S.sh.view === k}">${l}</button>`).join('')}</span></div>`;
+    <span class="lbl">View</span><span class="toggle">${[['freq', 'Where shots came from'], ['fin', 'Saves vs expected']].map(([k, l]) => `<button type="button" data-view="${k}" aria-pressed="${S.sh.view === k}">${l}</button>`).join('')}</span>
+    <span class="lbl">Draw</span><span class="toggle">${[[1, 'Smoothed'], [0, 'Cells']].map(([k, l]) => `<button type="button" data-smooth="${k}" aria-pressed="${S.sh.smooth === !!k}">${l}</button>`).join('')}</span></div>`;
   const lg = cellsOf((d.league || {})[sit]);
   const maps = [A, B].filter(Boolean).map((p, i) => { const m = cellsOf((d.players[p.id] || {})[sit]); return { p, m, t: totalsOf(m), col: i ? 'var(--b)' : 'var(--a)' }; });
   const slot = x => { let n = 0; for (const [c, v] of x.m) { const cx = c % d.grid.nx, cy = Math.floor(c / d.grid.nx); const xx = d.grid.x0 + (cx + 0.5) * d.grid.cell, yy = d.grid.y0 + (cy + 0.5) * d.grid.cell; if (xx >= 69 && xx <= 89 && Math.abs(yy) <= 10) n += v.n; } return x.t.n ? 100 * n / x.t.n : null; };
@@ -791,7 +798,8 @@ function wire() {
   $('mtoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.mode) { S.boardMode = b.dataset.mode; S.removed.clear(); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); return; } if (b.id === 'mv') S.showPct = !S.showPct; if (b.id === 'ms') S.sortKey = null; safe('sec-matrix', renderMatrix); });
   $('swapTeam').addEventListener('change', e => { S.swapTeam = e.target.value; S.swapOut = null; safe('sec-swap', renderSwap); });
   $('swapOut').addEventListener('change', e => { S.swapOut = +e.target.value; safe('sec-swap', renderSwap); });
-  $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) S.sh.sit = b.dataset.sit; if (b.dataset.view) S.sh.view = b.dataset.view; renderShots(); });
+  $('shots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.sit) S.sh.sit = b.dataset.sit; if (b.dataset.view) S.sh.view = b.dataset.view; if (b.dataset.smooth) S.sh.smooth = b.dataset.smooth === '1'; renderShots(); });
+  window.addEventListener('themechange', () => { if ($('shots').innerHTML) renderShots().catch(e => console.error(e)); });
   $('lineupTeam').addEventListener('change', e => { S.lineupTeam = e.target.value; const G = S.games[S.season]; if (G) renderLineup(G); });
   $('lineup').addEventListener('click', e => { const a = e.target.closest('[data-seta]'); if (!a) return; e.preventDefault(); setA(+a.dataset.seta); });
   $('cmode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cmode = b.dataset.m; $('cmode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); safe('sec-career', renderCareer); });

@@ -14,8 +14,9 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Stat board:** a color-coded percentile matrix, filled with top-ranked or most-similar players.
    - **Head to head:** percentile radar plus a side-by-side table.
    - **Shot environment:** xGF/60 vs. xGA/60, and zone starts vs. relative impact.
-   - **Isolated impact:** each skater's own effect on 5v5 chances for and against, from a regression over every shift (2010-11 on), next to the relative number, for one season or three, plus a test of which predicts next season better.
-   - **Shot maps:** where he shoots compared with his position, and finishing by location.
+   - **Small-sample projections:** `SKATER_GAMES_FULL` (150) in `scripts/build_value.py`: a skater projection built on fewer games over its 3-season window is pulled toward an average regular at the position. Projections in `value.json` that were pulled carry `raw_war82`, `prior` and `games`.
+- **Isolated impact:** each skater's own effect on 5v5 chances for and against, from a regression over every shift (2010-11 on), next to the relative number, for one season or three, plus a test of which predicts next season better.
+   - **Shot maps:** where he shoots compared with his position, and finishing by location, smoothed (default) or in raw cells.
    - **Linemates and partners:** 5v5 results with and without each teammate.
    - **Team swap:** projects his on/off impact onto another team.
 2. **How he's used:** game-by-game deployment.
