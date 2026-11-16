@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150400">
+<link rel="stylesheet" href="styles.css?v=202611161900">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -47,7 +47,7 @@
   <p style="margin-top:0">Every number on Stats-Zor is computed from public data by code you can read in the <a href="https://github.com/Ciiiv/Stats-Zor">GitHub repo</a>. Nothing is hand-entered except the cap figures listed under <a href="#m-value">Value and worth</a>. This page explains, section by section, what each part shows, how it's calculated, why it's built that way, and what it can't see.</p>
   <div class="toc">
     <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a><a href="#m-tools">Tools (NHL EDGE)</a></div>
-    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
+    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
@@ -63,6 +63,7 @@
     <dt>xGF%</dt><dd>xGF ÷ (xGF + xGA). 50% is break-even; above 50% means his team controls the chances while he's out there.</dd>
     <dt>Per 60</dt><dd>A rate per 60 minutes of ice time, so players with different minutes can be compared fairly.</dd>
     <dt>Relative (rel)</dt><dd>His team's results with him on the ice minus its results with him on the bench. It removes much of the "good team makes everyone look good" effect. A rel xGA/60 of −0.6 means the team allows 0.6 fewer expected goals per 60 with him on.</dd>
+    <dt>Isolated impact</dt><dd>A player's own effect on 5v5 chances, with his linemates, the opposing skaters, zone starts, the score and home ice separated out by a regression over every shift. Often called RAPM elsewhere. See <a href="#m-iso">Isolated impact</a>.</dd>
     <dt>CF% / CA</dt><dd>Corsi: all shot attempts (on goal, missed and blocked). A rough possession measure.</dd>
     <dt>HD xGA</dt><dd>Expected goals against from high-danger shots, mostly from the slot and crease.</dd>
     <dt>Zone starts</dt><dd>Where a player's shifts begin on a faceoff. A high own-zone share means harder, defensive deployment.</dd>
@@ -143,6 +144,30 @@ are added as style columns at half weight each</div>
     <li><strong>Right chart:</strong> own-zone start share against relative xGF%. Right means tougher starts; up means the team is better with him on the ice.</li>
   </ul>
 
+  <h3 id="m-iso">Isolated impact</h3>
+  <p>Relative numbers compare the team with him and without him, so they're thrown off by who he plays with and how good the team is without him. A great defenseman on a deep team (Cale Makar in 2025-26) can look ordinary because Colorado stayed good when he sat. Isolated impact asks a different question: holding everyone else on the ice constant, how many more chances happen per 60 when he's out there?</p>
+  <div class="m">For every stretch of 5v5 play with the same ten skaters on the ice (a "stint"), from 2010-11 on:
+  attacking team's xG per 60 = league base + home ice + zone of the opening faceoff + score state
+                               + each attacker's offense + each defender's defense
+Each stint counts twice (once per team attacking), weighted by its length.
+Solved by ridge regression: every skater is pulled toward average (0) by a penalty
+worth 20 hours of ice time, so a player needs a real sample to move far from 0.</div>
+  <ul>
+    <li><strong>Who was on the ice:</strong> NHL shift charts, second by second. Goalies are removed; only stints with both goalies in net and five skaters a side count.</li>
+    <li><strong>Chances:</strong> MoneyPuck's expected goals for each unblocked shot, matched to the stint by game, period and time. Empty-net shots and the playoffs are left out.</li>
+    <li><strong>Zone and score:</strong> from the NHL play-by-play. A stint that starts with an offensive-zone faceoff produces more chances for that team in the first seconds, so that's taken out. Teams that are trailing push and teams that are leading sit back, so score state is taken out too.</li>
+    <li><strong>The penalty:</strong> 20 hours was the best of 5 to 120 when 20% of 2024-25 games were held out and predicted from the rest.</li>
+    <li><strong>One season or three:</strong> the three-season fit pools that season and the two before it. It's steadier, and it's what most public models show.</li>
+  </ul>
+  <p>Offense is xGF/60 he adds (positive is good). Defense is xGA/60 he adds (negative is good: fewer chances against). Net is offense minus defense. Percentiles are among regulars at his position. Because of the penalty, isolated numbers are smaller than relative ones, about half the spread. Compare players by percentile, not by size.</p>
+  <p><strong>Which predicts better?</strong> For every skater with 500+ 5v5 minutes in back-to-back seasons, this season's number is lined up against next season's two ways: next season's on-ice xG differential and next season's relative differential. Using both keeps the test from favouring either method. Over 15 pairs of seasons (2010-11 to 2025-26), each method predicts its own kind of number best: isolated alone lines up better with next season's on-ice results (0.35 vs. 0.28 for relative), and relative alone lines up better with next season's relative results (0.32 vs. 0.27). Scored on both at once, the best mix is about two-thirds isolated and one-third relative (0.319, against 0.300 for relative alone and 0.312 for isolated alone), so that's the mix the value model uses. The skater page shows the full table. The test reruns every night as seasons are added.</p>
+  <details class="lim"><summary>Limits</summary><ul>
+    <li>It starts in 2010-11, the first season with NHL shift charts. A few games each season have no shift chart and are skipped (57 of 1,312 in 2024-25).</li>
+    <li>The regression separates linemates and opponents only as far as they play apart. Two players who are almost always together (the Sedins, a fixed top pair) share credit roughly evenly.</li>
+    <li>It doesn't adjust for scorekeeper differences between rinks, or for the quality of the goalie behind him (only chances are measured, not goals).</li>
+    <li>Early in a season the single-season numbers sit close to 0. That's the penalty doing its job, not a sign he's average.</li>
+  </ul></details>
+
   <h3 id="m-shots">Shot maps</h3>
   <p>Unblocked shot attempts (on goal, missed and goals; MoneyPuck's shot file doesn't include blocked shots) in the offensive zone, in 5 × 5 ft cells. Regular season only; empty-net shots are left out.</p>
   <ul>
@@ -218,23 +243,25 @@ Against his role = his 5v5 xGF% − league xGF% for the slots he played, weighte
   <h3 id="m-value">Value and worth</h3>
   <p>Stats-Zor's own wins-above-replacement model. It's simpler than commercial models like Evolving-Hockey's GAR, but every piece is visible.</p>
   <div class="m">Goals above replacement (per season)
-  5v5 offense   = 0.5 × (rel xGF/60 − replacement) × 5v5 hours
-  5v5 defense   = 0.5 × (replacement − rel xGA/60) × 5v5 hours
+  5v5 offense   = (5v5 offense rate − replacement) × 5v5 hours
+  5v5 defense   = (replacement − 5v5 defense rate) × 5v5 hours
   Finishing     = 0.5 × (goals − individual xG), all situations
   Power play    = 0.3 × (on-ice PP xGF/60 − replacement) × PP hours
   Penalty kill  = 0.25 × (replacement − on-ice PK xGA/60) × PK hours
   Penalties     = 0.15 × (penalties drawn − penalties taken)
-Replacement = 20th percentile among regulars at the position (80th for the against stats),
-              roughly what a call-up provides.
+5v5 rate      = 67% × isolated impact (stretched) + 33% × 0.5 × relative xGF/60 or xGA/60
+Replacement   = 20th percentile among regulars at the position (80th for the against stats),
+                roughly what a call-up provides.
 Wins = goals ÷ 6</div>
-  <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so 5v5 and special-teams credit is scaled down. Only half of finishing is counted, because shooting luck regresses. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so relative 5v5 and special-teams credit is scaled down. Only half of finishing is counted, because shooting luck regresses. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <p><strong>The 5v5 blend:</strong> the 5v5 rates mix his <a href="#m-iso">isolated impact</a> with his relative numbers. The mix is 67% isolated, the best of the mixes tried in the forecast test. Isolated numbers come out about half as spread as relative ones, so each season they're stretched (by position) to the same spread as 0.5 × relative before mixing. That keeps 5v5 play's share of all value where it was, and only changes which players get the credit. Seasons before 2010-11 have no shift charts and use relative alone. The Value card's <strong>5v5 method</strong> box shows his 5v5 goals three ways (relative only, isolated only, the blend). It's for reading only: worth, contracts, projections and the trade machine all use the blend.</p>
   <div class="m">Price of a win = 32 teams × (cap × 0.88 skater share − 20 skaters × minimum salary)
                  ÷ all positive wins produced that season
 Worth          = minimum salary + max(0, wins per 82 games) × price of a win
 % of cap       = worth ÷ that season's cap
 Worth over last 3 seasons = minimum salary + max(0, blended wins per 82) × this season's price of a win
                  (that season and the two before, weights 3, 2, 1 × games; needs 2+ seasons)</div>
-  <p><strong>This season vs. last 3 seasons:</strong> the Value card shows both. One season can swing a lot (Cale Makar's 2025-26 came out at $8.25M against $11.1M over three seasons), so the three-season figure is the steadier read on what a player is worth. It's the same blend the fair-value contract starts from, priced at this season's cap. If you enter a cap hit, it's compared with both.</p>
+  <p><strong>This season vs. last 3 seasons:</strong> the Value card shows both. One season can swing a lot (Cale Makar's 2025-26 comes out at about $9.7M against $11.5M over three seasons; before the 5v5 blend it was $8.25M), so the three-season figure is the steadier read on what a player is worth. It's the same blend the fair-value contract starts from, priced at this season's cap. If you enter a cap hit, it's compared with both.</p>
   <p>Caps used ($M): 2008-09 56.7 · 09-10 56.8 · 10-11 59.4 · 11-12 64.3 · 12-13 60.0 (lockout) · 13-14 64.3 · 14-15 69.0 · 15-16 71.4 · 16-17 73.0 · 17-18 75.0 · 18-19 79.5 · 19-20 to 21-22 81.5 · 22-23 82.5 · 23-24 83.5 · 24-25 88.0 · 25-26 95.5 · 26-27 104.0 · 27-28 113.5 (projected), then an assumed +5% a year. Minimum salary follows each season's CBA figure, rising to $1M by 2029-30.</p>
   <p class="lim"><b>Limits:</b> stars come out "worth" far more than their pay. That's normal for value models, because the max salary, entry-level and RFA contracts keep the best players underpaid, so read the dollars as relative value. A partial current season uses each player's pace over 82 games, so early-season figures swing. Goalies have their own version, under <a href="#m-g-value">Goalie value</a>.</p>
 

@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611150400">
+<link rel="stylesheet" href="styles.css?v=202611161900">
 <script src="theme.js?v=202611150400"></script>
 </head>
 <body>
@@ -38,7 +38,7 @@
   <nav class="wrap tabs" id="nav" aria-label="Sections">
     <div class="ng"><span class="nl">&nbsp;</span><div class="nls"><a href="#sec-profile">Profile</a></div></div>
     <div class="ng" data-part="1"><span class="nl">1 · How he played</span><div class="nls">
-      <a href="#sec-rank">Ranking</a><a href="#sec-matrix">Stat board</a><a href="#sec-h2h">Head to head</a><a href="#sec-env">Environment</a><a href="#sec-shots">Shot maps</a><a href="#sec-mates">Linemates</a><a href="#sec-swap">Team swap</a></div></div>
+      <a href="#sec-rank">Ranking</a><a href="#sec-matrix">Stat board</a><a href="#sec-h2h">Head to head</a><a href="#sec-env">Environment</a><a href="#sec-iso">Isolated impact</a><a href="#sec-shots">Shot maps</a><a href="#sec-mates">Linemates</a><a href="#sec-swap">Team swap</a></div></div>
     <div class="ng" data-part="2"><span class="nl">2 · How he's used</span><div class="nls">
       <a href="#sec-role">Role &amp; fit</a><a href="#sec-lineup">Team card</a></div></div>
     <div class="ng" data-part="3"><span class="nl">3 · What he's worth</span><div class="nls">
@@ -82,6 +82,14 @@
     <div class="head"><h2>Shot environment and deployment</h2><a class="how" href="about.html#m-env">How this works</a>
       <p class="sub">Grey dots are every regular at the same position. Left: chances for and against per 60 at 5v5 (up and left is good). Right: own-zone start share against relative xGF%, the team's share with him on the ice minus its share with him on the bench.</p></div>
     <div class="two"><svg id="sc1" viewBox="0 0 520 440" role="img" aria-label="xGF/60 vs xGA/60"></svg><svg id="sc2" viewBox="0 0 520 440" role="img" aria-label="Zone starts vs relative xGF%"></svg></div>
+  </section>
+
+  <section class="panel" id="sec-iso">
+    <div class="head"><h2>Isolated impact</h2><a class="how" href="about.html#m-iso">How this works</a>
+      <p class="sub" id="iso-sub">Loading isolated impact…</p></div>
+    <div class="ctl"><span class="lbl">Seasons</span><span class="toggle" id="itoggle"></span></div>
+    <div id="iso"></div>
+    <div class="two" style="margin-top:18px"><svg id="sc-iso" viewBox="0 0 520 440" role="img" aria-label="Isolated offense vs defense"></svg><div id="iso-test"></div></div>
   </section>
 
   <section class="panel" id="sec-shots">
@@ -165,6 +173,6 @@
   </footer>
 </main>
 <script src="common.js?v=202611150300"></script>
-<script src="app.js?v=202611161800"></script>
+<script src="app.js?v=202611161900"></script>
 </body>
 </html>

@@ -74,6 +74,24 @@ jobs:
             python scripts/build_goalies.py
           fi
 
+      # Raw shift charts and play-by-play are kept in the Actions cache (not committed), so finished
+      # seasons are fetched once. Past seasons missing from data/impact are backfilled a few per night.
+      - name: Restore isolated impact cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/impact
+          key: impact-${{ github.run_id }}
+          restore-keys: impact-
+
+      - name: Build isolated impact
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            python scripts/build_impact.py --full
+          else
+            python scripts/build_impact.py
+          fi
+
       - name: Build value, rosters and prospects
         continue-on-error: true
         run: python scripts/build_value.py

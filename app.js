@@ -13,7 +13,7 @@ const S = {
   idx: null, byId: new Map(), seasons: {}, lines: {}, careers: null, mpc: null, cache: {},
   A: null, B: null, season: null,
   pool: 'reg', w: { d: 40, o: 40, c: 20 }, extra: [], removed: new Set(), sortKey: null, showPct: false,
-  boardMode: 'top', cmode: 'age', arcMetric: 'adj82', arcSel: [], swapTeam: null, swapOut: null,
+  isoSpan: 1, boardMode: 'top', cmode: 'age', arcMetric: 'adj82', arcSel: [], swapTeam: null, swapOut: null,
 };
 
 // ------------------------------------------------------------------ metrics
@@ -28,6 +28,9 @@ const MET = {
   ipts60: { l: 'Pts/60', f: f2 }, ia1_60: { l: 'Primary A/60', f: f2 }, isa60: { l: 'Shot att./60', f: f1 }, ihd60: { l: 'HD shots/60', f: f2 },
   pp_pts60: { l: 'PP pts/60', f: f2 }, pp_xgf60: { l: 'PP xGF/60', f: f2 }, gax82: { l: 'Goals above exp. /82', f: s1 },
   xgf_pct: { l: 'xGF%', f: f1 }, cf_pct: { l: 'CF%', f: f1 }, gf_pct: { l: 'GF%', f: f1 }, rel_xgf_pct: { l: 'Rel xGF%', f: s1 },
+  iso_xgf60: { l: 'Isolated xGF/60', f: s2 }, iso_xga60: { l: 'Isolated xGA/60', f: s2, lo: 1 }, iso_net: { l: 'Isolated net', f: s2 },
+  iso3_xgf60: { l: 'Isolated xGF/60 (3 seasons)', f: s2 }, iso3_xga60: { l: 'Isolated xGA/60 (3 seasons)', f: s2, lo: 1 }, iso3_net: { l: 'Isolated net (3 seasons)', f: s2 },
+  rel_net: { l: 'Rel net xG/60', f: s2 },
   gs: { l: 'GameScore/GP', f: f2 }, fo_pct: { l: 'Faceoff %', f: f1 }, pdiff60: { l: 'Pen. drawn − taken /60', f: s2 },
 };
 const COLS = {
@@ -55,7 +58,7 @@ function derive(p) {
   p.grp = grpOf(p.pos);
   p.xgf_pct = share(p.xgf60, p.xga60); p.cf_pct = share(p.cf60, p.ca60); p.gf_pct = share(p.gf5, p.ga5);
   p.off_xgf_pct = share(p.off_xgf60, p.off_xga60); p.rel_xgf_pct = sub(p.xgf_pct, p.off_xgf_pct);
-  p.rel_xgf60 = sub(p.xgf60, p.off_xgf60); p.rel_xga60 = sub(p.xga60, p.off_xga60);
+  p.rel_xgf60 = sub(p.xgf60, p.off_xgf60); p.rel_xga60 = sub(p.xga60, p.off_xga60); p.rel_net = sub(p.rel_xgf60, p.rel_xga60);
   p.fo_pct = (p.fow + p.fol) >= 100 ? 100 * p.fow / (p.fow + p.fol) : null;
   p.pdiff60 = sub(p.pend60, p.pen60);
   p.gax82 = p.gp ? p.gax / p.gp * 82 : null;
@@ -391,6 +394,68 @@ function scatter(svgId, xk, yk, xl, yl, notes, refs) {
 function renderEnv() {
   scatter('sc1', 'xga60', 'xgf60', 'xGA/60 at 5v5 (fewer is better →  left)', 'xGF/60 at 5v5', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Drives play, suppresses</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Bleeds chances, little offense</text>`, P => [median(P.map(p => p.xga60)), median(P.map(p => p.xgf60))]);
   scatter('sc2', 'dzs', 'rel_xgf_pct', 'Own-zone start % at 5v5 (tougher →  right)', 'Rel xGF% (team with him minus without)', (g, W, H, m) => `<text x="${W - m.r - 4}" y="${m.t + 12}" text-anchor="end" class="lab">Hard minutes, still lifts the team</text><text x="${m.l + 6}" y="${m.t + 12}" class="lab">Sheltered, lifts the team</text>`, P => [median(P.map(p => p.dzs)), 0]);
+}
+
+// ------------------------------------------------------------------ isolated impact
+const IMP = {}; let ITEST;
+async function loadImpact(y) {
+  if (IMP[y] !== undefined) return IMP[y];
+  try {
+    const j = await getJSON(`data/impact/${y}.json`); const m = new Map();
+    j.players.forEach(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); m.set(o.id, o); });
+    IMP[y] = { ...j, map: m };
+    const sd = await loadSeason(y);
+    sd.players.forEach(p => {
+      const i = m.get(p.id);
+      p.iso_toi = i ? i.toi : null; p.iso3_toi = i ? i.toi3 : null;
+      p.iso_xgf60 = i ? i.off : null; p.iso_xga60 = i ? i.def : null; p.iso_net = i ? i.off - i.def : null;
+      const ok3 = i && nz(i.off3) && (i.toi3 || 0) >= 600;
+      p.iso3_xgf60 = ok3 ? i.off3 : null; p.iso3_xga60 = ok3 ? i.def3 : null; p.iso3_net = ok3 ? i.off3 - i.def3 : null;
+    });
+    Object.keys(S.cache).forEach(k => { if (k.startsWith(`${y}|`)) Object.keys(S.cache[k].sorted).forEach(x => { if (x.startsWith('iso')) delete S.cache[k].sorted[x]; }); });
+  } catch (e) { IMP[y] = null; }
+  return IMP[y];
+}
+async function loadTest() { if (ITEST !== undefined) return ITEST; try { ITEST = await getJSON('data/impact/test.json'); } catch (e) { ITEST = null; } return ITEST; }
+const ordn = n => { const v = Math.round(n); const t = v % 100; return v + (t > 10 && t < 14 ? 'th' : ['th', 'st', 'nd', 'rd'][v % 10] || 'th'); };
+async function renderIso() {
+  const y = S.season; const [I, T] = await Promise.all([loadImpact(y), loadTest()]);
+  const sd = S.seasons[y]; const A = seasonOf(S.A);
+  if (y !== S.season || !A) return;
+  const sub = $('iso-sub');
+  if (!I) { sub.textContent = y < 2010 ? 'Isolated impact starts in 2010-11, the first season with NHL shift charts.' : `Isolated impact for ${sLabel(y)} hasn't been built yet. It's added by the nightly update.`; $('iso').innerHTML = ''; $('iso-test').innerHTML = ''; $('sc-iso').innerHTML = ''; return; }
+  const three = S.isoSpan === 3; const k = three ? 'iso3_' : 'iso_';
+  $('itoggle').innerHTML = `<button type="button" data-span="1" aria-pressed="${!three}">${sLabel(y)}</button><button type="button" data-span="3" aria-pressed="${three}">Three seasons to ${sLabel(y)}</button>`;
+  const B = seasonOf(S.B);
+  const ps = [A, B].filter(Boolean);
+  const cell = (p, key) => { const pc = pctl(sd, p.grp, key, p[key]); return `<td style="background:${heat(pc)}">${nz(p[key]) ? MET[key].f(p[key]) : '—'}${nz(pc) ? `<small>${ordn(pc)}</small>` : ''}</td>`; };
+  const read = p => {
+    const a = pctl(sd, p.grp, k + 'net', p[k + 'net']), r = pctl(sd, p.grp, 'rel_net', p.rel_net);
+    if (!nz(a) || !nz(r)) return three ? 'Needs at least 600 five-on-five minutes over the three seasons.' : 'Not enough five-on-five minutes for a reading.';
+    const d = a - r;
+    if (d >= 15) return `Isolated rates him well above relative (${ordn(a)} vs ${ordn(r)} percentile). His team holds up without him, or his linemates drag his on-ice numbers down, so the relative number undersells him.`;
+    if (d <= -15) return `Isolated rates him well below relative (${ordn(a)} vs ${ordn(r)} percentile). Part of his on-ice edge belongs to his linemates, or the team is much worse when he sits.`;
+    return `Both methods agree (${ordn(a)} and ${ordn(r)} percentile).`;
+  };
+  const card = (p, i) => `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(p.name)}</h3>
+    <p class="sub small">${nz(p[three ? 'iso3_toi' : 'iso_toi']) ? `${f0(p[three ? 'iso3_toi' : 'iso_toi'])} five-on-five minutes in the fit` : 'Not in the fit'} · percentiles among regular ${GRP_NAME[p.grp]}</p>
+    <div class="scroll"><table class="tbl iso"><thead><tr><th></th><th>Isolated${three ? ', 3 seasons' : ''}</th><th>Relative${three ? `, ${sLabel(y)}` : ''}</th></tr></thead><tbody>
+      <tr><td>Offense · xGF/60</td>${cell(p, k + 'xgf60')}${cell(p, 'rel_xgf60')}</tr>
+      <tr><td>Defense · xGA/60</td>${cell(p, k + 'xga60')}${cell(p, 'rel_xga60')}</tr>
+      <tr><td>Net</td>${cell(p, k + 'net')}${cell(p, 'rel_net')}</tr></tbody></table></div>
+    <p class="sub small" style="margin-top:8px">${read(p)}</p></div>`;
+  sub.innerHTML = `Each skater's own effect on five-on-five expected goals per 60, with his linemates, opponents' skaters, zone starts, score and home ice taken out by a regression over every shift (${sLabel(y)}${three ? ' and the two seasons before it' : ''}). Next to it is the relative number already on this page: the team with him minus the team without him. For defense, negative is good (fewer chances allowed). A blue cell is good.`;
+  $('iso').innerHTML = `<div class="valgrid">${ps.map(card).join('')}</div>`;
+  scatter('sc-iso', k + 'xga60', k + 'xgf60', 'Isolated xGA/60 (fewer is better →  left)', 'Isolated xGF/60', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Helps both ways</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Hurts both ways</text>`, () => [0, 0]);
+  if (T && T.both) {
+    const ws = Object.keys(T.both).sort((a, b) => +a - +b);
+    const lab = w => +w === 0 ? 'Relative only' : +w === 1 ? 'Isolated only' : `${Math.round(100 * w)}% isolated`;
+    const best = String(T.best_isolated_weight);
+    const ys = T.seasons.map(r => r.season);
+    $('iso-test').innerHTML = `<p class="minihead">Which number predicts next season better?</p>
+      <p class="sub small">For every skater with 500+ five-on-five minutes in back-to-back seasons (${sLabel(Math.min(...ys))} to ${sLabel(Math.max(...ys) + 1)}, ${ys.length} season pairs), how well this season's number lines up with next season's. Scored two ways so neither method is favoured: next season's on-ice xG differential and next season's relative differential. 1.00 would be perfect; 0 is no link.</p>
+      <div class="scroll"><table class="tbl fc"><thead><tr><th>Mix</th><th>Next on-ice</th><th>Next rel.</th><th>Avg</th></tr></thead><tbody>${ws.map(w => `<tr${w === best ? ' class="isA"' : ''}><td>${lab(w)}${w === best ? ' · best' : ''}</td><td>${T.average.onice[w].toFixed(3)}</td><td>${T.average.rel[w].toFixed(3)}</td><td>${T.both[w].toFixed(3)}</td></tr>`).join('')}</tbody></table></div>`;
+  } else $('iso-test').innerHTML = '';
 }
 
 // ------------------------------------------------------------------ linemates
@@ -853,6 +918,16 @@ function payLine(worth, cap, worth3) {
   const part = (w, l) => { const d = w - cap; return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? 'Underpaid' : 'Overpaid'} by about ${money(Math.abs(d))}</b> ${l}`; };
   return part(worth, "for this season's value") + (nz(worth3) ? ` · ${part(worth3, 'for his last 3 seasons')}` : '');
 }
+function methodHTML(r, sv) {
+  const used = r.ev_off + r.ev_def;
+  if (!nz(sv.iso_weight) || !sv.iso_weight || !nz(r.ev_iso_only)) return nz(r.ev_rel_only) ? `<p class="sub small" style="margin-top:8px">5v5 credit uses the relative method only: ${sLabel(r.y)} is before NHL shift charts, so there's no isolated number.</p>` : '';
+  const pct = Math.round(100 * sv.iso_weight);
+  const row = (l, v, b) => `<tr${b ? ' class="isA"' : ''}><td>${l}</td><td>${s1(v)}</td><td>${s1(v / 6)}</td></tr>`;
+  return `<details class="lim" style="margin-top:12px"><summary>5v5 method</summary><p class="small" style="margin:8px 0">The two 5v5 bars blend two ways of crediting him. Read-only: the value above always uses the blend.</p>
+    <div class="scroll"><table class="tbl fc"><thead><tr><th>5v5 offense + defense</th><th>Goals</th><th>Wins</th></tr></thead><tbody>
+    ${row('Relative only (team with him minus without)', r.ev_rel_only)}${row('Isolated only (regression over every shift)', r.ev_iso_only)}${row(`Blend used: ${pct}% isolated, ${100 - pct}% relative`, used, true)}</tbody></table></div>
+    <p class="small" style="margin:8px 0 0"><a href="#sec-iso">See his isolated impact</a> · <a href="about.html#m-value">How the blend was chosen</a></p></details>`;
+}
 async function renderValue() {
   const V = await loadValue().catch(() => null);
   if (!V) { $('value-sub').textContent = 'Value data hasn\'t been built yet. It\'s added by the nightly update.'; $('value').innerHTML = ''; $('deal').innerHTML = ''; return; }
@@ -885,6 +960,7 @@ async function renderValue() {
         <div class="tile"><b>${t3 ? money(t3.worth) : '—'}</b><span>${t3 ? `Worth over last 3 seasons (${sLabel(t3.from)} to ${sLabel(t3.to)}, ${f1(t3.war82)} wins per 82)` : 'Worth over last 3 seasons (needs 2+ seasons)'}</span></div>
         <div class="tile"><b>${rankOf(r)}</b><span>Rank at position</span></div></div>
       <p class="minihead" style="margin-top:14px">Where the value comes from · goals above replacement</p><div class="comp">${comps}</div>
+      ${methodHTML(r, sv)}
       <div class="capin"><label for="cap-${r.id}">His cap hit ($M)</label><input id="cap-${r.id}" data-capid="${r.id}" type="number" step="0.05" min="0" placeholder="e.g. 8.55" value="${nz(cap) ? cap : ''}"><span id="pay-${r.id}" data-w3="${t3 ? t3.worth : ''}">${payLine(r.worth, cap, t3 && t3.worth)}</span></div>
       <p class="sub small">Type his cap hit from <a href="https://puckpedia.com" rel="noopener">PuckPedia</a> or his team to compare. It stays in your browser only.</p></div>`;
   };
@@ -938,11 +1014,12 @@ async function render() {
   const pa = S.byId.get(S.A) || {};
   safe('sec-profile', renderProfile);
   $('part1-h').textContent = A ? `${pa.name}'s ${sLabel(S.season)}` : 'The season';
-  const seasonSecs = ['sec-rank', 'sec-matrix', 'sec-h2h', 'sec-env', 'sec-mates', 'sec-swap', 'sec-role', 'sec-lineup'];
+  const seasonSecs = ['sec-rank', 'sec-matrix', 'sec-h2h', 'sec-env', 'sec-iso', 'sec-mates', 'sec-swap', 'sec-role', 'sec-lineup'];
   seasonSecs.forEach(id => { const el = $(id); el.querySelectorAll(':scope > .nodata').forEach(x => x.remove()); [...el.children].forEach(ch => { if (!ch.classList.contains('head') && !ch.classList.contains('nodata')) ch.hidden = !A; }); if (!A) el.insertAdjacentHTML('beforeend', `<p class="empty nodata">No ${sLabel(S.season)} MoneyPuck data for ${esc(pa.name || 'this player')}.${pa.mask ? ' Pick one of his seasons in the Season box.' : ' Advanced stats start in 2008-09.'}</p>`); });
   if (A) {
     safe('sec-rank', renderRank); safe('sec-matrix', renderMatrix); safe('sec-h2h', renderH2H); safe('sec-env', renderEnv); safe('sec-swap', renderSwap);
     renderMates().catch(e => console.error(e));
+    renderIso().catch(e => console.error(e));
     if (S.shotsSeen) renderShots().catch(e => console.error(e));
     renderRole().catch(e => console.error(e));
   }
@@ -964,6 +1041,7 @@ function wire() {
   $('rank').addEventListener('click', e => { const n = e.target.closest('[data-id]'); if (n) setA(+n.dataset.id); });
   $('matrix').addEventListener('click', e => { const s = e.target.closest('[data-sort]'); if (s) { S.sortKey = s.dataset.sort; safe('sec-matrix', renderMatrix); return; } const r = e.target.closest('[data-rm]'); if (r) { const id = +r.dataset.rm; S.extra = S.extra.filter(x => x !== id); S.removed.add(id); if (id === S.B) S.B = null; render(); } });
   $('mtoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.mode) { S.boardMode = b.dataset.mode; S.removed.clear(); safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); return; } if (b.id === 'mv') S.showPct = !S.showPct; if (b.id === 'ms') S.sortKey = null; safe('sec-matrix', renderMatrix); });
+  $('itoggle').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.isoSpan = +b.dataset.span; renderIso().catch(er => console.error(er)); });
   $('swapTeam').addEventListener('change', e => { S.swapTeam = e.target.value; S.swapOut = null; safe('sec-swap', renderSwap); });
   $('swapOut').addEventListener('change', e => { S.swapOut = +e.target.value; safe('sec-swap', renderSwap); });
   $('cmode').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.cmode = b.dataset.m; $('cmode').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); safe('sec-career', renderCareer); });

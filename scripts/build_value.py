@@ -3,8 +3,11 @@
 current rosters and recent draft prospects.
 
 Value model (Stats-Zor's own, simple and transparent; not Evolving-Hockey's GAR):
-  EV offense   0.5 x (relative xGF/60 - replacement) x 5v5 hours
-  EV defense   0.5 x (replacement - relative xGA/60) x 5v5 hours
+  EV offense   (5v5 offense rate - replacement) x 5v5 hours
+  EV defense   (replacement - 5v5 defense rate) x 5v5 hours
+               where each 5v5 rate is ISO_WEIGHT x isolated impact (data/impact, stretched to the same
+               spread as the relative number) + (1 - ISO_WEIGHT) x 0.5 x relative xGF/60 or xGA/60.
+               Seasons before 2010-11 (no shift charts) use the relative number alone.
   Finishing    0.5 x (goals - expected goals), all situations
   Power play   0.3 x (on-ice PP xGF/60 - replacement) x PP hours
   Penalty kill 0.25 x (replacement - on-ice PK xGA/60) x PK hours
@@ -51,6 +54,7 @@ GOALS_PER_WIN = 6.0
 GOALIE_WEIGHT = 0.5    # share of a goalie's goals saved above expected credited to him (the rest is noise and team)
 GOALIE_ROSTER = 2      # goalies per team counted at minimum salary
 SCHED = {2012: 48, 2019: 70, 2020: 56}
+ISO_WEIGHT = 0.67      # isolated share of the 5v5 rates (set from the forecast test in data/impact/test.json)
 
 
 def cap(y):
@@ -123,23 +127,70 @@ def season_value(sf, usage):
         d["rela"] = d["xga60"] - d["off_xga60"] if None not in (d["xga60"], d["off_xga60"]) else None
         P.append(d)
     gpmax = sf["gpmax"] or 82
-    repl = {}
+    # isolated impact (build_impact.py), stretched per position to the spread of 0.5 x relative
+    imp = read_json(os.path.join(DATA, "impact", f"{sf['season']}.json")) if sf.get("season") else None
+    iso = {}
+    if imp:
+        fi = imp["fields"]
+        iso = {r[fi.index("id")]: (r[fi.index("off")], r[fi.index("def")]) for r in imp["players"]}
+    repl, scale = {}, {}
+
+    def sd(v):
+        v = [x for x in v if x is not None]
+        if len(v) < 2:
+            return 0.0
+        m = sum(v) / len(v)
+        return (sum((x - m) ** 2 for x in v) / len(v)) ** 0.5
+
+    regs = {}
     for grp in ("F", "D"):
         reg = [p for p in P if p["grp"] == grp and p["gp"] >= 0.25 * gpmax and (p["t5"] or 0) >= 18000 * gpmax / 82]
-        repl[grp] = {
-            "relf": pctile([p["relf"] for p in reg], 0.20),
-            "rela": pctile([p["rela"] for p in reg], 0.80),
+        regs[grp] = reg
+        both = [p for p in reg if p["id"] in iso and p["relf"] is not None and p["rela"] is not None]
+        so, sd_ = sd([iso[p["id"]][0] for p in both]), sd([iso[p["id"]][1] for p in both])
+        scale[grp] = (sd([0.5 * p["relf"] for p in both]) / so if so else 0.0,
+                      sd([0.5 * p["rela"] for p in both]) / sd_ if sd_ else 0.0)
+
+    def rates(p, w):
+        """(offense, defense) 5v5 rates per 60 for isolated weight w; relative only when no isolated number."""
+        rf = 0.5 * p["relf"] if p["relf"] is not None else None
+        ra = 0.5 * p["rela"] if p["rela"] is not None else None
+        i = iso.get(p["id"])
+        if i is None or not scale.get(p["grp"], (0, 0))[0]:
+            return rf, ra
+        k = scale[p["grp"]]
+        io, idf = i[0] * k[0], i[1] * k[1]
+        return (io if rf is None else w * io + (1 - w) * rf), (idf if ra is None else w * idf + (1 - w) * ra)
+
+    w_used = ISO_WEIGHT if iso else 0.0
+    ev = {}  # weight -> {id: (off, def) goals}
+    for w in {w_used, 0.0, 1.0}:
+        R5 = {}
+        for grp in ("F", "D"):
+            rr = [rates(p, w) for p in regs[grp]]
+            R5[grp] = (pctile([r[0] for r in rr], 0.20), pctile([r[1] for r in rr], 0.80))
+        d = {}
+        for p in P:
+            h5 = (p["t5"] or 0) / 3600
+            o, a = rates(p, w)
+            d[p["id"]] = ((o - R5[p["grp"]][0]) * h5 if o is not None else 0.0,
+                          (R5[p["grp"]][1] - a) * h5 if a is not None else 0.0)
+        ev[w] = d
+        if w == w_used:
+            for grp in ("F", "D"):
+                repl.setdefault(grp, {})["ev_off"], repl[grp]["ev_def"] = R5[grp]
+    for grp in ("F", "D"):
+        reg = regs[grp]
+        repl[grp].update({
             "pp": pctile([p["pp_xgf60"] for p in reg if p["pp_xgf60"] is not None], 0.20),
             "pk": pctile([p["pk_xga60"] for p in reg if p["pk_xga60"] is not None], 0.80),
-        }
-    out = []
+        })
+    out, alt = [], {}
     for p in P:
         R = repl[p["grp"]]
-        h5 = (p["t5"] or 0) / 3600
         hpp = p["pp"] * p["gp"] / 60
         hpk = p["pk"] * p["gp"] / 60
-        evo = 0.5 * (p["relf"] - R["relf"]) * h5 if p["relf"] is not None else 0.0
-        evd = 0.5 * (R["rela"] - p["rela"]) * h5 if p["rela"] is not None else 0.0
+        evo, evd = ev[w_used][p["id"]]
         fin = 0.5 * (p["gax"] or 0)
         ppv = 0.3 * (p["pp_xgf60"] - R["pp"]) * hpp if p["pp_xgf60"] is not None else 0.0
         pkv = 0.25 * (R["pk"] - p["pk_xga60"]) * hpk if p["pk_xga60"] is not None else 0.0
@@ -147,7 +198,9 @@ def season_value(sf, usage):
         gar = evo + evd + fin + ppv + pkv + pen
         out.append([p["id"], p["team"], p["pos"], p["gp"], round(evo, 2), round(evd, 2), round(fin, 2), round(ppv, 2),
                     round(pkv, 2), round(pen, 2), round(gar, 2), round(gar / GOALS_PER_WIN, 2)])
-    return out, repl, gpmax
+        alt[p["id"]] = (round(sum(ev[0.0][p["id"]]), 2), round(sum(ev[1.0][p["id"]]), 2) if iso and p["id"] in iso else None)
+    meta = {"iso_weight": w_used, "iso_scale": {g: [round(a, 3), round(b, 3)] for g, (a, b) in scale.items()} if iso else None}
+    return out, repl, gpmax, alt, meta
 
 
 def project(seasons, birth, cur, proj, war82_i, table):
@@ -257,7 +310,8 @@ def main():
         sf = read_json(os.path.join(DATA, "seasons", f"{y}.json"))
         if not sf:
             continue
-        rows, repl, gpmax = season_value(sf, None)
+        sf.setdefault("season", y)
+        rows, repl, gpmax, alt, meta = season_value(sf, None)
         sched = SCHED.get(y, 82)
         prog = min(1.0, gpmax / sched)  # share of season played so far
         pos_war = sum(max(0.0, r[11]) for r in rows) / prog if prog else 1
@@ -266,8 +320,8 @@ def main():
         for r in rows:
             war82 = r[11] / r[3] * 82 if r[3] else 0
             worth = min_sal(y) + max(0.0, war82) * per_win
-            r.extend([round(war82, 2), round(worth, 2), round(100 * worth / cap(y), 2)])
-        seasons[y] = {"cap": cap(y), "min": min_sal(y), "per_win": round(per_win, 3), "progress": round(prog, 3),
+            r.extend([round(war82, 2), round(worth, 2), round(100 * worth / cap(y), 2), *alt[r[0]]])
+        seasons[y] = {"cap": cap(y), "min": min_sal(y), "per_win": round(per_win, 3), "progress": round(prog, 3), **meta,
                       "repl": {g: {k: round(v, 3) for k, v in d.items()} for g, d in repl.items()}, "rows": rows}
         log(f"value {y}: {len(rows)} players, ${per_win:.2f}M per win, {pos_war:.0f} positive wins")
 
@@ -333,7 +387,7 @@ def main():
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "current": cur,
         "fields": ["id", "team", "pos", "gp", "ev_off", "ev_def", "finishing", "pp", "pk", "penalties", "gar", "war",
-                   "war82", "worth", "worth_pct"],
+                   "war82", "worth", "worth_pct", "ev_rel_only", "ev_iso_only"],
         "seasons": {str(y): s for y, s in seasons.items()},
         "goalie_fields": ["id", "team", "pos", "gp", "ev", "pk", "other", "gar", "war", "war82", "worth", "worth_pct"],
         "goalie_seasons": {str(y): s for y, s in gseasons.items()},

@@ -14,6 +14,7 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Stat board:** a color-coded percentile matrix, filled with top-ranked or most-similar players.
    - **Head to head:** percentile radar plus a side-by-side table.
    - **Shot environment:** xGF/60 vs. xGA/60, and zone starts vs. relative impact.
+   - **Isolated impact:** each skater's own effect on 5v5 chances for and against, from a regression over every shift (2010-11 on), next to the relative number, for one season or three, plus a test of which predicts next season better.
    - **Shot maps:** where he shoots compared with his position, and finishing by location.
    - **Linemates and partners:** 5v5 results with and without each teammate.
    - **Team swap:** projects his on/off impact onto another team.
@@ -21,7 +22,7 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Role and fit:** line or pair, PP and PK units, and zone starts each night. Results are judged three ways (5v5 results, overall value, against his role), with a note on what the data can't see.
    - **Team deployment card:** every regular on a team, "used as" vs. 5v5 fit, overall fit and vs. role, with flags.
 3. **What he's worth:** the Stats-Zor value model.
-   - **Value and worth:** wins above replacement by component, priced with the salary cap; worth for this season and over the last three; an optional cap-hit box for the underpaid/overpaid comparison.
+   - **Value and worth:** wins above replacement by component, priced with the salary cap; worth for this season and over the last three; a read-only "5v5 method" breakdown (relative only, isolated only, the blend used); an optional cap-hit box for the underpaid/overpaid comparison.
    - **Fair-value contract:** the AAV his projected value justifies for 1–7 year terms.
 4. **Vs. history:** careers back to 1917-18.
    - **Career vs. career:** era-adjusted totals, same-age and same-stage comparisons, trophies and Cups.
@@ -40,7 +41,7 @@ Two more pages:
 
 ## How the data works
 
-Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning at 12:17 UTC (about 7 a.m. Eastern), after MoneyPuck's overnight update. It runs six scripts, then commits the JSON files they write to `data/`. The site reads those files.
+Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning at 12:17 UTC (about 7 a.m. Eastern), after MoneyPuck's overnight update. It runs seven scripts, then commits the JSON files they write to `data/`. The site reads those files.
 
 | Script | Writes | From |
 |---|---|---|
@@ -49,6 +50,7 @@ Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning
 | `scripts/build_usage.py` | `usage/` | MoneyPuck game-by-game skater data |
 | `scripts/build_edge.py` | `edge/` | NHL EDGE API, one request per player per season (2021-22 on) |
 | `scripts/build_goalies.py` | `goalies/seasons/`, `goalies/games/`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | MoneyPuck goalie season and game-by-game files; NHL goalie reports (seasons, game logs, careers) and player API (trophies) |
+| `scripts/build_impact.py` | `impact/{season}.json` (isolated 5v5 impact, one season and three), `impact/test.json` (forecast test) | NHL shift charts and play-by-play (2010-11 on), MoneyPuck shot data |
 | `scripts/build_value.py` | `value.json` (skaters and goalies), `rosters.json`, `prospects.json` | The files above, plus NHL roster and draft API |
 
 | Source | Used for |
@@ -56,6 +58,7 @@ Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning
 | [MoneyPuck.com](https://moneypuck.com/data.htm) (2008-09 on) | Expected goals, on/off-ice impact, zone starts, lines and pairs, shots, game-by-game deployment, goalie goals saved above expected |
 | NHL stats API (`api.nhle.com`) | Every NHL skater and goalie season since 1917-18, bios, league scoring and save % for era adjustment, goalie game logs (starts, decisions) |
 | NHL player API (`api-web.nhle.com`) | Trophies, Stanley Cups, Hall of Fame, current rosters, draft picks |
+| NHL shift charts (`api.nhle.com/stats/rest/en/shiftcharts`) and play-by-play (`api-web.nhle.com/v1/gamecenter`) | Who was on the ice for every second of 5v5, faceoff zones and the score, for isolated impact (2010-11 on) |
 | NHL EDGE API (`api-web.nhle.com/v1/edge`) | Skating speed, bursts, distance, shot speed, zone time (2021-22 on) |
 
 MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Contract data is not included. PuckPedia's terms don't allow scraping, so cap hits are typed in by the user and stay in their browser.
@@ -64,6 +67,7 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 - **Era adjustment:** `adjusted = actual × 6.0 ÷ that season's league goals per game`.
 - **Salary cap and minimum salary by season:** the `CAP` and `MIN` tables at the top of `scripts/build_value.py`. Published caps run through 2027-28 ($113.5M); the model assumes 5% a year after that. Update these when the league announces new figures.
 - **Value weights, replacement level, age curves:** also in `scripts/build_value.py`. Goalies use `GOALIE_WEIGHT` (half credit for goals saved), `GOALIE_SHOTS_K` (projections keep shots ÷ (shots + 3,000) of a goalie's edge over average, and use his own workload), `AGE_MULT_G` and the goalie cap share (1 − `SKATER_SHARE`).
+- **Isolated impact:** `LAMBDA` (how hard the regression pulls players toward average; chosen by a held-out-games test) and `FIRST` at the top of `scripts/build_impact.py`. Raw games are kept in the Actions cache (`.cache/impact`, not committed), so a finished season is fetched once; missing past seasons are backfilled `MAX_BACKFILL` a night. `ISO_WEIGHT` in `scripts/build_value.py` is the isolated share of the value model's 5v5 rates, set from `data/impact/test.json`.
 - **Pick and prospect values, team control:** `pickWins`, `FUTURE_DISCOUNT`, `PROSPECT_DECAY`, `NHL_BLEND_MIN`, `UFA_AGE` and `UFA_ACC` in `trade.js`. Birth dates and accrued seasons (40+ NHL games, 25+ for goalies) are added to each projection in `value.json` by `build_value.py`.
 
 ## Running the update yourself
@@ -72,7 +76,7 @@ MoneyPuck data is free for non-commercial use with credit to MoneyPuck.com. Cont
 - **Each year:** when the league announces a new salary cap, update the `CAP` and `MIN` tables in `scripts/build_value.py`.
 - **On demand:** Actions tab → **Update data** → **Run workflow**.
 - **Full rebuild:** tick **full** when you run it. This re-downloads every season and takes about 1–2 hours, mostly the game-by-game and shot files. Normal runs only refresh the current season and fill in anything missing.
-- **Locally:** run the six scripts in order: `python scripts/build_data.py`, then `build_shots.py`, `build_usage.py`, `build_edge.py`, `build_goalies.py` and `build_value.py`. Add `--full` to the first five to rebuild everything. They use only the Python standard library.
+- **Locally:** run the seven scripts in order: `python scripts/build_data.py`, then `build_shots.py`, `build_usage.py`, `build_edge.py`, `build_goalies.py`, `build_impact.py` and `build_value.py`. Add `--full` to the first six to rebuild everything (`build_impact.py --full` refetches every game since 2010-11, about 30 minutes). They use only the Python standard library.
 
 ## Files
 
@@ -91,6 +95,7 @@ scripts/build_shots.py             shot maps
 scripts/build_usage.py             deployment (roles, splits)
 scripts/build_edge.py              NHL EDGE tracking
 scripts/build_goalies.py           goalie seasons, games, careers
+scripts/build_impact.py            isolated 5v5 impact (shift-by-shift regression) and its forecast test
 scripts/build_value.py             value model, rosters, prospects
 .github/workflows/update-data.yml  nightly job
 data/                              generated by the job; don't edit by hand

@@ -139,6 +139,11 @@ table{border-collapse:collapse}
 .matrix td.pn button{font-size:11px;padding:0 5px;margin-left:4px;line-height:1.4}
 .matrix tr.isA td.pn{color:var(--a)} .matrix tr.isB td.pn{color:var(--b)}
 .tbl{width:100%;font-size:13.5px;min-width:620px}
+.tbl.iso{min-width:0;table-layout:fixed}
+.tbl.iso th:first-child{width:44%}
+.tbl.iso td{color:var(--ink)}
+.tbl.iso td small{display:block;font-size:10px;opacity:.75}
+.tbl.fc{min-width:0}
 .tbl th,.tbl td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right}
 .tbl th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;vertical-align:bottom}
 .tbl th:first-child,.tbl td:first-child{text-align:left}
