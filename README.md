@@ -21,7 +21,7 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Role and fit:** line or pair, PP and PK units, and zone starts each night. Results are judged three ways (5v5 results, overall value, against his role), with a note on what the data can't see.
    - **Team deployment card:** every regular on a team, "used as" vs. 5v5 fit, overall fit and vs. role, with flags.
 3. **What he's worth:** the Stats-Zor value model.
-   - **Value and worth:** wins above replacement by component, priced with the salary cap, plus an optional cap-hit box for the underpaid/overpaid comparison.
+   - **Value and worth:** wins above replacement by component, priced with the salary cap; worth for this season and over the last three; an optional cap-hit box for the underpaid/overpaid comparison.
    - **Fair-value contract:** the AAV his projected value justifies for 1–7 year terms.
 4. **Vs. history:** careers back to 1917-18.
    - **Career vs. career:** era-adjusted totals, same-age and same-stage comparisons, trophies and Cups.

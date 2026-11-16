@@ -848,10 +848,10 @@ const COMPS = [['ev_off', '5v5 offense'], ['ev_def', '5v5 defense'], ['finishing
 function capKey(id) { return `sz-cap-${id}`; }
 function getCap(id) { try { const v = localStorage.getItem(capKey(id)); return v ? +v : null; } catch (e) { return null; } }
 function setCap(id, v) { try { if (nz(v)) localStorage.setItem(capKey(id), v); else localStorage.removeItem(capKey(id)); } catch (e) { /* storage blocked */ } }
-function payLine(worth, capHit) {
-  if (!nz(capHit) || !nz(worth)) return '';
-  const d = worth - capHit;
-  return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? 'Underpaid' : 'Overpaid'} by about ${money(Math.abs(d))}</b> for this season's value`;
+function payLine(worth, cap, worth3) {
+  if (!nz(cap) || !nz(worth)) return '';
+  const part = (w, l) => { const d = w - cap; return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? 'Underpaid' : 'Overpaid'} by about ${money(Math.abs(d))}</b> ${l}`; };
+  return part(worth, "for this season's value") + (nz(worth3) ? ` · ${part(worth3, 'for his last 3 seasons')}` : '');
 }
 async function renderValue() {
   const V = await loadValue().catch(() => null);
@@ -865,18 +865,27 @@ async function renderValue() {
   const scale = Math.max(1, ...rows.flatMap(r => COMPS.map(([k]) => Math.abs(r[k]))));
   const sd = S.seasons[y];
   const rankOf = r => { const grp = grpOf(r.pos); const minG = Math.max(5, 0.25 * (sd ? sd.gpmax : 82)); const list = [...sv.map.values()].filter(x => grpOf(x.pos) === grp && x.gp >= minG).sort((a, b) => b.war - a.war); const i = list.findIndex(x => x.id === r.id); return i >= 0 ? `${i + 1} of ${list.length}` : '—'; };
+  // last 3 seasons: wins per 82 blended with weights 3, 2, 1 (most recent first) times games, priced at this season's win
+  const three = id => {
+    let num = 0, den = 0; const ys = [];
+    [y, y - 1, y - 2].forEach((z, k) => { const s = V.seasons[z]; const r = s && s.map.get(id); if (r && r.gp) { const w = (3 - k) * r.gp; num += r.war82 * w; den += w; ys.push(z); } });
+    if (!den || ys.length < 2) return null;
+    const war82 = num / den;
+    return { war82, worth: sv.min + Math.max(0, war82) * sv.per_win, from: Math.min(...ys), to: Math.max(...ys) };
+  };
   const card = (r, i) => {
     const name = (S.byId.get(r.id) || {}).name || r.id; const col = i ? 'b' : 'a';
-    const cap = getCap(r.id);
+    const cap = getCap(r.id); const t3 = three(r.id);
     const comps = COMPS.map(([k, l]) => { const v = r[k]; const w = Math.abs(v) / scale * 50; return `<span>${l}</span><div class="trk"><b></b><i style="${v >= 0 ? `left:50%;width:${w}%;background:var(--hi)` : `left:${50 - w}%;width:${w}%;background:var(--lo)`}"></i></div><span class="mono" style="text-align:right">${s1(v)}</span>`; }).join('');
     return `<div class="pcard ${col}"><h3 style="font-size:24px">${esc(name)}</h3>
       <div class="tiles" style="margin-top:8px">
         <div class="tile"><b>${f1(r.war)}</b><span>Wins above replacement${partial ? ' so far' : ''}</span></div>
         <div class="tile"><b>${f1(r.war82)}</b><span>Per 82 games</span></div>
-        <div class="tile"><b>${money(r.worth)}</b><span>Worth (${f1(r.worth_pct)}% of cap)</span></div>
+        <div class="tile"><b>${money(r.worth)}</b><span>Worth this season (${f1(r.worth_pct)}% of cap)</span></div>
+        <div class="tile"><b>${t3 ? money(t3.worth) : '—'}</b><span>${t3 ? `Worth over last 3 seasons (${sLabel(t3.from)} to ${sLabel(t3.to)}, ${f1(t3.war82)} wins per 82)` : 'Worth over last 3 seasons (needs 2+ seasons)'}</span></div>
         <div class="tile"><b>${rankOf(r)}</b><span>Rank at position</span></div></div>
       <p class="minihead" style="margin-top:14px">Where the value comes from · goals above replacement</p><div class="comp">${comps}</div>
-      <div class="capin"><label for="cap-${r.id}">His cap hit ($M)</label><input id="cap-${r.id}" data-capid="${r.id}" type="number" step="0.05" min="0" placeholder="e.g. 8.55" value="${nz(cap) ? cap : ''}"><span id="pay-${r.id}">${payLine(r.worth, cap)}</span></div>
+      <div class="capin"><label for="cap-${r.id}">His cap hit ($M)</label><input id="cap-${r.id}" data-capid="${r.id}" type="number" step="0.05" min="0" placeholder="e.g. 8.55" value="${nz(cap) ? cap : ''}"><span id="pay-${r.id}" data-w3="${t3 ? t3.worth : ''}">${payLine(r.worth, cap, t3 && t3.worth)}</span></div>
       <p class="sub small">Type his cap hit from <a href="https://puckpedia.com" rel="noopener">PuckPedia</a> or his team to compare. It stays in your browser only.</p></div>`;
   };
   const hist = drawValueHistory(V, ids);
@@ -966,7 +975,7 @@ function wire() {
   $('lineupTeam').addEventListener('change', e => { S.lineupTeam = e.target.value; const U = USAGE[S.season]; if (U) renderLineup(U, S.seasons[S.season]); });
   $('lineup').addEventListener('click', e => { const a = e.target.closest('[data-seta]'); if (!a) return; e.preventDefault(); setA(+a.dataset.seta); });
   $('value').addEventListener('change', e => { const id = e.target.dataset.capid; if (!id) return; const v = getCap(+id); if (nz(v) && +e.target.value !== v) e.target.value = v; });
-  $('value').addEventListener('input', e => { const id = e.target.dataset.capid; if (!id) return; let v = e.target.value === '' ? null : +e.target.value; if (nz(v) && v >= 1000) v = Math.round(v / 1e4) / 100; setCap(+id, v); const r = VAL && VAL.seasons[S.season] && VAL.seasons[S.season].map.get(+id); $('pay-' + id).innerHTML = r ? payLine(r.worth, v) : ''; });
+  $('value').addEventListener('input', e => { const id = e.target.dataset.capid; if (!id) return; let v = e.target.value === '' ? null : +e.target.value; if (nz(v) && v >= 1000) v = Math.round(v / 1e4) / 100; setCap(+id, v); const r = VAL && VAL.seasons[S.season] && VAL.seasons[S.season].map.get(+id); const el = $('pay-' + id); el.innerHTML = r ? payLine(r.worth, v, el.dataset.w3 === '' ? null : +el.dataset.w3) : ''; });
   window.addEventListener('hashchange', () => { const h = readHash(); const a = +h.a, b = +h.b, s = +h.s; let ch = false; if (a && a !== S.A && S.byId.has(a)) { S.A = a; ch = true; } if (b && b !== S.B && S.byId.has(b)) { S.B = b; ch = true; } if (s && s !== S.season && S.idx.mp_seasons.includes(s)) { S.season = s; ch = true; } if (ch) render(); });
 }
 

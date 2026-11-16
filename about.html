@@ -231,7 +231,10 @@ Wins = goals ÷ 6</div>
   <div class="m">Price of a win = 32 teams × (cap × 0.88 skater share − 20 skaters × minimum salary)
                  ÷ all positive wins produced that season
 Worth          = minimum salary + max(0, wins per 82 games) × price of a win
-% of cap       = worth ÷ that season's cap</div>
+% of cap       = worth ÷ that season's cap
+Worth over last 3 seasons = minimum salary + max(0, blended wins per 82) × this season's price of a win
+                 (that season and the two before, weights 3, 2, 1 × games; needs 2+ seasons)</div>
+  <p><strong>This season vs. last 3 seasons:</strong> the Value card shows both. One season can swing a lot (Cale Makar's 2025-26 came out at $8.25M against $11.1M over three seasons), so the three-season figure is the steadier read on what a player is worth. It's the same blend the fair-value contract starts from, priced at this season's cap. If you enter a cap hit, it's compared with both.</p>
   <p>Caps used ($M): 2008-09 56.7 · 09-10 56.8 · 10-11 59.4 · 11-12 64.3 · 12-13 60.0 (lockout) · 13-14 64.3 · 14-15 69.0 · 15-16 71.4 · 16-17 73.0 · 17-18 75.0 · 18-19 79.5 · 19-20 to 21-22 81.5 · 22-23 82.5 · 23-24 83.5 · 24-25 88.0 · 25-26 95.5 · 26-27 104.0 · 27-28 113.5 (projected), then an assumed +5% a year. Minimum salary follows each season's CBA figure, rising to $1M by 2029-30.</p>
   <p class="lim"><b>Limits:</b> stars come out "worth" far more than their pay. That's normal for value models, because the max salary, entry-level and RFA contracts keep the best players underpaid, so read the dollars as relative value. A partial current season uses each player's pace over 82 games, so early-season figures swing. Goalies have their own version, under <a href="#m-g-value">Goalie value</a>.</p>
 
@@ -347,7 +350,9 @@ Wins = goals ÷ 6
 Price of a goalie win = 32 × (cap × 0.12 goalie share − 2 goalies × minimum salary)
                         ÷ all positive goalie wins that season
 Worth                 = minimum salary + max(0, his wins this season) × price of a goalie win
-                        (an unfinished season is projected at his pace)</div>
+                        (an unfinished season is projected at his pace)
+Worth over last 3 seasons = the same, using his wins a season blended over that season and the two
+                        before (weights 3, 2, 1, an unfinished season weighted by how much is played)</div>
   <p><strong>Why half credit:</strong> GSAx is the goalie's own number, but a season of it is roughly half signal and half noise and team effects the model can't see, so only half is credited. That also keeps goalie wins on a scale comparable with skater wins: in a typical season goalies produce about 13–15% of all positive wins, close to their 12% share of the cap. (Dollar worth barely depends on this weight: doubling everyone's wins would halve the price of a win.)</p>
   <p><strong>Why not per 82 games:</strong> skater worth uses wins per 82, because skaters play most games. No goalie plays 82, so goalie worth uses the wins he actually produced, and projections use his own workload.</p>
   <div class="m">Rate        = wins per 82 games, 3-season blend (weights 3, 2, 1 × games)
