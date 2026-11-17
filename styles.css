@@ -205,3 +205,42 @@ table{border-collapse:collapse}
 .how{align-self:flex-start;font:600 11.5px var(--f-mono);letter-spacing:.04em;color:var(--b);text-decoration:none}
 .how:hover{text-decoration:underline}
 .how::before{content:"ⓘ ";}
+
+/* "Doing more than the box score" sidebar */
+.layout{display:flex;flex-direction:column}
+.layout > *{min-width:0}
+.layout > main{width:100%}
+.gems-wrap{order:-1;width:100%;max-width:1200px;margin:0 auto;padding-top:16px;padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+.gems-wrap + main{padding-top:16px}
+.gems{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px}
+.gems summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:8px;font:800 17px/1.2 var(--f-display);text-transform:uppercase;letter-spacing:.01em}
+.gems summary::-webkit-details-marker{display:none}
+.gems .gn{font:600 12px var(--f-mono);color:var(--muted)}
+.gems .gchev{margin-left:auto;font-style:normal;color:var(--muted);transition:transform .15s}
+.gems[open] .gchev{transform:rotate(180deg)}
+.gsub{font-size:13px;color:var(--muted);margin:6px 0 8px;line-height:1.45}
+.gf{display:flex;gap:6px;margin:0 0 4px}
+.gf button,.gmore{font:600 12px var(--f-body);background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
+.gf button[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+.gmore{margin:8px 0 2px;width:100%;border-radius:6px}
+.glist{list-style:none;margin:0;padding:0}
+.glist li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 8px;padding:8px 0;border-top:1px solid var(--line)}
+.glist li.cur .gnm{color:var(--a)}
+.gnm{all:unset;cursor:pointer;font-weight:700;font-size:14px;color:var(--c1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gnm:hover{text-decoration:underline} .gnm:focus-visible{outline:2px solid var(--c1);outline-offset:2px}
+.gpc{font:700 13px var(--f-mono);text-align:right}
+.gm{font-size:12px;color:var(--muted)}
+.gch{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.gc{font-style:normal;font-size:11px;padding:1px 7px;border-radius:4px;background:color-mix(in srgb,var(--muted) 14%,transparent);color:var(--ink)}
+.gc.mate{background:color-mix(in srgb,var(--c4) 22%,transparent)}
+.gc.tough{background:color-mix(in srgb,var(--c5) 22%,transparent)}
+.gems .how{display:inline-block;margin-top:8px}
+@media (min-width:1400px){
+  .layout{display:grid;grid-template-columns:minmax(0,1200px) 280px;justify-content:center;column-gap:20px;padding-inline:16px}
+  .layout > main.wrap{max-width:none;margin:0;padding-inline:0}
+  .gems-wrap{order:0;grid-column:2;grid-row:1;padding:22px 0 16px;margin:0;position:sticky;top:var(--toph,150px);align-self:start;max-height:calc(100vh - var(--toph,150px));overflow-y:auto}
+  .gems-wrap + main{padding-top:22px}
+  .layout > main{grid-column:1;grid-row:1}
+  .gems summary{cursor:default} .gems .gchev{display:none}
+  body:has(.layout) .wrap{max-width:1500px}
+}

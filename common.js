@@ -143,3 +143,48 @@ function cellArrays(G, m) {
   try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', fire); } catch (e) { /* old browsers */ }
   new MutationObserver(fire).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
+
+// ------------------------------------------------------------------ "Doing more than the box score" sidebar
+// Shared by the skater and goalie pages. Each page builds the list (items sorted best first) and calls renderGems.
+// cfg: { title, sub, items: [{ id, grp, name, meta, pct, pctLabel, chips: [[label, kind]] }], filters, how, empty, onPick }
+const GEMS = { f: 'all', more: false, cfg: null };
+const GEMS_WIDE = '(min-width: 1400px)';
+function renderGems(cfg) {
+  const el = document.getElementById('gems'); if (!el) return;
+  if (cfg) GEMS.cfg = cfg; cfg = GEMS.cfg; if (!cfg) return;
+  const list = (cfg.items || []).filter(x => GEMS.f === 'all' || x.grp === GEMS.f);
+  const shown = GEMS.more ? list : list.slice(0, 10);
+  const cur = cfg.current;
+  const items = shown.map(x => `<li class="${x.id === cur ? 'cur' : ''}"><button type="button" class="gnm" data-gem="${x.id}">${esc(x.name)}</button><span class="gpc">${esc(x.pctLabel)}</span>
+    <span class="gm">${esc(x.meta)}</span><span class="gm" style="text-align:right">${esc(x.pctNote || '')}</span>
+    <span class="gch">${x.chips.map(([l, k]) => `<i class="gc ${k}">${esc(l)}</i>`).join('')}</span></li>`).join('');
+  const flt = cfg.filters ? `<div class="gf">${cfg.filters.map(([k, l]) => `<button type="button" data-gf="${k}" aria-pressed="${GEMS.f === k}">${l}</button>`).join('')}</div>` : '';
+  const more = list.length > 10 ? `<button type="button" class="gmore" data-gmore="1">${GEMS.more ? 'Show top 10' : `Show ${list.length - 10} more`}</button>` : '';
+  const body = cfg.empty ? `<p class="gsub">${cfg.empty}</p>` : `<p class="gsub">${cfg.sub}</p>${flt}${list.length ? `<ol class="glist">${items}</ol>` : '<p class="gsub">No one qualifies in this group yet.</p>'}${more}`;
+  const open = el.querySelector('details') ? el.querySelector('details').open : matchMedia(GEMS_WIDE).matches;
+  el.innerHTML = `<details class="gems"${open || matchMedia(GEMS_WIDE).matches ? ' open' : ''}><summary><span>${esc(cfg.title)}</span>${cfg.empty ? '' : `<span class="gn">${list.length}</span>`}<i class="gchev" aria-hidden="true">▾</i></summary>${body}
+    <a class="how" href="${cfg.how}">How it's picked</a></details>`;
+}
+(function () {
+  const init = () => {
+    const el = document.getElementById('gems'); if (!el) return;
+    const top = document.querySelector('.top');
+    const sync = () => {
+      if (top) document.documentElement.style.setProperty('--toph', top.offsetHeight + 'px');
+      const d = el.querySelector('details'); if (d && matchMedia(GEMS_WIDE).matches) d.open = true;
+    };
+    sync(); window.addEventListener('resize', sync);
+    el.addEventListener('click', e => {
+      if (e.target.closest('summary') && matchMedia(GEMS_WIDE).matches) { e.preventDefault(); return; }
+      const g = e.target.closest('[data-gem]'); if (g && GEMS.cfg) { GEMS.cfg.onPick(+g.dataset.gem); return; }
+      const f = e.target.closest('[data-gf]'); if (f) { GEMS.f = f.dataset.gf; renderGems(); return; }
+      if (e.target.closest('[data-gmore]')) { GEMS.more = !GEMS.more; renderGems(); }
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+// percentile of each value within a list (share of the list below it, ties counted half)
+function pctOf(list, fn) {
+  const v = list.map(fn).filter(nz).sort((a, b) => a - b);
+  return x => { if (!nz(x) || !v.length) return null; let lo = 0, eq = 0; for (const y of v) { if (y < x) lo++; else if (y === x) eq++; } return 100 * (lo + eq / 2) / v.length; };
+}

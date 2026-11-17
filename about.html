@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611161900">
+<link rel="stylesheet" href="styles.css?v=202611162130">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -47,7 +47,7 @@
   <p style="margin-top:0">Every number on Stats-Zor is computed from public data by code you can read in the <a href="https://github.com/Ciiiv/Stats-Zor">GitHub repo</a>. Nothing is hand-entered except the cap figures listed under <a href="#m-value">Value and worth</a>. This page explains, section by section, what each part shows, how it's calculated, why it's built that way, and what it can't see.</p>
   <div class="toc">
     <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a><a href="#m-tools">Tools (NHL EDGE)</a></div>
-    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
+    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a><a href="#m-gems">Doing more than the box score</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-comp">Against and with</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
@@ -166,6 +166,19 @@ worth 20 hours of ice time, so a player needs a real sample to move far from 0.<
     <li>The regression separates linemates and opponents only as far as they play apart. Two players who are almost always together (the Sedins, a fixed top pair) share credit roughly evenly.</li>
     <li>It doesn't adjust for scorekeeper differences between rinks, or for the quality of the goalie behind him (only chances are measured, not goals).</li>
     <li>Early in a season the single-season numbers sit close to 0. That's the penalty doing its job, not a sign he's average.</li>
+  </ul></details>
+
+  <h3 id="m-gems">Doing more than the box score</h3>
+  <p>The sidebar on the skater and goalie pages (a tap-to-open line on phones and smaller laptops) lists players doing elite work who got little credit for it in the selected season. Click a name to open his page.</p>
+  <ul>
+    <li><strong>Skaters:</strong> regulars whose <a href="#m-iso">isolated impact</a> (net, three seasons up to the selected one) is in the top 20% at their position, whose points per game aren't in the top 10%, and who had at least one of: low points (bottom half per game), weak linemates (bottom third in <a href="#m-comp">linemates' quality</a>) or tough minutes (top fifth in opponents' quality). Sorted by the gap between isolated impact and points, biggest first, so the least-credited players lead. The number is his isolated impact percentile.</li>
+    <li><strong>Goalies:</strong> regulars whose save % above expected is in the top 20% that season, with at least one of: a losing record (bottom 40% in points percentage), tough shots (top fifth in expected goals per shot faced) or busy nights (top fifth in shots faced per 60). Sorted by save % above expected. The number is that percentile.</li>
+  </ul>
+  <p>The top 10 show first; "Show more" lists everyone who qualifies. Skaters can be filtered to forwards or defensemen. Percentiles are among regulars at the same position that season.</p>
+  <details class="lim"><summary>Limits</summary><ul>
+    <li>It's a starting point for a closer look, not a verdict. A player can land here because his isolated number is high on a small or lucky sample, so open his page and check the details.</li>
+    <li>Players whose points are already in the top 10% are left out on purpose, even with tough minutes (Moritz Seider in 2025-26): the box score did credit them.</li>
+    <li>Skaters start in 2010-11, when NHL shift charts begin. Goalie saves are one season, which swings more than the three-season skater number.</li>
   </ul></details>
 
   <h3 id="m-shots">Shot maps</h3>

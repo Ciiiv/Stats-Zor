@@ -781,7 +781,41 @@ async function render() {
     renderRole().catch(e => console.error(e));
   }
   renderValue().catch(e => console.error(e));
+  renderGemsGoalies().catch(e => console.error(e));
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
+}
+// ------------------------------------------------------------------ sidebar: doing more than the box score
+// Regular goalies whose save % above expected is in the top 20% but who got little help or credit: a losing
+// record (bottom 40% in points percentage), tough shots (top fifth in expected goals per shot faced) or busy
+// nights (top fifth in shots faced per 60). Best save % above expected first.
+async function renderGemsGoalies() {
+  const y = S.season;
+  const base = { title: 'Doing more than the box score', how: 'about.html#m-gems', filters: null, onPick: pickGem, current: S.A };
+  const sd = await loadSeason(y).catch(() => null);
+  if (y !== S.season) return;
+  if (!sd) { renderGems({ ...base, empty: `No ${sLabel(y)} goalie data yet.` }); return; }
+  const rec = p => { const d = (p.w || 0) + (p.l || 0) + (p.otl || 0); return d >= 5 ? (2 * (p.w || 0) + (p.otl || 0)) / (2 * d) : null; };
+  const L = pool(sd, 'reg').list.filter(p => nz(p.dsv));
+  const pQ = pctOf(L, p => p.dsv), pRec = pctOf(L, rec), pX = pctOf(L, p => p.xgps), pB = pctOf(L, p => p.sa60);
+  const items = [];
+  for (const p of L) {
+    const q = pQ(p.dsv); if (q < 80) continue;
+    const chips = [];
+    if (nz(rec(p)) && pRec(rec(p)) <= 40) chips.push(['Losing record', 'low']);
+    if (pX(p.xgps) >= 80) chips.push(['Tough shots', 'tough']);
+    if (pB(p.sa60) >= 80) chips.push(['Busy nights', 'mate']);
+    if (!chips.length) continue;
+    items.push({ id: p.id, grp: 'G', name: p.name, meta: `${p.team} · ${p.w}-${p.l}-${p.otl || 0} · ${s2(p.dsv)} sv% vs exp.`, pct: q, pctLabel: ord(Math.round(q)), pctNote: 'saves', chips });
+  }
+  items.sort((a, b) => b.pct - a.pct);
+  renderGems({ ...base, items, sub: `Save % above expected in the top 20% of regular goalies in ${sLabel(y)}, with a losing record, tough shots or busy nights in front of him.` });
+}
+function pickGem(id) {
+  if (!id || id === S.A) return;
+  if (id === S.B) S.B = S.A;
+  S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null;
+  if (!hasSeason(id, S.season)) S.season = bestSeason(id);
+  render(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function setA(id) { if (!id) return; if (id === S.B) S.B = S.A; S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null; S.season = bestSeason(id); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 function setB(id) { if (!id || id === S.A) return; S.B = id; render(); }

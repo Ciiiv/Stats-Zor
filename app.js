@@ -894,6 +894,41 @@ function compHTML(sd, I) {
     ${rows.map(r => `<tr><td>${r[0]}</td>${ps.map(p => cell(p, r)).join('')}</tr>`).join('')}</tbody></table></div>
     ${ps.map(read).join('')}<p class="sub small" style="margin:6px 0 18px">Top line = two or more of the other team's three most-used forwards that night; top pair = both of its two most-used defensemen. Quality = the average isolated impact (net xG/60, Part 1) of the five opponents or four teammates on the ice with him, weighted by time. Ranks are among regular ${GRP_NAME[ps[0].grp]}.</p>`;
 }
+// ------------------------------------------------------------------ sidebar: doing more than the box score
+// Regulars whose isolated impact (three seasons to this one) is in the top 20% at their position but who got
+// little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
+// (top fifth in opponents' quality). Best isolated impact first.
+async function renderGemsSkaters() {
+  const y = S.season;
+  const base = { title: 'Doing more than the box score', how: 'about.html#m-gems', filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, current: S.A };
+  if (y < 2010) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
+  if (y !== S.season) return;
+  if (!sd || !I || !I.comp) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  const items = [];
+  for (const g of ['F', 'D']) {
+    const L = pool(sd, g, 'reg').list.filter(p => nz(p.iso3_net) && nz(p.q_mate) && p.gp);
+    const pIso = pctOf(L, p => p.iso3_net), pPts = pctOf(L, p => p.pts / p.gp), pMate = pctOf(L, p => p.q_mate), pOpp = pctOf(L, p => p.q_opp);
+    for (const p of L) {
+      const iso = pIso(p.iso3_net), pts = pPts(p.pts / p.gp); if (iso < 80 || pts > 90) continue;
+      const chips = [];
+      if (pOpp(p.q_opp) >= 80) chips.push(['Tough minutes', 'tough']);
+      if (pMate(p.q_mate) <= 33) chips.push(['Weak linemates', 'mate']);
+      if (pts <= 50) chips.push(['Low points', 'low']);
+      if (!chips.length) continue;
+      items.push({ id: p.id, grp: g, name: p.name, meta: `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, pct: iso, gap: iso - pts, pctLabel: ordn(iso), pctNote: 'isolated', chips });
+    }
+  }
+  items.sort((a, b) => b.gap - a.gap);
+  renderGems({ ...base, items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` });
+}
+function pickGem(id) {
+  if (!id || id === S.A) return;
+  if (id === S.B) S.B = S.A;
+  S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null;
+  if (!hasSeason(id, S.season)) S.season = bestSeason(id);
+  render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 function renderLineup(U, sd) {
   const A = sd.byId.get(S.A);
   if (!S.lineupTeam || !sd.teams.includes(S.lineupTeam)) S.lineupTeam = A ? A.team : sd.teams[0];
@@ -1062,6 +1097,7 @@ async function render() {
     renderRole().catch(e => console.error(e));
   }
   renderValue().catch(e => console.error(e));
+  renderGemsSkaters().catch(e => console.error(e));
   if (S.season >= 2021) loadAllEdge().then(() => { safe('sec-profile', renderProfile); if (S.boardMode === 'sim' && A) { safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); } }).catch(() => {});
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }

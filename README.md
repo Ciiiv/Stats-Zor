@@ -29,6 +29,8 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Career vs. career:** era-adjusted totals, same-age and same-stage comparisons, trophies and Cups.
    - **Career arcs and comps:** every season by age, plus the closest historical comps.
 
+Both player pages have a **Doing more than the box score** sidebar (right side on wide screens, a tap-to-open line on phones): players with elite isolated impact (goalies: save % above expected) who got little credit because of low points, weak linemates or tough minutes (goalies: a losing record, tough shots or busy nights). Top 10 with show more; click a name to open his page.
+
 The goalie page (`goalies.html`) has the same four parts, built for goalies. Searching a goalie on the skater page sends you there, and the other way around.
 
 1. **How he played:** goalie composite (stopping, danger and situations, workload), stat board, head to head, shot environment (how much help he got), maps of the shots he faced, and a goalie swap.
