@@ -161,7 +161,7 @@ function renderGems(cfg) {
   const flt = cfg.filters ? `<div class="gf">${cfg.filters.map(([k, l]) => `<button type="button" data-gf="${k}" aria-pressed="${GEMS.f === k}">${l}</button>`).join('')}</div>` : '';
   const more = list.length > 10 ? `<button type="button" class="gmore" data-gmore="1">${GEMS.more ? 'Show top 10' : `Show ${list.length - 10} more`}</button>` : '';
   const tabs = cfg.tabs ? `<div class="gf gt">${cfg.tabs.map(([k, l]) => `<button type="button" data-gt="${k}" aria-pressed="${GEMS.tab === k}">${l}</button>`).join('')}</div>` : '';
-  const body = tabs + (cfg.empty ? `<p class="gsub">${cfg.empty}</p>` : `<p class="gsub">${cfg.sub}</p>${flt}${list.length ? `<ol class="glist">${items}</ol>` : '<p class="gsub">No one qualifies in this group yet.</p>'}${more}`);
+  const body = tabs + (cfg.empty ? `<p class="gsub">${cfg.empty}</p>` : `<p class="gsub">${cfg.sub}</p>${cfg.unit ? `<p class="gsub gunit">${cfg.unit}</p>` : ''}${flt}${list.length ? `<ol class="glist">${items}</ol>` : '<p class="gsub">No one qualifies in this group yet.</p>'}${more}`);
   const open = el.querySelector('details') ? el.querySelector('details').open : matchMedia(GEMS_WIDE).matches;
   el.innerHTML = `<details class="gems"${open || matchMedia(GEMS_WIDE).matches ? ' open' : ''}><summary><span>${esc(cfg.title)}</span>${cfg.empty ? '' : `<span class="gn">${list.length}</span>`}<i class="gchev" aria-hidden="true">▾</i></summary>${body}
     <a class="how" href="${cfg.how}">How it's picked</a></details>`;

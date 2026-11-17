@@ -807,6 +807,7 @@ async function three(y) {
   for (const t of T.values()) { t.dsv = t.sa ? 100 * (t.xga - t.ga) / t.sa : null; t.hd = t.hn ? 100 * (t.hx - t.hg) / t.hn : null; }
   return T;
 }
+const UNIT_PCT = 'The big number is a percentile: 97th means better than 97% of regular goalies that season.';
 const GEM_BUILD = {
   // elite saves, little help
   box(y, sd) {
@@ -821,7 +822,7 @@ const GEM_BUILD = {
       if (pB(p.sa60) >= 80) chips.push(['Busy nights', 'mate']);
       if (chips.length) items.push(gemG(p, q, ord(Math.round(q)), 'saves', `${p.team} · ${recStr(p)} · ${s2(p.dsv)} sv% vs exp.`, chips, q));
     }
-    return { items, sub: `Save % above expected in the top 20% of regular goalies in ${sLabel(y)} (${f0(GEM_SA)}+ shots, scaled to the season so far), with a losing record, tough shots or busy nights in front of him.` };
+    return { items, unit: UNIT_PCT, sub: `Save % above expected in the top 20% of regular goalies in ${sLabel(y)} (${f0(GEM_SA)}+ shots, scaled to the season so far), with a losing record, tough shots or busy nights in front of him.` };
   },
   // winning because of him: elite saves, a decent record, a team that gives up a lot
   steal(y, sd) {
@@ -836,7 +837,7 @@ const GEM_BUILD = {
       if (x >= 67) chips.push(['Tough shots', 'tough']);
       items.push(gemG(p, q, ord(Math.round(q)), 'saves', `${p.team} · ${recStr(p)} · ${s2(p.dsv)} sv% vs exp.`, chips, q + r + Math.max(xa, x)));
     }
-    return { items, sub: `Save % above expected in the top 20% and a record in the top half, on a team that gives up lots of expected goals or dangerous shots (top third). The goalie is the reason they win.` };
+    return { items, unit: UNIT_PCT, sub: `Save % above expected in the top 20% and a record in the top half, on a team that gives up lots of expected goals or dangerous shots (top third). The goalie is the reason they win.` };
   },
   // best on the most dangerous shots over three seasons
   async danger(y, sd) {
@@ -849,7 +850,7 @@ const GEM_BUILD = {
       const p = sd.byId.get(t.id);
       items.push(gemG(p, h, ord(Math.round(h)), 'high danger', `${p.team} · ${s2(t.hd)} sv% vs exp. on high-danger shots`, [[`${f0(t.hn)} high-danger shots`, 'low'], [`${f1(t.hx - t.hg)} goals saved on them`, 'mate']], h));
     }
-    return { items, sub: `Save % above expected on high-danger shots (from the slot and in tight) in the top 20%, over three seasons to ${sLabel(y)} with 300+ high-danger shots. A regular this season.` };
+    return { items, unit: UNIT_PCT, sub: `Save % above expected on high-danger shots (from the slot and in tight) in the top 20%, over three seasons to ${sLabel(y)} with 300+ high-danger shots. A regular this season.` };
   },
   // young goalie whose saves jumped
   async break(y, sd) {
@@ -864,7 +865,7 @@ const GEM_BUILD = {
       if (v < 67 || up < 0.8) continue;
       items.push(gemG(p, v, ord(Math.round(v)), 'saves', `${p.team} · age ${age} · ${recStr(p)}`, [[`Up ${s2(up)} sv% vs exp. on last season`, 'tough'], [`${f0(p.sa)} shots`, 'low']], up));
     }
-    return { items, sub: `Age 27 or under, save % above expected in the top third in ${sLabel(y)} and up 0.8+ points on the season before (500+ shots then). Goalies develop later than skaters. Biggest jump first.` };
+    return { items, unit: UNIT_PCT, sub: `Age 27 or under, save % above expected in the top third in ${sLabel(y)} and up 0.8+ points on the season before (500+ shots then). Goalies develop later than skaters. Biggest jump first.` };
   },
   // proven goalie in a slump
   async bounce(y, sd) {
@@ -878,7 +879,7 @@ const GEM_BUILD = {
       const before = 100 * ((qa.xga - qa.ga) + (qb.xga - qb.ga)) / (qa.sa + qb.sa); if (before < 0.3) continue;
       items.push(gemG(p, p.dsv, s2(p.dsv), 'sv% vs exp.', `${p.team} · ${recStr(p)} · ${f0(p.sa)} shots`, [[`${s2(before)} the two seasons before`, 'mate']], -p.dsv));
     }
-    return { items, sub: `Save % at least 0.5 points below expected in ${sLabel(y)}, after 0.3+ above expected over the two seasons before (800+ shots in each). Goalie slumps swing back more often than not. Furthest below first.` };
+    return { items, unit: 'The big number is save % compared with expected this season, in percentage points (−1.07 = about one goal more than expected per 100 shots).', sub: `Save % at least 0.5 points below expected in ${sLabel(y)}, after 0.3+ above expected over the two seasons before (800+ shots in each). Goalie slumps swing back more often than not. Furthest below first.` };
   },
   // lots of starts, below expected over three seasons
   async heavy(y, sd) {
@@ -891,7 +892,7 @@ const GEM_BUILD = {
       if (s < 75 || q > 20) continue;
       items.push(gemG(p, q, ord(Math.round(q)), '3-season saves', `${p.team} · ${p.gs} starts · ${recStr(p)}`, [[`${s2(T.get(p.id).dsv)} sv% vs exp. over 3 seasons`, 'low'], [`Starts ${ord(Math.round(s))}`, 'tough']], s - q));
     }
-    return { items, sub: `Starts in the top quarter in ${sLabel(y)}, but save % above expected in the bottom 20% over three seasons (${f0(GEM_SA3)}+ shots). Not a verdict on his contract: add his cap hit on his page to judge that.` };
+    return { items, unit: UNIT_PCT, sub: `Starts in the top quarter in ${sLabel(y)}, but save % above expected in the bottom 20% over three seasons (${f0(GEM_SA3)}+ shots). Not a verdict on his contract: add his cap hit on his page to judge that.` };
   },
 };
 async function renderGemsGoalies() {

@@ -223,6 +223,7 @@ table{border-collapse:collapse}
 .gf button,.gmore{font:600 12px var(--f-body);background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
 .gf button[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 .gmore{margin:8px 0 2px;width:100%;border-radius:6px}
+.gunit{margin-top:-2px;font-style:italic}
 .gt{flex-wrap:wrap;margin:8px 0 2px}
 .gt button{font-size:11px;padding:2px 8px}
 .glist{list-style:none;margin:0;padding:0}

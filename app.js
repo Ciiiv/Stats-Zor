@@ -905,6 +905,7 @@ const mmss = m => nz(m) ? `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).p
 // regulars at a position; with three = true only those with a three-season isolated number on 1,500+ minutes
 const gemPool = (sd, g, three = true) => pool(sd, g, 'reg').list.filter(p => p.gp && (!three || (nz(p.iso3_net) && (p.iso3_toi || 0) >= GEM_MIN_TOI3 && nz(p.q_mate))));
 const gemItem = (p, g, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: g, name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
+const UNIT_PCT = 'The big number is a percentile: 97th means better than 97% of regulars at his position that season.';
 const GEM_BUILD = {
   // elite isolated impact, little box-score credit
   box(y, sd) {
@@ -921,7 +922,7 @@ const GEM_BUILD = {
         if (chips.length) items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso - pts));
       }
     }
-    return { items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` };
+    return { items, unit: UNIT_PCT, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` };
   },
   // scoring, but carrying a weak team
   carry(y, sd) {
@@ -939,7 +940,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso + pts - w - m));
       }
     }
-    return { items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ minutes) and points in the top 40%, on a team that falls apart without him or with weak linemates. Most elite, most productive and least helped first.` };
+    return { items, unit: UNIT_PCT, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ minutes) and points in the top 40%, on a team that falls apart without him or with weak linemates. Most elite, most productive and least helped first.` };
   },
   // defensive specialists against real competition
   shut(y, sd) {
@@ -957,7 +958,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, d, ordn(d), 'defense', `${p.team} · ${g} · ${s2(p.iso3_xga60)} xGA/60 isolated`, chips, d + Math.max(o, l)));
       }
     }
-    return { items, sub: `Isolated defense (expected goals against, three seasons to ${sLabel(y)}, 1,500+ minutes) in the top 20% at his position, while facing top lines or tough opponents. Sheltered depth players are left out.` };
+    return { items, unit: UNIT_PCT, sub: `Isolated defense (expected goals against, three seasons to ${sLabel(y)}, 1,500+ minutes) in the top 20% at his position, while facing top lines or tough opponents. Sheltered depth players are left out.` };
   },
   // young players whose isolated impact jumped
   async break(y, sd) {
@@ -978,7 +979,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · age ${age} · ${p.pts} pts`, [[`Up ${s2(up)} xG/60 on last season`, 'tough'], [`${f0(p.iso_toi)} minutes`, 'low']], up));
       }
     }
-    return { items, sub: `Age 24 or under, isolated impact in the top quarter at his position in ${sLabel(y)} (800+ five-on-five minutes) and up 0.15+ xG/60 on the season before (500+ minutes). Biggest jump first.` };
+    return { items, unit: UNIT_PCT, sub: `Age 24 or under, isolated impact in the top quarter at his position in ${sLabel(y)} (800+ five-on-five minutes) and up 0.15+ xG/60 on the season before (500+ minutes). Biggest jump first.` };
   },
   // proven finishers scoring well below expected
   async bounce(y, sd) {
@@ -995,7 +996,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, p.gax, s1(p.gax), 'goals vs exp.', `${p.team} · ${g} · ${p.g} goals in ${p.gp}`, [[`+${before.toFixed(1)} the two seasons before`, 'mate']], -p.gax));
       }
     }
-    return { items, sub: `Scored at least 4 goals below expected in ${sLabel(y)} (scaled to games played so far), after finishing 2+ goals above expected over the two seasons before (40+ games in each). Furthest below expected first.` };
+    return { items, unit: 'The big number is goals compared with expected this season (−6.4 = 6.4 goals fewer than an average shooter would have scored on his chances).', sub: `Scored at least 4 goals below expected in ${sLabel(y)} (scaled to games played so far), after finishing 2+ goals above expected over the two seasons before (40+ games in each). Furthest below expected first.` };
   },
   // heavy ice time, weak isolated impact
   big(y, sd) {
@@ -1009,7 +1010,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, [[`${mmss(p.toi)} a night (${ordn(t)})`, 'tough']], t - iso));
       }
     }
-    return { items, sub: `Ice time in the top quarter at his position in ${sLabel(y)}, but three-season isolated impact in the bottom 20% (1,500+ minutes). Not a verdict on his contract: add his cap hit on his page to judge that.` };
+    return { items, unit: UNIT_PCT, sub: `Ice time in the top quarter at his position in ${sLabel(y)}, but three-season isolated impact in the bottom 20% (1,500+ minutes). Not a verdict on his contract: add his cap hit on his page to judge that.` };
   },
 };
 async function renderGemsSkaters() {
