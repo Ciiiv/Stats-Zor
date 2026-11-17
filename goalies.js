@@ -784,31 +784,126 @@ async function render() {
   renderGemsGoalies().catch(e => console.error(e));
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }
-// ------------------------------------------------------------------ sidebar: doing more than the box score
-// Regular goalies whose save % above expected is in the top 20% but who got little help or credit: a losing
-// record (bottom 40% in points percentage), tough shots (top fifth in expected goals per shot faced) or busy
-// nights (top fifth in shots faced per 60). Best save % above expected first.
-async function renderGemsGoalies() {
-  const y = S.season;
-  const base = { title: 'Doing more than the box score', how: 'about.html#m-gems', filters: null, onPick: pickGem, current: S.A };
-  const sd = await loadSeason(y).catch(() => null);
-  if (y !== S.season) return;
-  if (!sd) { renderGems({ ...base, empty: `No ${sLabel(y)} goalie data yet.` }); return; }
-  const rec = p => { const d = (p.w || 0) + (p.l || 0) + (p.otl || 0); return d >= 5 ? (2 * (p.w || 0) + (p.otl || 0)) / (2 * d) : null; };
-  const L = pool(sd, 'reg').list.filter(p => nz(p.dsv));
-  const pQ = pctOf(L, p => p.dsv), pRec = pctOf(L, rec), pX = pctOf(L, p => p.xgps), pB = pctOf(L, p => p.sa60);
-  const items = [];
-  for (const p of L) {
-    const q = pQ(p.dsv); if (q < 80) continue;
-    const chips = [];
-    if (nz(rec(p)) && pRec(rec(p)) <= 40) chips.push(['Losing record', 'low']);
-    if (pX(p.xgps) >= 80) chips.push(['Tough shots', 'tough']);
-    if (pB(p.sa60) >= 80) chips.push(['Busy nights', 'mate']);
-    if (!chips.length) continue;
-    items.push({ id: p.id, grp: 'G', name: p.name, meta: `${p.team} · ${p.w}-${p.l}-${p.otl || 0} · ${s2(p.dsv)} sv% vs exp.`, pct: q, pctLabel: ord(Math.round(q)), pctNote: 'saves', chips });
+// ------------------------------------------------------------------ sidebar: scouting lists
+// One goalie season is about half luck, so every list needs a shot minimum: GEM_SA shots this season (scaled to
+// the share of the season played), GEM_SA3 shots for three-season judgments.
+const GEM_SA = 1000, GEM_SA3 = 2500;
+const GEM_TABS = [['box', 'Little help'], ['steal', 'Stealing games'], ['danger', 'Danger'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['heavy', 'Heavy workload']];
+const GEM_TITLE = { box: 'Doing more than the box score', steal: 'Stealing games', danger: 'Danger specialist', break: 'Breakout goalie', bounce: 'Due for a bounce', heavy: 'Heavy workload, below average' };
+const recPct = p => { const d = (p.w || 0) + (p.l || 0) + (p.otl || 0); return d >= 5 ? (2 * (p.w || 0) + (p.otl || 0)) / (2 * d) : null; };
+const recStr = p => `${p.w}-${p.l}-${p.otl || 0}`;
+const gemG = (p, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: 'G', name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
+// this season's regulars with enough shots
+const gPool = sd => { const prog = Math.min(1, (sd.gpmax || 82) / 82); return pool(sd, 'reg').list.filter(p => nz(p.dsv) && (p.sa || 0) >= GEM_SA * prog); };
+// three seasons to y summed: shots, goals, expected goals, high-danger
+async function three(y) {
+  const ss = (await Promise.all([y, y - 1, y - 2].map(z => loadSeason(z).catch(() => null)))).filter(Boolean);
+  const T = new Map();
+  for (const sd of ss) for (const p of sd.players) {
+    const t = T.get(p.id) || { id: p.id, sa: 0, ga: 0, xga: 0, hn: 0, hx: 0, hg: 0, n: 0 };
+    t.sa += p.sa || 0; t.ga += p.ga || 0; t.xga += p.xga || 0; t.hn += p.hd_n || 0; t.hx += p.hd_x || 0; t.hg += p.hd_g || 0; t.n++;
+    T.set(p.id, t);
   }
-  items.sort((a, b) => b.pct - a.pct);
-  renderGems({ ...base, items, sub: `Save % above expected in the top 20% of regular goalies in ${sLabel(y)}, with a losing record, tough shots or busy nights in front of him.` });
+  for (const t of T.values()) { t.dsv = t.sa ? 100 * (t.xga - t.ga) / t.sa : null; t.hd = t.hn ? 100 * (t.hx - t.hg) / t.hn : null; }
+  return T;
+}
+const GEM_BUILD = {
+  // elite saves, little help
+  box(y, sd) {
+    const L = gPool(sd);
+    const pQ = pctOf(L, p => p.dsv), pRec = pctOf(L, recPct), pX = pctOf(L, p => p.xgps), pB = pctOf(L, p => p.sa60);
+    const items = [];
+    for (const p of L) {
+      const q = pQ(p.dsv); if (q < 80) continue;
+      const chips = [];
+      if (nz(recPct(p)) && pRec(recPct(p)) <= 40) chips.push(['Losing record', 'low']);
+      if (pX(p.xgps) >= 80) chips.push(['Tough shots', 'tough']);
+      if (pB(p.sa60) >= 80) chips.push(['Busy nights', 'mate']);
+      if (chips.length) items.push(gemG(p, q, ord(Math.round(q)), 'saves', `${p.team} · ${recStr(p)} · ${s2(p.dsv)} sv% vs exp.`, chips, q));
+    }
+    return { items, sub: `Save % above expected in the top 20% of regular goalies in ${sLabel(y)} (${f0(GEM_SA)}+ shots, scaled to the season so far), with a losing record, tough shots or busy nights in front of him.` };
+  },
+  // winning because of him: elite saves, a decent record, a team that gives up a lot
+  steal(y, sd) {
+    const L = gPool(sd);
+    const pQ = pctOf(L, p => p.dsv), pRec = pctOf(L, recPct), pXa = pctOf(L, p => p.xga60), pX = pctOf(L, p => p.xgps);
+    const items = [];
+    for (const p of L) {
+      const q = pQ(p.dsv), r = pRec(recPct(p)), xa = pXa(p.xga60), x = pX(p.xgps);
+      if (q < 80 || !nz(r) || r < 50 || (xa < 67 && x < 67)) continue;
+      const chips = [[`${f1(p.gsax)} goals saved above expected`, 'mate']];
+      if (xa >= 67) chips.push([`Team allows lots (${ord(Math.round(xa))})`, 'tough']);
+      if (x >= 67) chips.push(['Tough shots', 'tough']);
+      items.push(gemG(p, q, ord(Math.round(q)), 'saves', `${p.team} · ${recStr(p)} · ${s2(p.dsv)} sv% vs exp.`, chips, q + r + Math.max(xa, x)));
+    }
+    return { items, sub: `Save % above expected in the top 20% and a record in the top half, on a team that gives up lots of expected goals or dangerous shots (top third). The goalie is the reason they win.` };
+  },
+  // best on the most dangerous shots over three seasons
+  async danger(y, sd) {
+    const T = await three(y);
+    const L = [...T.values()].filter(t => t.hn >= 300 && nz(t.hd) && sd.byId.has(t.id) && (sd.byId.get(t.id).gp || 0) >= minGp(sd));
+    const pH = pctOf(L, t => t.hd);
+    const items = [];
+    for (const t of L) {
+      const h = pH(t.hd); if (h < 80) continue;
+      const p = sd.byId.get(t.id);
+      items.push(gemG(p, h, ord(Math.round(h)), 'high danger', `${p.team} · ${s2(t.hd)} sv% vs exp. on high-danger shots`, [[`${f0(t.hn)} high-danger shots`, 'low'], [`${f1(t.hx - t.hg)} goals saved on them`, 'mate']], h));
+    }
+    return { items, sub: `Save % above expected on high-danger shots (from the slot and in tight) in the top 20%, over three seasons to ${sLabel(y)} with 300+ high-danger shots. A regular this season.` };
+  },
+  // young goalie whose saves jumped
+  async break(y, sd) {
+    const [car, prev] = await Promise.all([loadCareers().catch(() => null), loadSeason(y - 1).catch(() => null)]);
+    if (!car || !prev) return { empty: 'Needs last season\'s data, which isn\'t available.' };
+    const L = gPool(sd); const pQ = pctOf(L, p => p.dsv);
+    const items = [];
+    for (const p of L) {
+      const q = prev.byId.get(p.id); const bio = car.players[p.id]; const age = bio ? ageNow(bio[3], y) : null;
+      if (!q || !nz(q.dsv) || (q.sa || 0) < 500 || !nz(age) || age > 27) continue;
+      const v = pQ(p.dsv), up = p.dsv - q.dsv;
+      if (v < 67 || up < 0.8) continue;
+      items.push(gemG(p, v, ord(Math.round(v)), 'saves', `${p.team} · age ${age} · ${recStr(p)}`, [[`Up ${s2(up)} sv% vs exp. on last season`, 'tough'], [`${f0(p.sa)} shots`, 'low']], up));
+    }
+    return { items, sub: `Age 27 or under, save % above expected in the top third in ${sLabel(y)} and up 0.8+ points on the season before (500+ shots then). Goalies develop later than skaters. Biggest jump first.` };
+  },
+  // proven goalie in a slump
+  async bounce(y, sd) {
+    const [a, b] = await Promise.all([loadSeason(y - 1).catch(() => null), loadSeason(y - 2).catch(() => null)]);
+    if (!a || !b) return { empty: 'Needs the two seasons before, which aren\'t available.' };
+    const items = [];
+    for (const p of gPool(sd)) {
+      if (p.dsv > -0.5) continue;
+      const qa = a.byId.get(p.id), qb = b.byId.get(p.id);
+      if (!qa || !qb || (qa.sa || 0) < 800 || (qb.sa || 0) < 800) continue;
+      const before = 100 * ((qa.xga - qa.ga) + (qb.xga - qb.ga)) / (qa.sa + qb.sa); if (before < 0.3) continue;
+      items.push(gemG(p, p.dsv, s2(p.dsv), 'sv% vs exp.', `${p.team} · ${recStr(p)} · ${f0(p.sa)} shots`, [[`${s2(before)} the two seasons before`, 'mate']], -p.dsv));
+    }
+    return { items, sub: `Save % at least 0.5 points below expected in ${sLabel(y)}, after 0.3+ above expected over the two seasons before (800+ shots in each). Goalie slumps swing back more often than not. Furthest below first.` };
+  },
+  // lots of starts, below expected over three seasons
+  async heavy(y, sd) {
+    const T = await three(y);
+    const L = pool(sd, 'reg').list.filter(p => T.has(p.id) && T.get(p.id).sa >= GEM_SA3);
+    const pS = pctOf(L, p => p.gs), pQ3 = pctOf(L, p => T.get(p.id).dsv);
+    const items = [];
+    for (const p of L) {
+      const s = pS(p.gs), q = pQ3(T.get(p.id).dsv);
+      if (s < 75 || q > 20) continue;
+      items.push(gemG(p, q, ord(Math.round(q)), '3-season saves', `${p.team} · ${p.gs} starts · ${recStr(p)}`, [[`${s2(T.get(p.id).dsv)} sv% vs exp. over 3 seasons`, 'low'], [`Starts ${ord(Math.round(s))}`, 'tough']], s - q));
+    }
+    return { items, sub: `Starts in the top quarter in ${sLabel(y)}, but save % above expected in the bottom 20% over three seasons (${f0(GEM_SA3)}+ shots). Not a verdict on his contract: add his cap hit on his page to judge that.` };
+  },
+};
+async function renderGemsGoalies() {
+  const y = S.season, tab = GEMS.tab in GEM_TITLE ? GEMS.tab : (GEMS.tab = 'box');
+  const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: null, onPick: pickGem, onTab: () => renderGemsGoalies().catch(e => console.error(e)), current: S.A };
+  const sd = await loadSeason(y).catch(() => null);
+  if (y !== S.season || tab !== GEMS.tab) return;
+  if (!sd) { renderGems({ ...base, empty: `No ${sLabel(y)} goalie data yet.` }); return; }
+  const r = await GEM_BUILD[tab](y, sd);
+  if (y !== S.season || tab !== GEMS.tab) return;
+  if (r.items) r.items.sort((a, b) => b.sort - a.sort);
+  renderGems({ ...base, ...r });
 }
 function pickGem(id) {
   if (!id || id === S.A) return;
