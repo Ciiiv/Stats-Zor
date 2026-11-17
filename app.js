@@ -412,6 +412,10 @@ async function loadImpact(y) {
       const ok3 = i && nz(i.off3) && (i.toi3 || 0) >= 600;
       p.iso3_xgf60 = ok3 ? i.off3 : null; p.iso3_xga60 = ok3 ? i.def3 : null; p.iso3_net = ok3 ? i.off3 - i.def3 : null;
     });
+    if (j.comp) {
+      const cm = new Map(j.comp.map(r => { const o = {}; j.comp_fields.forEach((k, i) => { o[k] = r[i]; }); return [o.id, o]; }));
+      sd.players.forEach(p => { const c = cm.get(p.id); p.q_t5 = c ? c.t5 : null; p.q_line = c ? c.vs_top_line : null; p.q_pair = c ? c.vs_top_pair : null; p.q_opp = c ? c.opp_iso : null; p.q_mate = c ? c.mate_iso : null; });
+    }
     Object.keys(S.cache).forEach(k => { if (k.startsWith(`${y}|`)) Object.keys(S.cache[k].sorted).forEach(x => { if (x.startsWith('iso')) delete S.cache[k].sorted[x]; }); });
   } catch (e) { IMP[y] = null; }
   return IMP[y];
@@ -859,13 +863,36 @@ async function renderRole() {
   const PA = profile(U, sd, S.A), PB = S.B ? profile(U, sd, S.B) : null;
   $('role-sub').innerHTML = `Three ways to judge fit. <strong>5v5 results</strong> ranks his even-strength results (xGF%, relative xGF%, points per 60, and for defensemen relative xGA/60) among regulars at his position and maps that onto the lineup: top quarter of forwards = 1st line, bottom quarter = 4th; thirds for defensemen. <strong>Overall value</strong> does the same with the all-situations value model from Part 3. <strong>Against his role</strong> compares him only to players used in the same slots. The first two blend the last three seasons, most recent counting most. In the tables, green and red mark results better or worse than the league average for that role; samples under 30 minutes are left blank.`;
   const lim = `<details class="lim" open><summary>What these numbers can and can't see</summary><ul>
-    <li><strong>Competition isn't in the public data.</strong> Top-line players face the other team's best every night, so their raw 5v5 numbers look worse than the same play would against depth lines. That biases the 5v5 fit against first-liners and top-pair defensemen. "Against his role" is the best available correction, since it compares him only with others in the same slot.</li>
+    <li><strong>Competition matters less than linemates.</strong> The table above measures both from NHL shift charts. Across the league, the average quality of opponents varies only a little from player to player (coaches can't control matchups much, especially on the road), while linemates vary a lot. So a player with great linemates usually gets more help than a shutdown player gets hurt. The isolated impact numbers in Part 1 already account for both; the 5v5 fit here doesn't, which is why "Against his role" compares him only with others in the same slot.</li>
     <li><strong>The 5v5 fit is even strength only.</strong> A power-play specialist or elite finisher can read low there. Check "Overall value," which counts special teams and finishing.</li>
     <li><strong>One season is noisy.</strong> Shooting luck, injuries and linemates swing a single year, which is why the fits blend three. This season alone is shown too.</li>
     <li><strong>Usage isn't only ability.</strong> Coaches move players for form, injuries and matchups, and moving up usually brings better linemates. The moved up/down splits are evidence, not proof.</li>
     <li><strong>Team quality still leaks in.</strong> Relative stats remove some of it, but on a weak team even good players' on-ice numbers sag.</li></ul></details>`;
-  $('role').innerHTML = PA ? lim + `<div class="rolegrid">${roleCard(PA, 'a')}${PB ? roleCard(PB, 'b') : ''}</div>` : '<p class="empty">No game-by-game data for this player and season.</p>';
+  const I = await loadImpact(y).catch(() => null);
+  if (y !== S.season) return;
+  $('role').innerHTML = PA ? lim + compHTML(sd, I) + `<div class="rolegrid">${roleCard(PA, 'a')}${PB ? roleCard(PB, 'b') : ''}</div>` : '<p class="empty">No game-by-game data for this player and season.</p>';
   renderLineup(U, sd);
+}
+// who he played against and with at 5v5 (build_impact.py, from shift charts)
+function compHTML(sd, I) {
+  if (!I || !I.comp) return '';
+  const ps = [seasonOf(S.A), seasonOf(S.B)].filter(p => p && nz(p.q_line));
+  if (!ps.length) return '';
+  const rank = (p, k) => { const L = pool(sd, p.grp).list.filter(x => nz(x[k])).sort((a, b) => b[k] - a[k]); const i = L.findIndex(x => x.id === p.id); return i >= 0 ? [i + 1, L.length] : null; };
+  const rows = [['Against the opponent\'s top line', 'q_line', v => f1(v) + '%', 'hardest'], ['Against the opponent\'s top pair', 'q_pair', v => f1(v) + '%', 'hardest'],
+    ['Opponents\' quality', 'q_opp', v => s2(v), 'hardest'], ['Linemates\' quality', 'q_mate', v => s2(v), 'best']];
+  const cell = (p, r) => { const k = rank(p, r[1]); return `<td>${r[2](p[r[1]])}${k ? `<small>${ordn(k[0])}-${r[3]} of ${k[1]}</small>` : ''}</td>`; };
+  const read = p => {
+    const o = rank(p, 'q_opp'), m = rank(p, 'q_mate'); if (!o || !m) return '';
+    const op = o[0] / o[1], mp = m[0] / m[1];
+    const a = op <= 0.2 ? 'faced some of the toughest opponents at his position' : op >= 0.8 ? 'was sheltered from top opponents' : 'faced about average opponents';
+    const b = mp <= 0.2 ? 'played with some of the best linemates' : mp >= 0.8 ? 'played with weak linemates' : 'had about average linemates';
+    return `<p class="sub small" style="margin:6px 0 0"><strong style="color:var(--${p.id === S.A ? 'a' : 'b'})">${esc(last(p.name))}</strong> ${a} and ${b}.</p>`;
+  };
+  return `<p class="minihead" style="margin-top:6px">Who he played against and with at 5v5 · <a class="how" href="about.html#m-comp">How this works</a></p>
+    <div class="scroll" style="max-width:720px"><table class="tbl iso"><thead><tr><th>${sLabel(sd.y)}</th>${ps.map(p => `<th style="color:var(--${p.id === S.A ? 'a' : 'b'})">${esc(last(p.name))}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${r[0]}</td>${ps.map(p => cell(p, r)).join('')}</tr>`).join('')}</tbody></table></div>
+    ${ps.map(read).join('')}<p class="sub small" style="margin:6px 0 18px">Top line = two or more of the other team's three most-used forwards that night; top pair = both of its two most-used defensemen. Quality = the average isolated impact (net xG/60, Part 1) of the five opponents or four teammates on the ice with him, weighted by time. Ranks are among regular ${GRP_NAME[ps[0].grp]}.</p>`;
 }
 function renderLineup(U, sd) {
   const A = sd.byId.get(S.A);

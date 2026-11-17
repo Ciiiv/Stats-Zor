@@ -48,7 +48,7 @@
   <div class="toc">
     <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a><a href="#m-tools">Tools (NHL EDGE)</a></div>
     <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a></div>
-    <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
+    <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-comp">Against and with</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
   </div>
@@ -234,6 +234,21 @@ Against his role = his 5v5 xGF% − league xGF% for the slots he played, weighte
     <li><b>Cause and effect:</b> coaches move players partly because of form, injuries and matchups, and promotion usually brings better linemates.</li>
     <li><b>Small samples:</b> under 30 minutes is left blank, and one season is noisy, hence the three-season blend.</li>
   </ul>
+
+  <h3 id="m-comp">Who he played against and with</h3>
+  <p>Built from the same NHL shift charts as <a href="#m-iso">isolated impact</a>, over the same 5v5 stretches (five skaters a side, both goalies in), 2010-11 on.</p>
+  <ul>
+    <li><strong>Against the opponent's top line:</strong> share of his 5v5 time with two or more of the other team's three most-used forwards that night on the ice.</li>
+    <li><strong>Against the opponent's top pair:</strong> share of his 5v5 time with both of the other team's two most-used defensemen on the ice.</li>
+    <li><strong>Opponents' quality:</strong> the average isolated impact (net xG/60, three-season fit where there is one) of the five opponents on the ice with him, weighted by time.</li>
+    <li><strong>Linemates' quality:</strong> the same for the four teammates on the ice with him.</li>
+  </ul>
+  <p>Ranks are among regulars at his position (hardest first for competition, best first for linemates). The short summary calls the top fifth "some of the toughest" or "some of the best" and the bottom fifth "sheltered" or "weak".</p>
+  <details class="lim"><summary>Limits</summary><ul>
+    <li>Competition varies much less than linemates. In 2025-26 the toughest and easiest regular defensemen differed by only about 0.04 xG/60 in opponents' quality, against about 0.3 for linemates. Being matched against top lines is real, but the bigger effect on a player's numbers is usually who he plays with.</li>
+    <li>"Most-used" is by 5v5 time that game, so injuries, penalties and blowouts can shuffle who counts as a top line on a given night.</li>
+    <li>Quality uses isolated impact, which has its own noise, especially for players with few minutes.</li>
+  </ul></details>
 
   <h3 id="m-lineup">Team deployment card</h3>
   <p>Every regular on a team with at least 25% of the season's games. It shows his average slot ("used as"), 5v5 fit, overall fit and vs. role, with power-play and penalty-kill use and fit, and zone fit, all as defined above. The even-strength flag here uses overall fit. Traded players show their whole season.</p>

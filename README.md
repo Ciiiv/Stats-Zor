@@ -20,7 +20,7 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Linemates and partners:** 5v5 results with and without each teammate.
    - **Team swap:** projects his on/off impact onto another team.
 2. **How he's used:** game-by-game deployment.
-   - **Role and fit:** line or pair, PP and PK units, and zone starts each night. Results are judged three ways (5v5 results, overall value, against his role), with a note on what the data can't see.
+   - **Role and fit:** who he played against and with at 5v5 (share of time against top lines and top pairs, and the isolated impact of opponents and linemates, from shift charts), then line or pair, PP and PK units, and zone starts each night. Results are judged three ways (5v5 results, overall value, against his role), with a note on what the data can't see.
    - **Team deployment card:** every regular on a team, "used as" vs. 5v5 fit, overall fit and vs. role, with flags.
 3. **What he's worth:** the Stats-Zor value model.
    - **Value and worth:** wins above replacement by component, priced with the salary cap; worth for this season and over the last three; a read-only "5v5 method" breakdown (relative only, isolated only, the blend used); an optional cap-hit box for the underpaid/overpaid comparison.
@@ -51,7 +51,7 @@ Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning
 | `scripts/build_usage.py` | `usage/` | MoneyPuck game-by-game skater data |
 | `scripts/build_edge.py` | `edge/` | NHL EDGE API, one request per player per season (2021-22 on) |
 | `scripts/build_goalies.py` | `goalies/seasons/`, `goalies/games/`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | MoneyPuck goalie season and game-by-game files; NHL goalie reports (seasons, game logs, careers) and player API (trophies) |
-| `scripts/build_impact.py` | `impact/{season}.json` (isolated 5v5 impact, one season and three), `impact/test.json` (forecast test) | NHL shift charts and play-by-play (2010-11 on), MoneyPuck shot data |
+| `scripts/build_impact.py` | `impact/{season}.json` (isolated 5v5 impact, one season and three; competition and linemate quality in `comp`), `impact/test.json` (forecast test) | NHL shift charts and play-by-play (2010-11 on), MoneyPuck shot data |
 | `scripts/build_value.py` | `value.json` (skaters and goalies), `rosters.json`, `prospects.json` | The files above, plus NHL roster and draft API |
 
 | Source | Used for |

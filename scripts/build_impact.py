@@ -389,6 +389,89 @@ def result(y, single, three, lam):
             "fields": ["id", "toi", "off", "def", "toi3", "off3", "def3"], "players": rows}
 
 
+# ------------------------------------------------------------------ competition and teammates
+COMP_FIELDS = ["id", "t5", "vs_top_line", "vs_top_pair", "opp_iso", "mate_iso"]
+
+
+def positions(y):
+    pos = {}
+    for path, f_id, f_pos in ((os.path.join(DATA, "index.json"), "id", "pos"), (os.path.join(DATA, "seasons", f"{y}.json"), "id", "pos")):
+        j = read_json(path)
+        if j:
+            fi = j["fields"]
+            for r in j["players"]:
+                pos[r[fi.index(f_id)]] = r[fi.index(f_pos)]
+    return pos
+
+
+def competition(y, games, imp):
+    """Who each skater was on the ice against and with at 5v5 (same stints as the regression).
+    vs_top_line: % of his time with 2+ of the opponent's three most-used forwards that game on the ice.
+    vs_top_pair: % of his time with both of the opponent's two most-used defensemen on the ice.
+    opp_iso / mate_iso: time-weighted average isolated net impact (xG/60, three-season fit where there is
+    one with 600+ minutes, else this season) of the five opponents and four teammates."""
+    fi = imp["fields"]
+    iso = {}
+    for r in imp["players"]:
+        d = dict(zip(fi, r))
+        if d.get("off3") is not None and (d.get("toi3") or 0) >= 600:
+            iso[d["id"]] = d["off3"] - d["def3"]
+        else:
+            iso[d["id"]] = d["off"] - d["def"]
+    pos = positions(y)
+    acc = {}
+    for game in games.values():
+        st = list(stints(game, []))
+        if not st:
+            continue
+        t = {}
+        for hs, as_, sec, *_ in st:
+            for p in hs + as_:
+                t[p] = t.get(p, 0) + sec
+        top = {}
+        for side in (0, 1):
+            ps = {p for hs, as_, *_ in st for p in (hs if side == 0 else as_)}
+            fw = sorted((p for p in ps if pos.get(p) != "D"), key=lambda p: -t[p])[:3]
+            dd = sorted((p for p in ps if pos.get(p) == "D"), key=lambda p: -t[p])[:2]
+            top[side] = (set(fw), set(dd))
+        for hs, as_, sec, *_ in st:
+            for side, mine, opp in ((0, hs, as_), (1, as_, hs)):
+                tf, td = top[1 - side]
+                line = sum(1 for p in opp if p in tf) >= 2
+                pair = len(td) == 2 and td <= set(opp)
+                oi = sum(iso.get(p, 0.0) for p in opp) / 5
+                for p in mine:
+                    mi = (sum(iso.get(q, 0.0) for q in mine) - iso.get(p, 0.0)) / 4
+                    a = acc.setdefault(p, [0, 0, 0, 0.0, 0.0])
+                    a[0] += sec
+                    a[1] += sec if line else 0
+                    a[2] += sec if pair else 0
+                    a[3] += sec * oi
+                    a[4] += sec * mi
+    rows = []
+    for p, (t5, l, pr, oi, mi) in acc.items():
+        if t5 >= 3600:
+            rows.append([p, round(t5 / 60, 1), round(100 * l / t5, 1), round(100 * pr / t5, 1), round(oi / t5, 4), round(mi / t5, 4)])
+    return rows
+
+
+def add_competition(y, cur):
+    """Add competition fields to data/impact/{y}.json, fetching the season's games if they aren't cached."""
+    path = os.path.join(OUT, f"{y}.json")
+    imp = read_json(path)
+    if not imp:
+        return
+    games = load_cache(y, "games")
+    if not games:
+        games = season_games(y, load_shots(y), {})
+        if y >= cur - 2:
+            save_cache(y, "games", games)
+    imp["comp_fields"] = COMP_FIELDS
+    imp["comp"] = competition(y, games, imp)
+    write_json(path, imp)
+    log(f"impact {y}: competition for {len(imp['comp'])} skaters")
+
+
 # ------------------------------------------------------------------ forecast test
 def forecast_test(years):
     """Does this season's 5v5 measure predict next season's on-ice results? Relative vs. isolated vs. blends."""
@@ -518,8 +601,16 @@ def main():
                     three.merge(normals[z])
             write_json(os.path.join(OUT, f"{y}.json"), result(y, normals[y], three, LAMBDA))
             log(f"impact {y}: written")
+            add_competition(y, cur)
         except Exception as e:  # noqa: BLE001
             log(f"impact {y} FAILED: {e}")
+    # seasons built before competition fields existed get them a few at a time
+    for y in [z for z in range(cur - 1, args.first - 1, -1) if z not in todo
+              and "comp" not in (read_json(os.path.join(OUT, f"{z}.json")) or {"comp": 1})][: args.max_backfill]:
+        try:
+            add_competition(y, cur)
+        except Exception as e:  # noqa: BLE001
+            log(f"impact {y} competition FAILED: {e}")
     forecast_test([y for y in range(args.first, cur - 1)])
 
 
