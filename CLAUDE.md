@@ -71,10 +71,21 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 - **Prospects** are valued by draft slot (decaying 15% a year since the draft); from 40 NHL games their own projection blends in by games played (100 = all NHL record). CapFriendly is gone and PuckPedia can't be scraped, so none of this uses contract data.
 - Defaults: skater page Seider vs. Makar; goalie page Vasilevskiy vs. Shesterkin. Both open on the last complete season until the current one passes 41 team games.
 
-## Next ideas (owner wants these explored another day; full list in README "Ideas for next time")
-- Model, in order: (1) isolated impact starting from each player's previous seasons instead of zero, tested with the forecast test before switching; (2) isolated impact for PP and PK to replace on-ice special-teams numbers in value; (3) goals and shot-attempt versions as display columns; (4) individual-stat stabilizer, lowest priority. Use our own data only; Evolving-Hockey's data is paid and must not be copied.
-- Sidebar tabs: breakout watch, due for a bounce, big minutes / low impact (not "overpaid": no contract data). No small samples.
-- Player cards: team-color stripe, abbreviation badge, jersey number. Decided: no team logos or player photos.
+## Next ideas (not built; owner wants these explored another day)
+Every new list or model change must avoid small samples (three-season numbers or minimum minutes). Keep these out of the README and How it works until they're built.
+
+**Model** (ideas like Evolving-Hockey's, built only from our own data; EH's data is paid and must not be copied), in order:
+1. Start each season's isolated impact from the player's previous seasons instead of zero (shrink toward his history). Steadier single-season numbers, especially early in a season. Test with the existing forecast test before switching. Do this first.
+2. Isolated impact on the power play and penalty kill, from the same shift charts and shots, to replace the on-ice special-teams numbers in the value model.
+3. Isolated impact on goals and shot attempts as extra comparison columns (display only).
+4. Lowest priority: use individual stats (shots, assists, takeaways) to steady small samples; overlaps with the existing small-sample pull.
+
+**Sidebar lists** (tabs in the "Doing more than the box score" sidebar; `renderGems` already takes any list). Draft rules from a Nov 2026 first pass:
+- Breakout watch: age 24 or under, isolated impact up sharply from last season (top quarter this season, up 0.15+ xG/60, 800+ minutes this season and 500+ last). 2025-26 examples: Seider, Cozens, Zegras, Hutson.
+- Due for a bounce: proven finishers (goals above expected over the two previous seasons) scoring well below expected this season. Examples: Drouin, Saad, Kadri, J.T. Miller.
+- Big minutes, low impact: top-quarter ice time with bottom-fifth three-season isolated impact. Not "overpaid": the site has no contract data. Examples: Stephenson, Bedard, Boeser, Matheson.
+
+**Look:** team-color stripe, team abbreviation badge and jersey number on the player cards (mocked up Nov 2026). Decided: no team logos or player photos (trademarks and copyrighted photos).
 
 ## Yearly upkeep
 - Update `CAP` and `MIN` in `scripts/build_value.py` when the league announces new figures (published through 2027-28; 5% growth assumed after).
