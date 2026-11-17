@@ -898,6 +898,7 @@ function compHTML(sd, I) {
 // Regulars whose isolated impact (three seasons to this one) is in the top 20% at their position but who got
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
+const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind the three-season isolated number
 async function renderGemsSkaters() {
   const y = S.season;
   const base = { title: 'Doing more than the box score', how: 'about.html#m-gems', filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, current: S.A };
@@ -907,7 +908,7 @@ async function renderGemsSkaters() {
   if (!sd || !I || !I.comp) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
   const items = [];
   for (const g of ['F', 'D']) {
-    const L = pool(sd, g, 'reg').list.filter(p => nz(p.iso3_net) && nz(p.q_mate) && p.gp);
+    const L = pool(sd, g, 'reg').list.filter(p => nz(p.iso3_net) && (p.iso3_toi || 0) >= GEM_MIN_TOI3 && nz(p.q_mate) && p.gp);
     const pIso = pctOf(L, p => p.iso3_net), pPts = pctOf(L, p => p.pts / p.gp), pMate = pctOf(L, p => p.q_mate), pOpp = pctOf(L, p => p.q_opp);
     for (const p of L) {
       const iso = pIso(p.iso3_net), pts = pPts(p.pts / p.gp); if (iso < 80 || pts > 90) continue;
@@ -920,7 +921,7 @@ async function renderGemsSkaters() {
     }
   }
   items.sort((a, b) => b.gap - a.gap);
-  renderGems({ ...base, items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` });
+  renderGems({ ...base, items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` });
 }
 function pickGem(id) {
   if (!id || id === S.A) return;
