@@ -83,6 +83,7 @@ Every new list or model change must avoid small samples (three-season numbers or
 **Sidebar lists** (tabs in the "Doing more than the box score" sidebar; `renderGems` already takes any list). Draft rules from a Nov 2026 first pass:
 - Breakout watch: age 24 or under, isolated impact up sharply from last season (top quarter this season, up 0.15+ xG/60, 800+ minutes this season and 500+ last). 2025-26 examples: Seider, Cozens, Zegras, Hutson.
 - Due for a bounce: proven finishers (goals above expected over the two previous seasons) scoring well below expected this season. Examples: Drouin, Saad, Kadri, J.T. Miller.
+- Shutdown: pure defensive specialists, forwards and defense shown separately. Draft rule: three-season isolated xGA/60 in the top 20% at the position (1,500+ five-on-five minutes) plus tough minutes (top 40% opponents' quality or top-line time); show PK time too. Without the tough-minutes part the list fills with sheltered depth players (Desharnais, Jankowski, Foligno). 2025-26 examples who pass: Lindell, Heiskanen, Brodin, Zub (D); Reinhart, Dickinson (F).
 - Big minutes, low impact: top-quarter ice time with bottom-fifth three-season isolated impact. Not "overpaid": the site has no contract data. Examples: Stephenson, Bedard, Boeser, Matheson.
 
 **Look:** team-color stripe, team abbreviation badge and jersey number on the player cards (mocked up Nov 2026). Decided: no team logos or player photos (trademarks and copyrighted photos).
