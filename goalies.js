@@ -368,7 +368,9 @@ async function renderShots() {
   const rows = [['Unblocked shots faced', x => f0(x.t.n)], ['Goals against', x => f0(x.t.g)], ['Expected goals against', x => f1(x.t.xg)], ['Saved above expected', x => s1(x.t.xg - x.t.g)],
     ['xG per shot', x => x.t.n ? (x.t.xg / x.t.n).toFixed(3) : '—'], ['Share from the slot', x => nz(slot(x)) ? slot(x).toFixed(1) + '%' : '—']];
   const tbl = `<table class="tape"><thead><tr><th>${sit === 'all' ? 'All situations' : sit === 'ev' ? '5v5' : 'Penalty kill'}</th>${maps.map((x, i) => `<th class="${i ? 'b' : 'a'}">${esc(last(x.p.name))}</th>`).join('')}<th>League goalie avg</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${maps.map(x => `<td>${r[1](x)}</td>`).join('')}<td>${r[0] === 'xG per shot' && lt.n ? (lt.xg / lt.n).toFixed(3) : r[0] === 'Share from the slot' ? (nz(slot({ m: lg, t: lt })) ? slot({ m: lg, t: lt }).toFixed(1) + '%' : '—') : ''}</td></tr>`).join('')}</tbody></table>`;
-  box.innerHTML = ctl + `<div class="two">${maps.map(x => `<div>${x.t.n ? rinkSVG(d, x.m, lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no shots faced in this situation.</p>`}</div>`).join('')}</div><div class="scroll" style="margin-top:16px;max-width:640px">${tbl}</div>`;
+  box.innerHTML = ctl + `<div class="two">${maps.map(x => `<div>${x.t.n ? rinkSVG(d, x.m, lg, x.p.name, x.col) : `<p class="empty">${esc(x.p.name)} has no shots faced in this situation.</p>`}</div>`).join('')}</div><div class="legend">${S.sh.view === 'freq'
+    ? '<span><i style="background:var(--lo)"></i>Faced shots from here more often than the average goalie</span><span><i style="background:var(--hi)"></i>Less often</span><span>Mostly his team\'s defense, not his play · ○ = goal against</span>'
+    : '<span><i style="background:var(--hi)"></i>Stopped more than expected from here</span><span><i style="background:var(--lo)"></i>Stopped fewer than expected</span>'}</div><div class="scroll" style="margin-top:16px;max-width:640px">${tbl}</div>`;
 }
 
 // ------------------------------------------------------------------ goalie swap

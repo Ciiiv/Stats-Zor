@@ -732,7 +732,11 @@ async function renderShots() {
   const rows = [['Attempts', x => x.t.n, f0], ['Goals', x => x.t.g, f0], ['Expected goals', x => x.t.xg, f1], ['Goals − expected', x => x.t.g - x.t.xg, s1], ['Shooting % (unblocked)', x => x.t.n ? 100 * x.t.g / x.t.n : null, f1], ['xG per attempt', x => x.t.n ? x.t.xg / x.t.n : null, v => nz(v) ? v.toFixed(3) : '—'],
     ['Attempts from the slot', x => { let n = 0; for (const [c, v] of x.m) { const cx = c % d.grid.nx, cy = Math.floor(c / d.grid.nx); const xx = d.grid.x0 + (cx + 0.5) * d.grid.cell, yy = d.grid.y0 + (cy + 0.5) * d.grid.cell; if (xx >= 69 && xx <= 89 && Math.abs(yy) <= 10) n += v.n; } return x.t.n ? 100 * n / x.t.n : null; }, v => nz(v) ? v.toFixed(1) + '%' : '—']];
   const tbl = `<table class="tape"><thead><tr><th>${SH.sit === 'all' ? 'All situations' : SH.sit === 'ev' ? '5v5' : 'Power play'}</th>${maps.map((x, i) => `<th class="${i ? 'b' : 'a'}">${esc(last(x.p.name))}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td>${maps.map(x => `<td>${r[2](r[1](x))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
-  box.innerHTML = ctl + `<div class="two">${svgs.map(s => `<div>${s}</div>`).join('')}</div><div style="margin-top:16px;max-width:560px">${tbl}</div>`;
+  const who = A.grp === 'D' ? 'defenseman' : 'forward';
+  const key = SH.view === 'freq'
+    ? `<span><i style="background:var(--hi)"></i>Shoots from here more often than the average ${who}</span><span><i style="background:var(--lo)"></i>Less often</span><span>Style, not good or bad · ○ = goal</span>`
+    : `<span><i style="background:var(--hi)"></i>Scored more than expected from here</span><span><i style="background:var(--lo)"></i>Scored fewer than expected</span>`;
+  box.innerHTML = ctl + `<div class="two">${svgs.map(s => `<div>${s}</div>`).join('')}</div><div class="legend">${key}</div><div style="margin-top:16px;max-width:560px">${tbl}</div>`;
 }
 
 
