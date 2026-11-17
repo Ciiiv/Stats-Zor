@@ -71,6 +71,11 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 - **Prospects** are valued by draft slot (decaying 15% a year since the draft); from 40 NHL games their own projection blends in by games played (100 = all NHL record). CapFriendly is gone and PuckPedia can't be scraped, so none of this uses contract data.
 - Defaults: skater page Seider vs. Makar; goalie page Vasilevskiy vs. Shesterkin. Both open on the last complete season until the current one passes 41 team games.
 
+## Next ideas (owner wants these explored another day; full list in README "Ideas for next time")
+- Model, in order: (1) isolated impact starting from each player's previous seasons instead of zero, tested with the forecast test before switching; (2) isolated impact for PP and PK to replace on-ice special-teams numbers in value; (3) goals and shot-attempt versions as display columns; (4) individual-stat stabilizer, lowest priority. Use our own data only; Evolving-Hockey's data is paid and must not be copied.
+- Sidebar tabs: breakout watch, due for a bounce, big minutes / low impact (not "overpaid": no contract data). No small samples.
+- Player cards: team-color stripe, abbreviation badge, jersey number. Decided: no team logos or player photos.
+
 ## Yearly upkeep
 - Update `CAP` and `MIN` in `scripts/build_value.py` when the league announces new figures (published through 2027-28; 5% growth assumed after).
 - Each September, check that the nightly workflow wasn't paused by GitHub's 60-day inactivity rule over the summer.
