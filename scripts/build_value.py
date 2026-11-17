@@ -86,6 +86,80 @@ SKATER_GAMES_FULL = 150  # skater projections from fewer games in the 3-season w
                          # to an average regular at the position (backtest 2011-26: best of 120/150/200)  # goalie projections keep shots / (shots + K) of the gap to an average goalie (3 seasons of shots)
 
 
+AGE_MIN_N = 100  # fewest players an age band needs; thinner bands are merged with the next
+AGE_BANDS = [(18, 21), (22, 23), (24, 26), (27, 28), (29, 30), (31, 32), (33, 34), (35, 45)]  # starting age
+
+
+def fit_age_curve(seasons, birth, cur, min_gp=20):
+    """Skater aging measured from our own seasons, by position: for each age band, total wins per 82 the
+    next season / this season (weighted by games), for players who were regulars worth 1+ wins per 82 the
+    season BEFORE (so this season's luck doesn't bias the ratio). Players who leave the NHL count as falling
+    to replacement. Bands are pooled where needed so value never rises with age past a younger band.
+    Returns tables in AGE_MULT form, keyed by the age of the season being projected."""
+    def age_in(pid, y):
+        b = birth.get(pid)
+        if not b:
+            return None
+        try:
+            bd = dt.date.fromisoformat(b[:10])
+        except ValueError:
+            return None
+        ref = dt.date(y + 1, 2, 1)
+        return ref.year - bd.year - ((ref.month, ref.day) < (bd.month, bd.day))
+    rows = {y: {r[0]: r for r in s["rows"]} for y, s in seasons.items()}
+    acc = {(g, i): [0.0, 0.0, 0] for g in ("F", "D") for i in range(len(AGE_BANDS))}
+    for y in sorted(rows):
+        if y - 1 not in rows or y + 1 >= cur:
+            continue
+        for pid, r in rows[y].items():
+            p, n, a = rows[y - 1].get(pid), rows.get(y + 1, {}).get(pid), age_in(pid, y)
+            if a is None or r[3] < min_gp or not p or p[3] < 40 or p[12] <= 1.0:
+                continue
+            if n and n[3] >= min_gp:
+                w, nv = 2 / (1 / r[3] + 1 / n[3]), n[12]
+            elif not n and y + 2 < cur and pid not in rows.get(y + 2, {}):
+                w, nv = r[3] / 2, 0.0
+            else:
+                continue
+            i = next((k for k, (lo, hi) in enumerate(AGE_BANDS) if lo <= a <= hi), None)
+            if i is None:
+                continue
+            o = acc[("D" if r[2] == "D" else "F", i)]
+            o[0] += w * nv
+            o[1] += w * r[12]
+            o[2] += 1
+    out = {}
+    for g in ("F", "D"):
+        raw = [[acc[(g, i)][0], acc[(g, i)][1], acc[(g, i)][2], [i]] for i in range(len(AGE_BANDS))]
+        k = 0
+        while k < len(raw):  # thin bands (under AGE_MIN_N players) are merged into the next band
+            if raw[k][2] < AGE_MIN_N and len(raw) > 1:
+                j = k + 1 if k + 1 < len(raw) else k - 1
+                raw[j] = [raw[j][0] + raw[k][0], raw[j][1] + raw[k][1], raw[j][2] + raw[k][2], sorted(raw[j][3] + raw[k][3])]
+                del raw[k]
+                k = max(0, k - 1) if j < k else k
+            else:
+                k += 1
+        blocks = [[a / b if b > 0 else 1.0, n, ix] for a, b, n, ix in raw]
+        i = 0
+        while i < len(blocks) - 1:  # pool adjacent bands until ratios never rise with age
+            if blocks[i][0] < blocks[i + 1][0]:
+                a, b = blocks[i], blocks[i + 1]
+                n = a[1] + b[1] or 1
+                blocks[i] = [(a[0] * a[1] + b[0] * b[1]) / n, a[1] + b[1], a[2] + b[2]]
+                del blocks[i + 1]
+                i = max(0, i - 1)
+            else:
+                i += 1
+        val = {j: round(v, 3) for v, _, ix in blocks for j in ix}
+        cnt = {i: acc[(g, i)][2] for i in range(len(AGE_BANDS))}
+        if sum(cnt.values()) < 500:  # not enough data: keep the hand-set curve
+            return None
+        out[g] = {"table": [(hi + 1 if k < len(AGE_BANDS) - 1 else 99, val[k]) for k, (lo, hi) in enumerate(AGE_BANDS)],
+                  "bands": [[lo, hi, val[k], cnt[k]] for k, (lo, hi) in enumerate(AGE_BANDS)]}
+    return out
+
+
 def age_mult(age, table=AGE_MULT):
     for a, m in table:
         if age <= a:
@@ -249,7 +323,8 @@ def project(seasons, birth, cur, proj, war82_i, table):
         for t in range(1, 8):
             y = cur + t
             age = (age0 + t) if age0 is not None else None
-            war = war * (age_mult(age, table) if age is not None else 1.0)
+            tb = table.get("D" if lst[-1][1][2] == "D" else "F", AGE_MULT) if isinstance(table, dict) else table
+            war = war * (age_mult(age, tb) if age is not None else 1.0)
             pw = per_win_ref * cap(y) / cap(ref_y)
             rows.append([y, age, round(war, 2), round(min_sal(y) + max(0.0, war) * pw, 2), cap(y)])
         proj[str(pid)] = {"base_war82": round(base, 2), "age": age0, "years": rows, "games": games,
@@ -375,7 +450,10 @@ def main():
 
     # projections from a 3-season weighted rate (3/2/1 by recency, weighted by games)
     proj = {}
-    project(seasons, birth, cur, proj, war82_i=12, table=AGE_MULT)
+    curve = fit_age_curve(seasons, birth, cur)
+    if curve:
+        log("age curve: " + "; ".join(f"{g} {c['table']}" for g, c in curve.items()))
+    project(seasons, birth, cur, proj, war82_i=12, table={g: c["table"] for g, c in curve.items()} if curve else AGE_MULT)
     if gseasons:
         project_goalies(gseasons, gbirth, cur, proj, gshots)
 
@@ -406,6 +484,7 @@ def main():
         "goalie_fields": ["id", "team", "pos", "gp", "ev", "pk", "other", "gar", "war", "war82", "worth", "worth_pct"],
         "goalie_seasons": {str(y): s for y, s in gseasons.items()},
         "proj_fields": ["year", "age", "war", "worth", "cap"],
+        "age_curve": {g: c["bands"] for g, c in curve.items()} if curve else None,
         "proj": proj,
         "cap_assumption": f"Published caps through {max(CAP)}; {int(CAP_GROWTH * 100)}% a year after that.",
     })
