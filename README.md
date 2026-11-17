@@ -29,7 +29,7 @@ The player page (`index.html`) opens with two profile cards (season line, scores
    - **Career vs. career:** era-adjusted totals, same-age and same-stage comparisons, trophies and Cups.
    - **Career arcs and comps:** every season by age, plus the closest historical comps.
 
-Both player pages have a **Doing more than the box score** sidebar (right side on wide screens, a tap-to-open line on phones): players with elite isolated impact (goalies: save % above expected) who got little credit because of low points, weak linemates or tough minutes (goalies: a losing record, tough shots or busy nights). Top 10 with show more; click a name to open his page.
+Both player pages have a **scouting lists** sidebar (right side on wide screens, a tap-to-open line on phones). Skaters get six tabs: **Doing more than the box score** (elite isolated impact, little credit), **Carrying the load** (scoring while carrying a weak team), **Shutdown** (elite isolated defense against real competition), **Breakout watch** (24 and under, isolated impact jumped), **Due for a bounce** (proven finishers well below expected) and **Big minutes, low impact**. Goalies get one list (elite save % above expected with little help). Lists built on three-season isolated impact need 1,500+ five-on-five minutes. Top 10 with show more; click a name to open his page.
 
 The goalie page (`goalies.html`) has the same four parts, built for goalies. Searching a goalie on the skater page sends you there, and the other way around.
 

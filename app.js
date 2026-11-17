@@ -898,30 +898,131 @@ function compHTML(sd, I) {
 // Regulars whose isolated impact (three seasons to this one) is in the top 20% at their position but who got
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
-const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind the three-season isolated number
-async function renderGemsSkaters() {
-  const y = S.season;
-  const base = { title: 'Doing more than the box score', how: 'about.html#m-gems', filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, current: S.A };
-  if (y < 2010) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
-  const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
-  if (y !== S.season) return;
-  if (!sd || !I || !I.comp) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
-  const items = [];
-  for (const g of ['F', 'D']) {
-    const L = pool(sd, g, 'reg').list.filter(p => nz(p.iso3_net) && (p.iso3_toi || 0) >= GEM_MIN_TOI3 && nz(p.q_mate) && p.gp);
-    const pIso = pctOf(L, p => p.iso3_net), pPts = pctOf(L, p => p.pts / p.gp), pMate = pctOf(L, p => p.q_mate), pOpp = pctOf(L, p => p.q_opp);
-    for (const p of L) {
-      const iso = pIso(p.iso3_net), pts = pPts(p.pts / p.gp); if (iso < 80 || pts > 90) continue;
-      const chips = [];
-      if (pOpp(p.q_opp) >= 80) chips.push(['Tough minutes', 'tough']);
-      if (pMate(p.q_mate) <= 33) chips.push(['Weak linemates', 'mate']);
-      if (pts <= 50) chips.push(['Low points', 'low']);
-      if (!chips.length) continue;
-      items.push({ id: p.id, grp: g, name: p.name, meta: `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, pct: iso, gap: iso - pts, pctLabel: ordn(iso), pctNote: 'isolated', chips });
+const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
+const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes']];
+const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact' };
+const mmss = m => nz(m) ? `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}` : '—';
+// regulars at a position; with three = true only those with a three-season isolated number on 1,500+ minutes
+const gemPool = (sd, g, three = true) => pool(sd, g, 'reg').list.filter(p => p.gp && (!three || (nz(p.iso3_net) && (p.iso3_toi || 0) >= GEM_MIN_TOI3 && nz(p.q_mate))));
+const gemItem = (p, g, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: g, name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
+const GEM_BUILD = {
+  // elite isolated impact, little box-score credit
+  box(y, sd) {
+    const items = [];
+    for (const g of ['F', 'D']) {
+      const L = gemPool(sd, g);
+      const pIso = pctOf(L, p => p.iso3_net), pPts = pctOf(L, p => p.pts / p.gp), pMate = pctOf(L, p => p.q_mate), pOpp = pctOf(L, p => p.q_opp);
+      for (const p of L) {
+        const iso = pIso(p.iso3_net), pts = pPts(p.pts / p.gp); if (iso < 80 || pts > 90) continue;
+        const chips = [];
+        if (pOpp(p.q_opp) >= 80) chips.push(['Tough minutes', 'tough']);
+        if (pMate(p.q_mate) <= 33) chips.push(['Weak linemates', 'mate']);
+        if (pts <= 50) chips.push(['Low points', 'low']);
+        if (chips.length) items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso - pts));
+      }
     }
-  }
-  items.sort((a, b) => b.gap - a.gap);
-  renderGems({ ...base, items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` });
+    return { items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` };
+  },
+  // scoring, but carrying a weak team
+  carry(y, sd) {
+    const items = [];
+    const wo = p => nz(p.off_xgf60) && nz(p.off_xga60) && p.off_xgf60 + p.off_xga60 > 0 ? p.off_xgf60 / (p.off_xgf60 + p.off_xga60) : null;
+    for (const g of ['F', 'D']) {
+      const L = gemPool(sd, g).filter(p => nz(wo(p)));
+      const pIso = pctOf(L, p => p.iso3_net), pPts = pctOf(L, p => p.pts / p.gp), pWo = pctOf(L, wo), pMate = pctOf(L, p => p.q_mate);
+      for (const p of L) {
+        const iso = pIso(p.iso3_net), pts = pPts(p.pts / p.gp), w = pWo(wo(p)), m = pMate(p.q_mate);
+        if (iso < 80 || pts < 60 || (w > 33 && m > 33)) continue;
+        const chips = [];
+        if (w <= 33) chips.push([`Team sinks without him (${ordn(w)})`, 'tough']);
+        if (m <= 33) chips.push(['Weak linemates', 'mate']);
+        items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso + pts - w - m));
+      }
+    }
+    return { items, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ minutes) and points in the top 40%, on a team that falls apart without him or with weak linemates. Most elite, most productive and least helped first.` };
+  },
+  // defensive specialists against real competition
+  shut(y, sd) {
+    const items = [];
+    for (const g of ['F', 'D']) {
+      const L = gemPool(sd, g).filter(p => nz(p.iso3_xga60));
+      const pDef = pctOf(L, p => -p.iso3_xga60), pOpp = pctOf(L, p => p.q_opp), pLine = pctOf(L, p => p.q_line);
+      for (const p of L) {
+        const d = pDef(-p.iso3_xga60), o = pOpp(p.q_opp), l = pLine(p.q_line);
+        if (d < 80 || (o < 60 && l < 60)) continue;
+        const chips = [];
+        if (l >= 60) chips.push([`Top lines ${ordn(l)}`, 'tough']);
+        if (o >= 60) chips.push([`Tough opponents ${ordn(o)}`, 'tough']);
+        if ((p.pk || 0) >= 1.5) chips.push([`PK ${mmss(p.pk)} a game`, 'mate']);
+        items.push(gemItem(p, g, d, ordn(d), 'defense', `${p.team} · ${g} · ${s2(p.iso3_xga60)} xGA/60 isolated`, chips, d + Math.max(o, l)));
+      }
+    }
+    return { items, sub: `Isolated defense (expected goals against, three seasons to ${sLabel(y)}, 1,500+ minutes) in the top 20% at his position, while facing top lines or tough opponents. Sheltered depth players are left out.` };
+  },
+  // young players whose isolated impact jumped
+  async break(y, sd) {
+    if (!S.seasons[y - 1] && y - 1 < 2010) return { empty: 'Needs the season before, so it starts in 2011-12.' };
+    const [car, prevI] = await Promise.all([loadCareers().catch(() => null), loadImpact(y - 1).catch(() => null)]);
+    const prev = S.seasons[y - 1];
+    if (!car || !prevI || !prev) return { empty: 'Needs last season\'s isolated impact, which isn\'t available.' };
+    const items = [];
+    for (const g of ['F', 'D']) {
+      const L = gemPool(sd, g, false).filter(p => nz(p.iso_net) && (p.iso_toi || 0) >= 800);
+      const pIso = pctOf(L, p => p.iso_net);
+      for (const p of L) {
+        const q = prev.byId.get(p.id); const bio = car.players[p.id];
+        const age = bio ? ageNow(bio[3], y) : null;
+        if (!q || !nz(q.iso_net) || (q.iso_toi || 0) < 500 || !nz(age) || age > 24) continue;
+        const iso = pIso(p.iso_net), up = p.iso_net - q.iso_net;
+        if (iso < 75 || up < 0.15) continue;
+        items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · age ${age} · ${p.pts} pts`, [[`Up ${s2(up)} xG/60 on last season`, 'tough'], [`${f0(p.iso_toi)} minutes`, 'low']], up));
+      }
+    }
+    return { items, sub: `Age 24 or under, isolated impact in the top quarter at his position in ${sLabel(y)} (800+ five-on-five minutes) and up 0.15+ xG/60 on the season before (500+ minutes). Biggest jump first.` };
+  },
+  // proven finishers scoring well below expected
+  async bounce(y, sd) {
+    const [a, b] = await Promise.all([loadSeason(y - 1).catch(() => null), loadSeason(y - 2).catch(() => null)]);
+    if (!a || !b) return { empty: 'Needs the two seasons before, which aren\'t available.' };
+    const prog = Math.min(1, (sd.gpmax || 82) / 82);
+    const items = [];
+    for (const g of ['F', 'D']) {
+      for (const p of gemPool(sd, g, false)) {
+        if (!nz(p.gax) || p.gax > -4 * prog) continue;
+        const qa = a.byId.get(p.id), qb = b.byId.get(p.id);
+        if (!qa || !qb || qa.gp < 40 || qb.gp < 40 || !nz(qa.gax) || !nz(qb.gax)) continue;
+        const before = qa.gax + qb.gax; if (before < 2) continue;
+        items.push(gemItem(p, g, p.gax, s1(p.gax), 'goals vs exp.', `${p.team} · ${g} · ${p.g} goals in ${p.gp}`, [[`+${before.toFixed(1)} the two seasons before`, 'mate']], -p.gax));
+      }
+    }
+    return { items, sub: `Scored at least 4 goals below expected in ${sLabel(y)} (scaled to games played so far), after finishing 2+ goals above expected over the two seasons before (40+ games in each). Furthest below expected first.` };
+  },
+  // heavy ice time, weak isolated impact
+  big(y, sd) {
+    const items = [];
+    for (const g of ['F', 'D']) {
+      const L = gemPool(sd, g);
+      const pIso = pctOf(L, p => p.iso3_net), pToi = pctOf(L, p => p.toi);
+      for (const p of L) {
+        const iso = pIso(p.iso3_net), t = pToi(p.toi);
+        if (t < 75 || iso > 20) continue;
+        items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, [[`${mmss(p.toi)} a night (${ordn(t)})`, 'tough']], t - iso));
+      }
+    }
+    return { items, sub: `Ice time in the top quarter at his position in ${sLabel(y)}, but three-season isolated impact in the bottom 20% (1,500+ minutes). Not a verdict on his contract: add his cap hit on his page to judge that.` };
+  },
+};
+async function renderGemsSkaters() {
+  const y = S.season, tab = GEMS.tab;
+  const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, onTab: () => renderGemsSkaters().catch(e => console.error(e)), current: S.A };
+  if (y < 2010 && tab !== 'bounce') { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
+  if (y !== S.season || tab !== GEMS.tab) return;
+  if (!sd || (tab !== 'bounce' && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  const r = await GEM_BUILD[tab](y, sd);
+  if (y !== S.season || tab !== GEMS.tab) return;
+  if (r.items) r.items.sort((a, b) => b.sort - a.sort);
+  renderGems({ ...base, ...r });
 }
 function pickGem(id) {
   if (!id || id === S.A) return;

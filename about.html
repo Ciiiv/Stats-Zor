@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611162130">
+<link rel="stylesheet" href="styles.css?v=202611171200">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -47,7 +47,7 @@
   <p style="margin-top:0">Every number on Stats-Zor is computed from public data by code you can read in the <a href="https://github.com/Ciiiv/Stats-Zor">GitHub repo</a>. Nothing is hand-entered except the cap figures listed under <a href="#m-value">Value and worth</a>. This page explains, section by section, what each part shows, how it's calculated, why it's built that way, and what it can't see.</p>
   <div class="toc">
     <div><b>Basics</b><a href="#glossary">Glossary</a><a href="#pools">Pools and percentiles</a><a href="#m-profile">Profile</a><a href="#m-tools">Tools (NHL EDGE)</a></div>
-    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a><a href="#m-gems">Doing more than the box score</a></div>
+    <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a><a href="#m-gems">Scouting lists</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-comp">Against and with</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
@@ -168,17 +168,22 @@ worth 20 hours of ice time, so a player needs a real sample to move far from 0.<
     <li>Early in a season the single-season numbers sit close to 0. That's the penalty doing its job, not a sign he's average.</li>
   </ul></details>
 
-  <h3 id="m-gems">Doing more than the box score</h3>
-  <p>The sidebar on the skater and goalie pages (a tap-to-open line on phones and smaller laptops) lists players doing elite work who got little credit for it in the selected season. Click a name to open his page.</p>
+  <h3 id="m-gems">Scouting lists (sidebar)</h3>
+  <p>The sidebar on the skater and goalie pages (a tap-to-open line on phones and smaller laptops) holds scouting lists for the selected season. Click a name to open his page. The top 10 show first and "Show more" lists everyone who qualifies; skater lists can be filtered to forwards or defense. Percentiles are among regulars at the same position that season. To avoid small samples, every list built on three-season isolated impact needs 1,500+ five-on-five minutes over those three seasons (about two seasons of regular play).</p>
   <ul>
-    <li><strong>Skaters:</strong> regulars with at least 1,500 five-on-five minutes over the three seasons up to the selected one (about two seasons of regular play, so no small samples) whose <a href="#m-iso">isolated impact</a> (net, over those three seasons) is in the top 20% at their position, whose points per game aren't in the top 10%, and who had at least one of: low points (bottom half per game), weak linemates (bottom third in <a href="#m-comp">linemates' quality</a>) or tough minutes (top fifth in opponents' quality). Sorted by the gap between isolated impact and points, biggest first, so the least-credited players lead. The number is his isolated impact percentile.</li>
-    <li><strong>Goalies:</strong> regulars whose save % above expected is in the top 20% that season, with at least one of: a losing record (bottom 40% in points percentage), tough shots (top fifth in expected goals per shot faced) or busy nights (top fifth in shots faced per 60). Sorted by save % above expected. The number is that percentile.</li>
+    <li><strong>Doing more than the box score:</strong> <a href="#m-iso">isolated impact</a> (net, three seasons) in the top 20%, points per game not in the top 10%, and at least one of low points (bottom half per game), weak linemates (bottom third in <a href="#m-comp">linemates' quality</a>) or tough minutes (top fifth in opponents' quality). Sorted by the gap between isolated impact and points.</li>
+    <li><strong>Carrying the load:</strong> the flip side: players who do score but carry a weak team. Isolated impact in the top 20%, points per game in the top 40%, and either his team's 5v5 expected-goal share without him on the ice in the bottom third or linemates in the bottom third. Sorted with the most elite, most productive and least helped first. It can't prove he'd do even more on a better team; the case is that his own impact is elite and the team falls apart when he sits (the Linemates section shows his partners with and without him).</li>
+    <li><strong>Shutdown:</strong> isolated defense (expected goals against, three seasons) in the top 20%, while facing real competition: top 40% in opponents' quality or in time against top lines. Without that second part the list fills with sheltered depth players who suppress chances against weaker opponents. Penalty-kill time is shown when it's 1:30 a game or more.</li>
+    <li><strong>Breakout watch:</strong> age 24 or under, single-season isolated impact in the top quarter (800+ five-on-five minutes) and up at least 0.15 xG/60 from the season before (500+ minutes then). Sorted by the size of the jump.</li>
+    <li><strong>Due for a bounce:</strong> scored at least 4 goals below expected this season (scaled to games played in a season still going), after finishing at least 2 goals above expected over the two seasons before with 40+ games in each. Finishing swings a lot from year to year, so a proven finisher in a slump usually recovers. Sorted by how far below expected.</li>
+    <li><strong>Big minutes, low impact:</strong> ice time in the top quarter at his position, but three-season isolated impact in the bottom 20%. This isn't a verdict on his contract (the site has no contract data); add his cap hit on his page to judge that.</li>
+    <li><strong>Goalies</strong> have one list: save % above expected in the top 20% of regulars, with a losing record (bottom 40% in points percentage), tough shots (top fifth in expected goals per shot faced) or busy nights (top fifth in shots faced per 60). Sorted by save % above expected.</li>
   </ul>
-  <p>The top 10 show first; "Show more" lists everyone who qualifies. Skaters can be filtered to forwards or defensemen. Percentiles are among regulars at the same position that season.</p>
   <details class="lim"><summary>Limits</summary><ul>
-    <li>It's a starting point for a closer look, not a verdict. A player can land here because his isolated number is high on a small or lucky sample, so open his page and check the details.</li>
-    <li>Players whose points are already in the top 10% are left out on purpose, even with tough minutes (Moritz Seider in 2025-26): the box score did credit them.</li>
-    <li>Skaters start in 2010-11, when NHL shift charts begin. Goalie saves are one season, which swings more than the three-season skater number.</li>
+    <li>These are starting points for a closer look, not verdicts. Open the player's page and check the details.</li>
+    <li>Players whose points are already in the top 10% are left out of the box-score list on purpose (Moritz Seider in 2025-26); he shows up under Carrying the load and Breakout watch instead.</li>
+    <li>Breakout watch and Due for a bounce lean on one season of results, with minute and game minimums to keep the samples honest. Early in a season some lists are short or empty until players reach the minimums.</li>
+    <li>Skater lists built on isolated impact start in 2010-11, when NHL shift charts begin. Goalie saves are one season, which swings more than the three-season skater number.</li>
   </ul></details>
 
   <h3 id="m-shots">Shot maps</h3>
