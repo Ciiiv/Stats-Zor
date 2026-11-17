@@ -31,6 +31,9 @@ const MET = {
   iso_xgf60: { l: 'Isolated xGF/60', f: s2 }, iso_xga60: { l: 'Isolated xGA/60', f: s2, lo: 1 }, iso_net: { l: 'Isolated net', f: s2 },
   iso3_xgf60: { l: 'Isolated xGF/60 (3 seasons)', f: s2 }, iso3_xga60: { l: 'Isolated xGA/60 (3 seasons)', f: s2, lo: 1 }, iso3_net: { l: 'Isolated net (3 seasons)', f: s2 },
   rel_net: { l: 'Rel net xG/60', f: s2 },
+  iso_gf60: { l: 'Isolated GF/60', f: s2 }, iso_ga60: { l: 'Isolated GA/60', f: s2, lo: 1 }, iso_ff60: { l: 'Isolated attempts for/60', f: s1 }, iso_fa60: { l: 'Isolated attempts against/60', f: s1, lo: 1 },
+  iso3_gf60: { l: 'Isolated GF/60 (3 seasons)', f: s2 }, iso3_ga60: { l: 'Isolated GA/60 (3 seasons)', f: s2, lo: 1 }, iso3_ff60: { l: 'Isolated attempts for/60 (3 seasons)', f: s1 }, iso3_fa60: { l: 'Isolated attempts against/60 (3 seasons)', f: s1, lo: 1 },
+  iso_pp60: { l: 'Isolated PP xGF/60', f: s2 }, iso_pk60: { l: 'Isolated PK xGA/60', f: s2, lo: 1 }, iso3_pp60: { l: 'Isolated PP xGF/60 (3 seasons)', f: s2 }, iso3_pk60: { l: 'Isolated PK xGA/60 (3 seasons)', f: s2, lo: 1 },
   gs: { l: 'GameScore/GP', f: f2 }, fo_pct: { l: 'Faceoff %', f: f1 }, pdiff60: { l: 'Pen. drawn − taken /60', f: s2 },
 };
 const COLS = {
@@ -252,7 +255,9 @@ function renderProfile() {
       if (c.hof) bs.push('<span class="badge gold">Hall of Fame</span>');
       badges = `<div class="badges">${bs.map(b => b.startsWith('<') ? b : `<span class="badge">${b}</span>`).join('')}</div>`;
     }
-    return `<div class="pcard ${cls}"><h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${esc(meta)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
+    const team = p ? p.team : ix.team; const tc = teamColor(team); const num = jerseyNum(id, team);
+    const meta2 = [pos, c && c.shoots ? `Shoots ${c.shoots}` : '', age ? `Age ${age}` : '', c ? [htFmt(c.ht), c.wt ? c.wt + ' lb' : ''].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ');
+    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
   };
   $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
 }
@@ -411,6 +416,13 @@ async function loadImpact(y) {
       p.iso_xgf60 = i ? i.off : null; p.iso_xga60 = i ? i.def : null; p.iso_net = i ? i.off - i.def : null;
       const ok3 = i && nz(i.off3) && (i.toi3 || 0) >= 600;
       p.iso3_xgf60 = ok3 ? i.off3 : null; p.iso3_xga60 = ok3 ? i.def3 : null; p.iso3_net = ok3 ? i.off3 - i.def3 : null;
+      // goals and unblocked shot attempts (same fit, other targets); power play and penalty kill (5-on-4 fit)
+      const v = (k, ok = true) => (i && ok && nz(i[k]) ? i[k] : null);
+      p.iso_gf60 = v('goff'); p.iso_ga60 = v('gdef'); p.iso_ff60 = v('foff'); p.iso_fa60 = v('fdef');
+      p.iso3_gf60 = v('goff3', ok3); p.iso3_ga60 = v('gdef3', ok3); p.iso3_ff60 = v('foff3', ok3); p.iso3_fa60 = v('fdef3', ok3);
+      p.iso_pp_toi = v('ppt'); p.iso_pk_toi = v('pkt'); p.iso3_pp_toi = v('ppt3'); p.iso3_pk_toi = v('pkt3');
+      p.iso_pp60 = v('pp', (i && i.ppt) >= 50); p.iso_pk60 = v('pk', (i && i.pkt) >= 50);
+      p.iso3_pp60 = v('pp3', (i && i.ppt3) >= 150); p.iso3_pk60 = v('pk3', (i && i.pkt3) >= 150);
     });
     if (j.comp) {
       const cm = new Map(j.comp.map(r => { const o = {}; j.comp_fields.forEach((k, i) => { o[k] = r[i]; }); return [o.id, o]; }));
@@ -441,13 +453,25 @@ async function renderIso() {
     if (d <= -15) return `Isolated rates him well below relative (${ordn(a)} vs ${ordn(r)} percentile). Part of his on-ice edge belongs to his linemates, or the team is much worse when he sits.`;
     return `Both methods agree (${ordn(a)} and ${ordn(r)} percentile).`;
   };
+  const one = (p, key) => { const pc = pctl(sd, p.grp, key, p[key]); return `<td style="background:${heat(pc)}">${nz(p[key]) ? MET[key].f(p[key]) : '—'}${nz(pc) ? `<small>${ordn(pc)}</small>` : ''}</td>`; };
+  const more = p => {
+    if (!('iso_gf60' in p) || (!nz(p[k + 'gf60']) && !nz(p[k + 'pp60']) && !nz(p[k + 'pk60']))) return '';
+    const pt = p[k + 'pp_toi'], kt = p[k + 'pk_toi'];
+    return `<p class="minihead" style="margin-top:12px">Same method, other measures${three ? ' · 3 seasons' : ''}</p>
+    <div class="scroll"><table class="tbl iso"><thead><tr><th></th><th>For</th><th>Against</th></tr></thead><tbody>
+      <tr><td>Goals /60 · 5v5</td>${one(p, k + 'gf60')}${one(p, k + 'ga60')}</tr>
+      <tr><td>Shot attempts /60 · 5v5</td>${one(p, k + 'ff60')}${one(p, k + 'fa60')}</tr>
+      <tr><td>Power play · PK xG/60</td>${one(p, k + 'pp60')}${one(p, k + 'pk60')}</tr></tbody></table></div>
+    <p class="sub small" style="margin-top:6px">Goals are the noisiest, shot attempts the steadiest. Power play: xG/60 he adds at 5-on-4 (${nz(pt) ? f0(pt) : 0} minutes); penalty kill: xG/60 he allows at 4-on-5 (${nz(kt) ? f0(kt) : 0} minutes; negative is good). Shown from ${three ? '150' : '50'}+ minutes.</p>`;
+  };
   const card = (p, i) => `<div class="pcard ${i ? 'b' : 'a'}"><h3 style="font-size:22px">${esc(p.name)}</h3>
     <p class="sub small">${nz(p[three ? 'iso3_toi' : 'iso_toi']) ? `${f0(p[three ? 'iso3_toi' : 'iso_toi'])} five-on-five minutes in the fit` : 'Not in the fit'} · percentiles among regular ${GRP_NAME[p.grp]}</p>
     <div class="scroll"><table class="tbl iso"><thead><tr><th></th><th>Isolated${three ? ', 3 seasons' : ''}</th><th>Relative${three ? `, ${sLabel(y)}` : ''}</th></tr></thead><tbody>
       <tr><td>Offense · xGF/60</td>${cell(p, k + 'xgf60')}${cell(p, 'rel_xgf60')}</tr>
       <tr><td>Defense · xGA/60</td>${cell(p, k + 'xga60')}${cell(p, 'rel_xga60')}</tr>
       <tr><td>Net</td>${cell(p, k + 'net')}${cell(p, 'rel_net')}</tr></tbody></table></div>
-    <p class="sub small" style="margin-top:8px">${read(p)}</p></div>`;
+    <p class="sub small" style="margin-top:8px">${read(p)}</p>
+    ${more(p)}</div>`;
   sub.innerHTML = `Each skater's own effect on five-on-five expected goals per 60, with his linemates, opponents' skaters, zone starts, score and home ice taken out by a regression over every shift (${sLabel(y)}${three ? ' and the two seasons before it' : ''}). Next to it is the relative number already on this page: the team with him minus the team without him. For defense, negative is good (fewer chances allowed). A blue cell is good.`;
   $('iso').innerHTML = `<div class="valgrid">${ps.map(card).join('')}</div>`;
   scatter('sc-iso', k + 'xga60', k + 'xgf60', 'Isolated xGA/60 (fewer is better →  left)', 'Isolated xGF/60', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Helps both ways</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Hurts both ways</text>`, () => [0, 0]);
@@ -1259,6 +1283,7 @@ async function init() {
     $('status').hidden = true;
     S.shotsSeen = true;
     await render();
+    loadRosterNums().then(() => safe('sec-profile', renderProfile)).catch(() => {});
     loadCareers().then(() => render()).catch(e => { console.error(e); $('sec-career').insertAdjacentHTML('beforeend', '<p class="empty">Career data could not be loaded.</p>'); });
   } catch (e) {
     console.error(e);

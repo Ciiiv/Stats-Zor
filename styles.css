@@ -247,3 +247,11 @@ table{border-collapse:collapse}
   .gems summary{cursor:default} .gems .gchev{display:none}
   body:has(.layout) .wrap{max-width:1500px}
 }
+
+/* team colors and jersey number on player cards */
+.tbadge{display:inline-block;font:700 11px/1 var(--f-mono);padding:3px 6px;border-radius:4px;margin-right:6px;vertical-align:1px;background:var(--line);color:var(--ink);letter-spacing:.04em}
+.pcard.tc{position:relative;border-left:6px solid var(--tc)}
+.jnum{position:absolute;right:16px;top:10px;font:800 52px/1 var(--f-display);color:var(--tc,var(--muted));opacity:.22;pointer-events:none}
+@media (max-width:600px){.jnum{font-size:40px;right:12px}}
+.jnum + h1{padding-right:78px}
+@media (max-width:600px){.jnum + h1{padding-right:56px}}

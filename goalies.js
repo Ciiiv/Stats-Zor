@@ -187,7 +187,9 @@ function renderProfile() {
       if (c.hof) bs.push('<span class="badge gold">Hall of Fame</span>');
       badges = `<div class="badges">${bs.map(b => b.startsWith('<') ? b : `<span class="badge">${b}</span>`).join('')}</div>`;
     }
-    return `<div class="pcard ${cls}"><h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${esc(meta)}</p>${tiles}${badges}</div>`;
+    const team = p ? p.team : ix.team; const tc = teamColor(team); const num = jerseyNum(id, team);
+    const meta2 = ['G', c && c.catches ? `Catches ${c.catches}` : '', age ? `Age ${age}` : '', c ? [htFmt(c.ht), c.wt ? c.wt + ' lb' : ''].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ');
+    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}</p>${tiles}${badges}</div>`;
   };
   $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
 }
@@ -964,6 +966,7 @@ async function init() {
     if (!h.s) S.season = bestSeason(S.A);
     wire(); initNav(); $('status').hidden = true;
     await render();
+    loadRosterNums().then(() => safe('sec-profile', renderProfile)).catch(() => {});
     loadCareers().then(() => render()).catch(e => { console.error(e); $('sec-career').insertAdjacentHTML('beforeend', '<p class="empty">Career data could not be loaded.</p>'); });
   } catch (e) {
     console.error(e);

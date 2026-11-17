@@ -58,6 +58,8 @@ GOALIE_WEIGHT = 0.5    # share of a goalie's goals saved above expected credited
 GOALIE_ROSTER = 2      # goalies per team counted at minimum salary
 SCHED = {2012: 48, 2019: 70, 2020: 56}
 ISO_WEIGHT = 0.67      # isolated share of the 5v5 rates (set from the forecast test in data/impact/test.json)
+ISO_WEIGHT_PP = 0.0    # isolated share of the power-play rate (set from data/impact/pp_test.json)
+ISO_WEIGHT_PK = 0.0    # isolated share of the penalty-kill rate (set from data/impact/pp_test.json)
 
 
 def cap(y):
@@ -211,7 +213,14 @@ def season_value(sf, usage):
     iso = {}
     if imp:
         fi = imp["fields"]
-        iso = {r[fi.index("id")]: (r[fi.index("off")], r[fi.index("def")]) for r in imp["players"]}
+        iso = {r[fi.index("id")]: (r[fi.index("off")], r[fi.index("def")]) for r in imp["players"] if r[fi.index("off")] is not None}
+        if "pp" in fi:   # 5-on-4 isolated impact, used once a player has 50+ minutes there
+            ipp = {r[fi.index("id")]: r[fi.index("pp")] for r in imp["players"] if r[fi.index("pp")] is not None and (r[fi.index("ppt")] or 0) >= 50}
+            ipk = {r[fi.index("id")]: r[fi.index("pk")] for r in imp["players"] if r[fi.index("pk")] is not None and (r[fi.index("pkt")] or 0) >= 50}
+        else:
+            ipp, ipk = {}, {}
+    else:
+        ipp, ipk = {}, {}
     repl, scale = {}, {}
 
     def sd(v):
@@ -258,12 +267,31 @@ def season_value(sf, usage):
         if w == w_used:
             for grp in ("F", "D"):
                 repl.setdefault(grp, {})["ev_off"], repl[grp]["ev_def"] = R5[grp]
+    # special teams: on-ice rate x 0.3 (PP) / 0.25 (PK), optionally blended with isolated 5-on-4 impact stretched
+    # to the same spread (ISO_WEIGHT_PP / ISO_WEIGHT_PK; 0 = on-ice only, as before)
+    wpp = ISO_WEIGHT_PP if ipp else 0.0
+    wpk = ISO_WEIGHT_PK if ipk else 0.0
+    sc_st = {}
     for grp in ("F", "D"):
         reg = regs[grp]
-        repl[grp].update({
-            "pp": pctile([p["pp_xgf60"] for p in reg if p["pp_xgf60"] is not None], 0.20),
-            "pk": pctile([p["pk_xga60"] for p in reg if p["pk_xga60"] is not None], 0.80),
-        })
+        a = [p for p in reg if p["id"] in ipp and p["pp_xgf60"] is not None]
+        b = [p for p in reg if p["id"] in ipk and p["pk_xga60"] is not None]
+        s1, s2 = sd([ipp[p["id"]] for p in a]), sd([ipk[p["id"]] for p in b])
+        sc_st[grp] = (sd([0.3 * p["pp_xgf60"] for p in a]) / s1 if s1 else 0.0, sd([0.25 * p["pk_xga60"] for p in b]) / s2 if s2 else 0.0)
+
+    def st_rates(p):
+        pp = 0.3 * p["pp_xgf60"] if p["pp_xgf60"] is not None else None
+        pk = 0.25 * p["pk_xga60"] if p["pk_xga60"] is not None else None
+        k = sc_st.get(p["grp"], (0.0, 0.0))
+        if pp is not None and p["id"] in ipp and k[0]:
+            pp = wpp * ipp[p["id"]] * k[0] + (1 - wpp) * pp
+        if pk is not None and p["id"] in ipk and k[1]:
+            pk = wpk * ipk[p["id"]] * k[1] + (1 - wpk) * pk
+        return pp, pk
+    for grp in ("F", "D"):
+        rr = [st_rates(p) for p in regs[grp]]
+        repl[grp].update({"pp": pctile([r[0] for r in rr if r[0] is not None], 0.20),
+                          "pk": pctile([r[1] for r in rr if r[1] is not None], 0.80)})
     out, alt = [], {}
     for p in P:
         R = repl[p["grp"]]
@@ -271,14 +299,15 @@ def season_value(sf, usage):
         hpk = p["pk"] * p["gp"] / 60
         evo, evd = ev[w_used][p["id"]]
         fin = 0.5 * (p["gax"] or 0)
-        ppv = 0.3 * (p["pp_xgf60"] - R["pp"]) * hpp if p["pp_xgf60"] is not None else 0.0
-        pkv = 0.25 * (R["pk"] - p["pk_xga60"]) * hpk if p["pk_xga60"] is not None else 0.0
+        rpp, rpk = st_rates(p)
+        ppv = (rpp - R["pp"]) * hpp if rpp is not None else 0.0
+        pkv = (R["pk"] - rpk) * hpk if rpk is not None else 0.0
         pen = 0.15 * ((p["pend"] or 0) - (p["pen"] or 0))
         gar = evo + evd + fin + ppv + pkv + pen
         out.append([p["id"], p["team"], p["pos"], p["gp"], round(evo, 2), round(evd, 2), round(fin, 2), round(ppv, 2),
                     round(pkv, 2), round(pen, 2), round(gar, 2), round(gar / GOALS_PER_WIN, 2)])
         alt[p["id"]] = (round(sum(ev[0.0][p["id"]]), 2), round(sum(ev[1.0][p["id"]]), 2) if iso and p["id"] in iso else None)
-    meta = {"iso_weight": w_used, "iso_scale": {g: [round(a, 3), round(b, 3)] for g, (a, b) in scale.items()} if iso else None}
+    meta = {"iso_weight": w_used, "iso_weight_pp": wpp, "iso_weight_pk": wpk, "iso_scale": {g: [round(a, 3), round(b, 3)] for g, (a, b) in scale.items()} if iso else None}
     return out, repl, gpmax, alt, meta
 
 
@@ -501,16 +530,13 @@ def main():
         for grp in ("forwards", "defensemen", "goalies"):
             for p in j.get(grp, []) or []:
                 nm = f"{(p.get('firstName') or {}).get('default', '')} {(p.get('lastName') or {}).get('default', '')}".strip()
-                out.append([p.get("id"), nm, p.get("positionCode"), p.get("birthDate")])
+                out.append([p.get("id"), nm, p.get("positionCode"), p.get("birthDate"), 0, p.get("sweaterNumber")])
         return t, out
     rosters = {}
     with ThreadPoolExecutor(max_workers=6) as ex:
         for t, out in ex.map(roster, teams):
             if out:
                 rosters[t] = out
-    for out in rosters.values():
-        for row in out:
-            row.append(0)  # on the active roster
     # Players still under a team's control but missing from its active roster (sitting out,
     # unsigned RFA, long-term injury, suspended): anyone who played the last two seasons and
     # isn't on any active roster, kept if his NHL player record still names a current team.
@@ -533,19 +559,19 @@ def main():
             try:
                 j = fetch_json(NHL_LANDING.format(pid=pid))
             except Exception:  # noqa: BLE001
-                return pid, None, None
-            return pid, j.get("currentTeamAbbrev") if j.get("isActive") else None, j.get("birthDate")
+                return pid, None, None, None
+            return pid, j.get("currentTeamAbbrev") if j.get("isActive") else None, j.get("birthDate"), j.get("sweaterNumber")
 
         added = 0
         with ThreadPoolExecutor(max_workers=8) as ex:
-            for pid, team, birth in ex.map(status, todo):
+            for pid, team, birth, num in ex.map(status, todo):
                 if team and team in rosters:
                     nm, pos = recent[pid]
-                    rosters[team].append([pid, nm, pos, birth, 1])
+                    rosters[team].append([pid, nm, pos, birth, 1, num])
                     added += 1
         log(f"rosters: {added} players under contract or team control but not on an active roster ({len(todo)} checked)")
     if rosters:
-        write_json(os.path.join(DATA, "rosters.json"), {"updated": dt.date.today().isoformat(), "fields": ["id", "name", "pos", "birth", "off_roster"], "teams": rosters})
+        write_json(os.path.join(DATA, "rosters.json"), {"updated": dt.date.today().isoformat(), "fields": ["id", "name", "pos", "birth", "off_roster", "num"], "teams": rosters})
         log(f"rosters: {len(rosters)} teams")
 
     # prospects: recent draft picks who haven't become NHL regulars (matched to careers by name)

@@ -191,3 +191,30 @@ function pctOf(list, fn) {
   const v = list.map(fn).filter(nz).sort((a, b) => a - b);
   return x => { if (!nz(x) || !v.length) return null; let lo = 0, eq = 0; for (const y of v) { if (y < x) lo++; else if (y === x) eq++; } return 100 * (lo + eq / 2) / v.length; };
 }
+
+// ------------------------------------------------------------------ team colors and jersey numbers on player cards
+// Team primary colors (no logos: those are trademarks). Historical codes included for older seasons.
+const TEAM_COLORS = {
+  ANA: '#F47A38', ARI: '#8C2633', PHX: '#8C2633', ATL: '#041E42', BOS: '#FFB81C', BUF: '#003087', CAR: '#CE1126', CBJ: '#002654',
+  CGY: '#C8102E', CHI: '#CF0A2C', COL: '#6F263D', DAL: '#006847', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E', LAK: '#111111',
+  MIN: '#154734', MTL: '#AF1E2D', NJD: '#CE1126', NSH: '#FFB81C', NYI: '#00539B', NYR: '#0038A8', OTT: '#C52032', PHI: '#F74902',
+  PIT: '#FCB514', SEA: '#99D9D9', SJS: '#006D75', STL: '#002F87', TBL: '#002868', TOR: '#00205B', UTA: '#71AFE5', VAN: '#00205B',
+  VGK: '#B4975A', WPG: '#041E42', WSH: '#C8102E',
+};
+const teamColor = t => TEAM_COLORS[t] || null;
+// readable text on a team color
+const onColor = hex => { const n = parseInt(hex.slice(1), 16); const l = (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; return l > 0.6 ? '#111' : '#fff'; };
+const teamBadge = t => { const c = teamColor(t); return c ? `<span class="tbadge" style="background:${c};color:${onColor(c)}">${esc(t)}</span>` : (t ? `<span class="tbadge">${esc(t)}</span>` : ''); };
+// current jersey numbers from data/rosters.json: id -> { team, num }
+let ROSTER_NUMS = null;
+async function loadRosterNums() {
+  if (ROSTER_NUMS) return ROSTER_NUMS;
+  ROSTER_NUMS = new Map();
+  try {
+    const r = await getJSON('data/rosters.json'); const fi = r.fields.indexOf('num');
+    for (const [team, rows] of Object.entries(r.teams || {})) for (const row of rows) if (fi >= 0 && row[fi] != null) ROSTER_NUMS.set(row[0], { team, num: row[fi] });
+  } catch (e) { /* numbers are optional */ }
+  return ROSTER_NUMS;
+}
+// his current number, shown only when the card is for the team he's on now
+const jerseyNum = (id, team) => { const r = ROSTER_NUMS && ROSTER_NUMS.get(id); return r && (!team || r.team === team) ? r.num : null; };
