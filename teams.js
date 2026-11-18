@@ -79,13 +79,18 @@ function renderTCard(sd, TD, G, CR) {
 }
 
 // ------------------------------------------------------------------ season trend
-function renderTrend(G, CR) {
+function renderTrend(G, CR, prev) {
   if (!G) { $('trend').innerHTML = ''; $('trend-sub').textContent = ''; return; }
   const gs = G.games, n = gs.length, N = TP.win;
-  $('trend-sub').innerHTML = `The team's share of five-on-five expected goals over its last ${N} games, game by game. Above 50% means it created more good chances than it allowed. Goals (dotted) swing more with shooting and goaltending luck. The first ${N - 1} games are shaded: too few to read a trend. The dashed line is the season average.`;
+  // until the window is full, borrow the end of last season (same franchise); with no last season, use the season so far
+  const carry = prev && prev.length ? prev.slice(-(N - 1)) : [];
+  const early = carry.length ? `Until game ${N}, the window reaches back into the end of last season (lighter line, shaded), so the early points mix both seasons; rosters change over the summer, so read them loosely.` : `Until game ${N} there aren't ${N} games yet, so the lighter line in the shaded area is the season so far, which swings a lot on so few games.`;
+  $('trend-sub').innerHTML = `The team's share of five-on-five expected goals over its last ${N} games, game by game. Above 50% means it created more good chances than it allowed. Goals (dotted) swing more with shooting and goaltending luck. ${early} The dashed line is the season average.`;
   if (n < 2) { $('trend').innerHTML = '<p class="empty">Not enough games yet.</p>'; return; }
-  const roll = (a, b) => gs.map((g, i) => i < N - 1 ? null : sumShare(gs.slice(i - N + 1, i + 1), a, b));
+  const win = i => i >= N - 1 ? gs.slice(i - N + 1, i + 1) : carry.slice(carry.length - Math.min(carry.length, N - 1 - i)).concat(gs.slice(0, i + 1));
+  const roll = (a, b) => gs.map((g, i) => { const w = win(i); return !carry.length && i < 2 ? null : sumShare(w, a, b); });
   const xr = roll('xgf', 'xga'), gr = roll('gf', 'ga');
+  const part = (arr, early) => arr.map((v, i) => (early ? i <= N - 1 : i >= N - 1) ? v : null);
   const season = sumShare(gs, 'xgf', 'xga');
   const W = 900, H = 260, m = { l: 44, r: 16, t: 14, b: 30 };
   const vals = xr.concat(gr, [50, season]).filter(nz);
@@ -96,17 +101,19 @@ function renderTrend(G, CR) {
   const yt = ticks(lo, hi, st).map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" class="axl">${v}%</text>`).join('');
   const gstep = n > 60 ? 10 : n > 25 ? 5 : n > 10 ? 2 : 1;
   const xt = gs.filter((g, i) => (i + 1) % gstep === 0 || i === 0).map(g => `<text x="${X(g.i)}" y="${H - 10}" text-anchor="middle" class="axl">${g.i + 1}</text>`).join('');
-  const shade = N - 1 < n ? `<rect x="${m.l}" y="${m.t}" width="${Math.max(0, X(N - 1) - m.l)}" height="${H - m.t - m.b}" fill="var(--line)" opacity=".35"/>` : '';
-  const hits = gs.map(g => { const x0 = X(g.i) - (W - m.l - m.r) / n / 2; return `<rect x="${x0.toFixed(1)}" y="${m.t}" width="${((W - m.l - m.r) / n).toFixed(1)}" height="${H - m.t - m.b}" fill="transparent"><title>Game ${g.i + 1} · ${gdate(g.date)} ${g.home ? 'vs' : 'at'} ${g.opp} · that night ${f1(share(g.xgf, g.xga))}% xG, goals ${g.gf}-${g.ga} at 5v5${nz(xr[g.i]) ? ` · last ${N}: ${f1(xr[g.i])}%` : ''}</title></rect>`; }).join('');
+  const shade = N - 1 < n ? `<rect x="${m.l}" y="${m.t}" width="${Math.max(0, X(N - 1) - m.l)}" height="${H - m.t - m.b}" fill="var(--line)" opacity=".25"/><text x="${m.l + 6}" y="${H - m.b - 6}" class="axl">${carry.length ? 'includes end of last season' : 'season so far'}</text>` : '';
+  const hits = gs.map(g => { const x0 = X(g.i) - (W - m.l - m.r) / n / 2; const lbl = g.i < N - 1 ? (carry.length ? `last ${N} incl. end of last season` : `season so far`) : `last ${N}`; return `<rect x="${x0.toFixed(1)}" y="${m.t}" width="${((W - m.l - m.r) / n).toFixed(1)}" height="${H - m.t - m.b}" fill="transparent"><title>Game ${g.i + 1} · ${gdate(g.date)} ${g.home ? 'vs' : 'at'} ${g.opp} · that night ${f1(share(g.xgf, g.xga))}% xG, goals ${g.gf}-${g.ga} at 5v5${nz(xr[g.i]) ? ` · ${lbl}: ${f1(xr[g.i])}%` : ''}</title></rect>`; }).join('');
   const marks = CR && CR.runs.length > 1 ? CR.runs.slice(1).map(r => `<line x1="${X(r.from - 0.5)}" x2="${X(r.from - 0.5)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink)" stroke-dasharray="3 3" opacity=".6"/><text x="${X(r.from - 0.5) + 4}" y="${m.t + 12}" class="axl" style="fill:var(--ink)">New coach: ${esc(r.name)}</text>`).join('') : '';
   $('trend').innerHTML = `<div class="scroll"><svg class="tchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rolling ${N}-game five-on-five expected goal share">
     ${shade}${yt}
     <line x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}" stroke="var(--muted)" stroke-width="1"/>
     ${nz(season) ? `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(season)}" y2="${Y(season)}" stroke="var(--c1)" stroke-dasharray="5 4" opacity=".7"/>` : ''}
-    <path d="${path(gr)}" fill="none" stroke="var(--c2)" stroke-width="1.5" stroke-dasharray="2 3"/>
-    <path d="${path(xr)}" fill="none" stroke="var(--c1)" stroke-width="2.5"/>
+    <path d="${path(part(gr, true))}" fill="none" stroke="var(--c2)" stroke-width="1.25" stroke-dasharray="2 3" opacity=".5"/>
+    <path d="${path(part(xr, true))}" fill="none" stroke="var(--c1)" stroke-width="2" opacity=".45"/>
+    <path d="${path(part(gr, false))}" fill="none" stroke="var(--c2)" stroke-width="1.5" stroke-dasharray="2 3"/>
+    <path d="${path(part(xr, false))}" fill="none" stroke="var(--c1)" stroke-width="2.5"/>
     ${xt}${marks}${hits}</svg></div>
-    <p class="tkey"><span><i style="background:var(--c1)"></i>Expected goals, last ${N}</span><span><i class="dot2" style="border-color:var(--c2)"></i>Actual goals, last ${N}</span><span><i class="dash" style="border-color:var(--c1)"></i>Season average ${f1(season)}%</span><span class="lab">x-axis: game number</span></p>`;
+    <p class="tkey"><span><i style="background:var(--c1)"></i>Expected goals, last ${N}</span><span><i class="dot2" style="border-color:var(--c2)"></i>Actual goals, last ${N}</span><span><i style="background:var(--c1);opacity:.45"></i>${carry.length ? 'Lighter: window includes last season' : 'Lighter: season so far'}</span><span><i class="dash" style="border-color:var(--c1)"></i>Season average ${f1(season)}%</span><span class="lab">x-axis: game number</span></p>`;
 }
 
 // ------------------------------------------------------------------ lineup strip
@@ -219,7 +226,14 @@ async function renderTeams() {
   const CR = coachRuns(G, C);
   safe('sec-tcard', () => renderTCard(sd, TD, G, CR));
   if (!TD) $('sec-tcard').insertAdjacentHTML('beforeend', `<p class="empty">Game-by-game team data for ${sLabel(y)} hasn't been built yet. It's added by the nightly update.</p>`);
-  safe('sec-trend', () => renderTrend(G, CR));
+  let prev = null;
+  if (G && S.idx.mp_seasons.includes(y - 1)) {
+    const TDp = await loadTeams(y - 1);
+    if (y !== TP.y) return;
+    const pt = TDp && Object.keys(TDp.teams).find(t => sameFranchise(t, TP.team));
+    if (pt) prev = teamGames(TDp, pt).games;
+  }
+  safe('sec-trend', () => renderTrend(G, CR, prev));
   safe('sec-strip', () => renderStrip(G, sd));
   try { await renderDeploy(G, sd); } catch (e) { console.error(e); $('deploy').innerHTML = `<p class="empty">This section hit an error: ${esc(e.message)}</p>`; }
 }
