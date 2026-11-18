@@ -277,16 +277,20 @@ def season_value(sf, usage):
         a = [p for p in reg if p["id"] in ipp and p["pp_xgf60"] is not None]
         b = [p for p in reg if p["id"] in ipk and p["pk_xga60"] is not None]
         s1, s2 = sd([ipp[p["id"]] for p in a]), sd([ipk[p["id"]] for p in b])
-        sc_st[grp] = (sd([0.3 * p["pp_xgf60"] for p in a]) / s1 if s1 else 0.0, sd([0.25 * p["pk_xga60"] for p in b]) / s2 if s2 else 0.0)
+        mean = lambda v: sum(v) / len(v) if v else 0.0  # noqa: E731
+        # (stretch, isolated mean, on-ice mean): isolated numbers are relative to average and on-ice numbers are
+        # levels, so the stretched isolated number is re-centred on the group's on-ice level before blending
+        sc_st[grp] = ((sd([0.3 * p["pp_xgf60"] for p in a]) / s1 if s1 else 0.0, mean([ipp[p["id"]] for p in a]), mean([0.3 * p["pp_xgf60"] for p in a])),
+                      (sd([0.25 * p["pk_xga60"] for p in b]) / s2 if s2 else 0.0, mean([ipk[p["id"]] for p in b]), mean([0.25 * p["pk_xga60"] for p in b])))
 
     def st_rates(p):
         pp = 0.3 * p["pp_xgf60"] if p["pp_xgf60"] is not None else None
         pk = 0.25 * p["pk_xga60"] if p["pk_xga60"] is not None else None
-        k = sc_st.get(p["grp"], (0.0, 0.0))
-        if pp is not None and p["id"] in ipp and k[0]:
-            pp = wpp * ipp[p["id"]] * k[0] + (1 - wpp) * pp
-        if pk is not None and p["id"] in ipk and k[1]:
-            pk = wpk * ipk[p["id"]] * k[1] + (1 - wpk) * pk
+        kp, kk = sc_st.get(p["grp"], ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)))
+        if pp is not None and p["id"] in ipp and kp[0]:
+            pp = wpp * (kp[2] + (ipp[p["id"]] - kp[1]) * kp[0]) + (1 - wpp) * pp
+        if pk is not None and p["id"] in ipk and kk[0]:
+            pk = wpk * (kk[2] + (ipk[p["id"]] - kk[1]) * kk[0]) + (1 - wpk) * pk
         return pp, pk
     for grp in ("F", "D"):
         rr = [st_rates(p) for p in regs[grp]]
