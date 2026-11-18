@@ -87,6 +87,13 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 ## Next ideas
 The Nov 2026 list (history-based starting points, power play / penalty kill, goals and shot attempts, box-score stabilizer, team-color cards, six scouting tabs per page) is all built. Ask the owner before starting anything new; every new list or model change must avoid small samples and be tested before it changes a number.
 
+## If ever going widespread or paid
+Topics to cover with the owner before promoting the site widely or charging for it (discussed Nov 2026; nothing done yet):
+- **Widespread, still free:** add a footer line "Not affiliated with or endorsed by the NHL or its teams" (no page says it now); decide on a license file (none now, so by default no one may reuse the code; the data keeps its own rules); add a way to report problems (GitHub Issues link or email); fix known data gaps first (e.g. missing current-season games) so numbers match NHL.com.
+- **Paid (ads, subscriptions):** MoneyPuck is non-commercial only and its xG drives most of the site, so get MoneyPuck's permission or a paid arrangement first, or build our own xG model from NHL play-by-play. The NHL's public feeds aren't licensed for commercial use and its terms of use restrict it. GitHub Pages' rules don't allow running a business mainly on Pages, so move hosting.
+- **Load:** fine for a long while. The site is about 74 MB (mostly `data/`); Pages' soft limits are 1 GB size and 100 GB traffic a month; visitors only download the files they view, and with no server there's nothing to crash.
+- **Privacy:** no accounts, no tracking, cap hits stay in the browser. If visitor counts are ever added, use a privacy-friendly counter and add a one-line privacy note.
+
 ## Yearly upkeep
 - Update `CAP` and `MIN` in `scripts/build_value.py` when the league announces new figures (published through 2027-28; 5% growth assumed after).
 - Each September, check that the nightly workflow wasn't paused by GitHub's 60-day inactivity rule over the summer.
