@@ -255,3 +255,4 @@ table{border-collapse:collapse}
 @media (max-width:600px){.jnum{font-size:40px;right:12px}}
 .jnum + h1{padding-right:78px}
 @media (max-width:600px){.jnum + h1{padding-right:56px}}
+.note{border-left:3px solid var(--c1);background:color-mix(in srgb,var(--c1) 8%,transparent);padding:8px 12px;border-radius:0;line-height:1.5}

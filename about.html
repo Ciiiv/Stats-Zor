@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611171845">
+<link rel="stylesheet" href="styles.css?v=202611172010">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -295,7 +295,9 @@ Against his role = his 5v5 xGF% − league xGF% for the slots he played, weighte
   <div class="m">Goals above replacement (per season)
   5v5 offense   = (5v5 offense rate − replacement) × 5v5 hours
   5v5 defense   = (replacement − 5v5 defense rate) × 5v5 hours
-  Finishing     = 0.5 × (goals − individual xG), all situations
+  Finishing     = his finishing per shot over 3 seasons × kept share × his shots this season
+                  (finishing = goals − individual xG, all situations;
+                   kept share = 3-season shots ÷ (shots + 400) for forwards, ÷ (shots + 2,000) for defensemen)
   Power play    = (PP rate − replacement) × PP hours
   Penalty kill  = 0.25 × (replacement − on-ice PK xGA/60) × PK hours
   Penalties     = 0.15 × (penalties drawn − penalties taken)
@@ -304,7 +306,9 @@ PP rate       = 50% × isolated PP impact (stretched) + 50% × 0.3 × on-ice PP 
 Replacement   = 20th percentile among regulars at the position (80th for the against stats),
                 roughly what a call-up provides.
 Wins = goals ÷ 6</div>
-  <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so relative 5v5 and special-teams credit is scaled down. Only half of finishing is counted, because shooting luck regresses. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so relative 5v5 and special-teams credit is scaled down. Finishing is counted as skill, not as whatever happened: see below. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <p><strong>Finishing (tested, Nov 2026):</strong> beating expected goals is part skill and part luck. Over every season since 2008, a forward kept about 28% of one season's finishing edge into the next (39% with 200+ shots) and 53% of a three-season edge; a defenseman kept about 7% of one season's and 15% of three seasons'. The share that carries over follows shots ÷ (shots + 400) for forwards and shots ÷ (shots + 2,000) for defensemen almost exactly. So finishing credit is his finishing per shot over this season and the two before, times that share, times his shots this season. It predicts next season's finishing 11% better than the old rule (half of this season's goals above expected) for forwards and 14% better for defensemen. Proven shooters (Pastrňák, Matthews) keep credit through a cold year; a one-season hot streak counts less.</p>
+  <p><strong>Offensive defensemen:</strong> a defenseman's goals above expected come mostly from long shots through traffic, deflections and screens, and barely repeat from year to year, so most of it is treated as bounces. A defenseman with a big scoring year (Cale Makar in 2024-25: 9.7 goals above expected) gets much less finishing credit than his goal total suggests. His chance creation (5v5 offense and power play) counts in full. When the gap is 6+ goals over three seasons, his Value card says so, and every card has a read-only <strong>Finishing method</strong> box comparing what happened, the old half rule and the rule used.</p>
   <p><strong>The power-play blend:</strong> power-play credit mixes his isolated 5-on-4 impact with his on-ice numbers, half and half. The isolated number measures him against an average power-play skater, while the on-ice number is a level, so the isolated number is first stretched to the same spread as 0.3 × on-ice and re-centred on the average on-ice level at his position. That keeps the league's total power-play credit about the same and only moves it between teammates. That mix predicted next season's power-play results best (0.394 vs. 0.389 for on-ice alone). It takes some credit away from players on a great power-play unit who aren't driving it, and gives it to the ones who are. The penalty kill stays on on-ice numbers: the isolated version predicted worse. Players with under 50 power-play minutes use on-ice only.</p>
   <p><strong>The 5v5 blend:</strong> the 5v5 rates mix his <a href="#m-iso">isolated impact</a> with his relative numbers. The mix is 67% isolated, the best of the mixes tried in the forecast test. Isolated numbers come out about half as spread as relative ones, so each season they're stretched (by position) to the same spread as 0.5 × relative before mixing. That keeps 5v5 play's share of all value where it was, and only changes which players get the credit. Seasons before 2010-11 have no shift charts and use relative alone. The Value card's <strong>5v5 method</strong> box shows his 5v5 goals three ways (relative only, isolated only, the blend). It's for reading only: worth, contracts, projections and the trade machine all use the blend.</p>
   <div class="m">Price of a win = 32 teams × (cap × 0.88 skater share − 20 skaters × minimum salary)

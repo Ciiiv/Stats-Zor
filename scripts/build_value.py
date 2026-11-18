@@ -59,6 +59,7 @@ GOALIE_ROSTER = 2      # goalies per team counted at minimum salary
 SCHED = {2012: 48, 2019: 70, 2020: 56}
 ISO_WEIGHT = 0.67      # isolated share of the 5v5 rates (set from the forecast test in data/impact/test.json)
 ISO_WEIGHT_PP = 0.5    # isolated share of the power-play rate (best in data/impact/pp_test.json, Nov 2026)
+FIN_K = {"F": 400, "D": 2000}  # finishing: share kept = shots / (shots + K), over three seasons of shots (backtest Nov 2026)
 ISO_WEIGHT_PK = 0.0    # isolated share of the penalty-kill rate (isolated made predictions worse in pp_test.json, Nov 2026)
 
 
@@ -195,6 +196,41 @@ def goalie_value(sf):
     return out, repl
 
 
+_FIN_HIST = {}  # season -> {id: (goals above expected, shots on goal)}
+
+
+def finishing_hist(y):
+    """Goals above expected and shots on goal by player for one season (cached)."""
+    if y not in _FIN_HIST:
+        sf = read_json(os.path.join(DATA, "seasons", f"{y}.json"))
+        h = {}
+        if sf and "sog" in sf["fields"]:
+            ix = {k: i for i, k in enumerate(sf["fields"])}
+            for r in sf["players"]:
+                if r[ix["gax"]] is not None:
+                    h[r[ix["id"]]] = (r[ix["gax"]], r[ix["sog"]] or 0)
+        _FIN_HIST[y] = h
+    return _FIN_HIST[y]
+
+
+def finishing_credit(p, y):
+    """Finishing skill on this season's shots: three seasons of goals above expected per shot (this one and the
+    two before), kept in proportion shots / (shots + FIN_K) because finishing repeats only weakly (defensemen's
+    barely at all), times this season's shots."""
+    if p.get("sog") is None:
+        return 0.5 * (p["gax"] or 0)          # no shot counts: old rule
+    ga, n = (p["gax"] or 0), p["sog"] or 0
+    for z in (y - 1, y - 2):
+        h = finishing_hist(z).get(p["id"])
+        if h:
+            ga += h[0]
+            n += h[1]
+    if not n:
+        return 0.0
+    keep = n / (n + FIN_K[p["grp"]])
+    return ga / n * keep * (p["sog"] or 0)
+
+
 def season_value(sf, usage):
     f = sf["fields"]
     ix = {k: i for i, k in enumerate(f)}
@@ -203,6 +239,7 @@ def season_value(sf, usage):
         g = lambda k: r[ix[k]]  # noqa: E731
         d = {k: g(k) for k in ("id", "name", "team", "pos", "gp", "ev", "pp", "pk", "xgf60", "xga60", "off_xgf60", "off_xga60",
                                "gax", "pend", "pen", "pp_xgf60", "pk_xga60", "t5")}
+        d["sog"] = r[ix["sog"]] if "sog" in ix else None
         d["grp"] = "D" if d["pos"] == "D" else "F"
         d["relf"] = d["xgf60"] - d["off_xgf60"] if None not in (d["xgf60"], d["off_xgf60"]) else None
         d["rela"] = d["xga60"] - d["off_xga60"] if None not in (d["xga60"], d["off_xga60"]) else None
@@ -302,7 +339,7 @@ def season_value(sf, usage):
         hpp = p["pp"] * p["gp"] / 60
         hpk = p["pk"] * p["gp"] / 60
         evo, evd = ev[w_used][p["id"]]
-        fin = 0.5 * (p["gax"] or 0)
+        fin = finishing_credit(p, sf.get("season") or 0)
         rpp, rpk = st_rates(p)
         ppv = (rpp - R["pp"]) * hpp if rpp is not None else 0.0
         pkv = (R["pk"] - rpk) * hpk if rpk is not None else 0.0
@@ -310,7 +347,8 @@ def season_value(sf, usage):
         gar = evo + evd + fin + ppv + pkv + pen
         out.append([p["id"], p["team"], p["pos"], p["gp"], round(evo, 2), round(evd, 2), round(fin, 2), round(ppv, 2),
                     round(pkv, 2), round(pen, 2), round(gar, 2), round(gar / GOALS_PER_WIN, 2)])
-        alt[p["id"]] = (round(sum(ev[0.0][p["id"]]), 2), round(sum(ev[1.0][p["id"]]), 2) if iso and p["id"] in iso else None)
+        alt[p["id"]] = (round(sum(ev[0.0][p["id"]]), 2), round(sum(ev[1.0][p["id"]]), 2) if iso and p["id"] in iso else None,
+                        round(p["gax"], 2) if p["gax"] is not None else None)
     meta = {"iso_weight": w_used, "iso_weight_pp": wpp, "iso_weight_pk": wpk, "iso_scale": {g: [round(a, 3), round(b, 3)] for g, (a, b) in scale.items()} if iso else None}
     return out, repl, gpmax, alt, meta
 
@@ -512,7 +550,7 @@ def main():
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "current": cur,
         "fields": ["id", "team", "pos", "gp", "ev_off", "ev_def", "finishing", "pp", "pk", "penalties", "gar", "war",
-                   "war82", "worth", "worth_pct", "ev_rel_only", "ev_iso_only"],
+                   "war82", "worth", "worth_pct", "ev_rel_only", "ev_iso_only", "fin_actual"],
         "seasons": {str(y): s for y, s in seasons.items()},
         "goalie_fields": ["id", "team", "pos", "gp", "ev", "pk", "other", "gar", "war", "war82", "worth", "worth_pct"],
         "goalie_seasons": {str(y): s for y, s in gseasons.items()},
