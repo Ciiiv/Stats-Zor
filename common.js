@@ -212,9 +212,11 @@ async function loadRosterNums() {
   ROSTER_NUMS = new Map();
   try {
     const r = await getJSON('data/rosters.json'); const fi = r.fields.indexOf('num');
-    for (const [team, rows] of Object.entries(r.teams || {})) for (const row of rows) if (fi >= 0 && row[fi] != null) ROSTER_NUMS.set(row[0], { team, num: row[fi] });
+    for (const [team, rows] of Object.entries(r.teams || {})) for (const row of rows) ROSTER_NUMS.set(row[0], { team, num: fi >= 0 ? row[fi] : null });
   } catch (e) { /* numbers are optional */ }
   return ROSTER_NUMS;
 }
 // his current number, shown only when the card is for the team he's on now
 const jerseyNum = (id, team) => { const r = ROSTER_NUMS && ROSTER_NUMS.get(id); return r && (!team || r.team === team) ? r.num : null; };
+// for a card of a team he has since left: "Now #7 · VAN" (his current team and number)
+const nowLine = (id, team) => { const r = ROSTER_NUMS && ROSTER_NUMS.get(id); if (!r || !team || r.team === team) return ''; return `<span class="nowon">Now ${nz(r.num) ? `#${r.num} · ` : ''}${teamBadge(r.team)}</span>`; };

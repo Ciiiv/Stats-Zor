@@ -257,7 +257,7 @@ function renderProfile() {
     }
     const team = p ? p.team : ix.team; const tc = teamColor(team); const num = jerseyNum(id, team);
     const meta2 = [pos, c && c.shoots ? `Shoots ${c.shoots}` : '', age ? `Age ${age}` : '', c ? [htFmt(c.ht), c.wt ? c.wt + ' lb' : ''].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ');
-    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
+    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}${nowLine(id, team)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
   };
   $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
 }

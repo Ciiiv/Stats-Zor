@@ -256,3 +256,5 @@ table{border-collapse:collapse}
 .jnum + h1{padding-right:78px}
 @media (max-width:600px){.jnum + h1{padding-right:56px}}
 .note{border-left:3px solid var(--c1);background:color-mix(in srgb,var(--c1) 8%,transparent);padding:8px 12px;border-radius:0;line-height:1.5}
+.nowon{display:inline-block;margin-left:10px;font:600 12px var(--f-body);color:var(--muted);white-space:nowrap}
+.nowon .tbadge{margin:0 0 0 2px;font-size:10px}
