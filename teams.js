@@ -15,7 +15,7 @@ const TEAM_NAMES = {
 const FRANCHISE = { 'L.A': 'LAK', 'N.J': 'NJD', 'S.J': 'SJS', 'T.B': 'TBL', PHX: 'ARI', ATL: 'WPG', ARI: 'UTA' };
 const sameFranchise = (a, b) => { const c = x => { let k = x, n = 0; while (FRANCHISE[k] && n++ < 3) k = FRANCHISE[k]; return k; }; return c(a) === c(b); };
 
-const TP = { team: 'DET', y: null, win: 10, view: 'ev', span: 'all', idx: null };
+const TP = { team: 'DET', y: null, win: 10, view: 'ev', span: 'all', idx: null, caps: {} };  // caps: cap hits typed on this page only, never saved
 const TEAMDATA = {}, COACHES = {};
 async function loadCoaches(y) { if (COACHES[y] !== undefined) return COACHES[y]; try { COACHES[y] = await getJSON(`data/teams/coaches/${y}.json`); } catch (e) { COACHES[y] = null; } return COACHES[y]; }
 // head coach of each game for this team, as runs: [{name, from, to}] (game indexes); null if unknown
@@ -174,21 +174,29 @@ function renderStrip(G, sd) {
 }
 
 // ------------------------------------------------------------------ deployment (fit from the skater page)
-async function renderDeploy(G, sd) {
-  if (!G || !sd) { $('deploy').innerHTML = ''; return; }
-  const y = TP.y;
+// regulars and their fit for one team-season (shared by the table and the history's "used well" button)
+async function deployData(G, sd, y, N) {
   const U = await loadUsage(y);
   await Promise.all([y - 1, y - 2].filter(z => S.idx.mp_seasons.includes(z)).map(z => loadSeason(z).catch(() => null)).concat([loadValue().catch(() => null)]));
-  if (y !== TP.y) return;
-  const n = G.games.length, N = Math.min(TP.win, n);
-  const minG = Math.max(5, Math.round(0.25 * n));
-  $('deploy-sub').innerHTML = `Regulars with ${minG}+ games for ${esc(TP.team)}. <strong>Used as</strong> is his average slot with this team; <strong>Last ${N}</strong> is the same over the team's last ${N} games (arrows mark a move up or down, a description of his recent role only: it never changes his value or fit). The fit columns are the same as the team card on the skater page: what his 5v5 results and his overall value say he could handle, over up to three seasons, most recent counting most.`;
-  if (!U) { $('deploy').innerHTML = `<p class="empty">Deployment data for ${sLabel(y)} hasn't been built yet.</p>`; setFitTile(null); return; }
-  const rows = stripRows(G, sd).filter(r => r.n >= minG).map(r => {
+  if (!U) return null;
+  const n = G.games.length, minG = Math.max(5, Math.round(0.25 * n));
+  return stripRows(G, sd).filter(r => r.n >= minG).map(r => {
     const P = profile(U, sd, r.id);
     const rec = avgSlotOf(r.s.slice(n - N));
     return P ? { r, P, rec } : null;
   }).filter(Boolean);
+}
+const fitCounts = rows => { const up = rows.filter(x => x.P.allFit[0] === 'up').length, down = rows.filter(x => x.P.allFit[0] === 'down').length; return { ok: rows.length - up - down, up, down, n: rows.length }; };
+async function renderDeploy(G, sd) {
+  if (!G || !sd) { $('deploy').innerHTML = ''; return; }
+  const y = TP.y;
+  const n = G.games.length, N = Math.min(TP.win, n);
+  const minG = Math.max(5, Math.round(0.25 * n));
+  const rows0 = await deployData(G, sd, y, N);
+  if (y !== TP.y) return;
+  $('deploy-sub').innerHTML = `Regulars with ${minG}+ games for ${esc(TP.team)}. <strong>Used as</strong> is his average slot with this team; <strong>Last ${N}</strong> is the same over the team's last ${N} games (arrows mark a move up or down, a description of his recent role only: it never changes his value or fit). The fit columns are the same as the team card on the skater page: what his 5v5 results and his overall value say he could handle, over up to three seasons, most recent counting most.`;
+  if (!rows0) { $('deploy').innerHTML = `<p class="empty">Deployment data for ${sLabel(y)} hasn't been built yet.</p>`; setFitTile(null); return; }
+  const rows = rows0;
   const mv = (r, rec) => { if (!nz(rec.avg) || rec.n < 3) return ''; const d = rec.avg - r.avg; return d <= -0.75 ? '<span class="pos" title="Moved up lately">↑</span>' : d >= 0.75 ? '<span class="neg" title="Moved down lately">↓</span>' : ''; };
   const tbl = grp => {
     const rs = rows.filter(x => x.r.grp === grp);
@@ -207,9 +215,224 @@ async function renderDeploy(G, sd) {
 function setFitTile(rows) {
   const el = $('tile-fit'); if (!el) return;
   if (!rows) { el.querySelector('b').textContent = '—'; return; }
-  const up = rows.filter(x => x.P.allFit[0] === 'up').length, down = rows.filter(x => x.P.allFit[0] === 'down').length;
+  const { up, down } = fitCounts(rows);
   el.querySelector('b').textContent = `${rows.length - up - down} of ${rows.length}`;
   el.querySelector('small').innerHTML = `used about right · <span class="pos">${up} could do more</span> · <span class="neg">${down} above value</span>`;
+}
+
+// ------------------------------------------------------------------ Phase 2: roster value by age
+let BIOS = null;
+async function loadBios() {
+  if (BIOS) return BIOS;
+  const [c, g] = await Promise.all([getJSON('data/careers.json').catch(() => null), getJSON('data/goalies/careers.json').catch(() => null)]);
+  BIOS = new Map();
+  [c, g].forEach(j => { if (j && j.players) for (const [k, v] of Object.entries(j.players)) BIOS.set(+k, { name: v[0], pos: v[1], birth: v[3] }); });
+  return BIOS;
+}
+const GGAMES = {};
+async function loadGoalieGames(y) { if (GGAMES[y] !== undefined) return GGAMES[y]; try { GGAMES[y] = await getJSON(`data/goalies/games/${y}.json`); } catch (e) { GGAMES[y] = null; } return GGAMES[y]; }
+// every goalie's appearances for one team: {id: [row objects]}
+function goalieRowsFor(GG, team) {
+  const out = {}; if (!GG) return out;
+  const f = GG.fields;
+  for (const [id, rows] of Object.entries(GG.players)) for (const r of rows) {
+    if (r[f.indexOf('team')] !== team) continue;
+    const o = {}; f.forEach((k, i) => { o[k] = r[i]; }); (out[id] = out[id] || []).push(o);
+  }
+  return out;
+}
+// wins above replacement for one team, each player's season split by his games with this team
+function teamWins(TD, GG, team, y) {
+  const V = VAL && VAL.seasons[y]; if (!V) return null;
+  const G = teamGames(TD, team); if (!G) return null;
+  const items = [];
+  for (const [id, s] of Object.entries(G.slots)) {
+    const r = V.map.get(+id); const n = [...s].filter(c => c !== '.').length;
+    if (!r || !n) continue;
+    const sh = Math.min(1, n / Math.max(1, r.gp));
+    items.push({ id: +id, grp: grpOf(r.pos), gp: n, war: r.war * sh, worth: r.worth });
+  }
+  const gs = VAL.goalie_seasons && VAL.goalie_seasons[y];
+  if (gs && GG) {
+    const gf = VAL.goalie_fields, rows = goalieRowsFor(GG, team);
+    const gmap = new Map(gs.rows.map(r => [r[0], r]));
+    for (const [id, apps] of Object.entries(rows)) {
+      const r = gmap.get(+id); if (!r) continue;
+      const gp = r[gf.indexOf('gp')], sh = Math.min(1, apps.length / Math.max(1, gp));
+      items.push({ id: +id, grp: 'G', gp: apps.length, war: r[gf.indexOf('war')] * sh, worth: r[gf.indexOf('worth')] });
+    }
+  }
+  return items;
+}
+async function renderRoster(TD, G) {
+  const el = $('roster'); if (!G) { el.innerHTML = ''; return; }
+  const y = TP.y;
+  el.innerHTML = '<p class="sub small">Loading players and ages…</p>';
+  const [, GG, bios] = await Promise.all([loadValue().catch(() => null), loadGoalieGames(y), loadBios()]);
+  if (y !== TP.y) return;
+  if (!VAL || !VAL.seasons[y]) { el.innerHTML = `<p class="empty">Value numbers for ${sLabel(y)} aren't built yet.</p>`; return; }
+  const items = teamWins(TD, GG, TP.team, y) || [];
+  items.forEach(it => { const b = bios.get(it.id) || {}; const ix = S.byId.get(it.id) || {}; it.name = b.name || ix.name || `#${it.id}`; it.age = b.birth ? ageNow(b.birth, y) : null; });
+  const pos = items.filter(i => i.war > 0);
+  const tot = items.reduce((a, i) => a + i.war, 0), posTot = pos.reduce((a, i) => a + i.war, 0);
+  const young = pos.filter(i => nz(i.age) && i.age <= 25).reduce((a, i) => a + i.war, 0);
+  const top3 = pos.slice().sort((a, b) => b.war - a.war).slice(0, 3).reduce((a, i) => a + i.war, 0);
+  const aged = items.filter(i => nz(i.age)), avgAge = aged.reduce((a, i) => a + i.age * i.gp, 0) / Math.max(1, aged.reduce((a, i) => a + i.gp, 0));
+  // league ranks, same split for every team
+  const league = Object.keys(TD.teams).map(t => { const its = teamWins(TD, GG, t, y) || []; const p2 = its.filter(i => i.war > 0); return { t, war: its.reduce((a, i) => a + i.war, 0), yng: p2.length ? p2.filter(i => { const b = bios.get(i.id); const a = b && b.birth ? ageNow(b.birth, y) : null; return nz(a) && a <= 25; }).reduce((a, i) => a + i.war, 0) / p2.reduce((a, i) => a + i.war, 0) : 0 }; });
+  const rk = (k, hi = true) => { const a = league.slice().sort((x, z) => hi ? z[k] - x[k] : x[k] - z[k]); return a.findIndex(r => r.t === TP.team) + 1; };
+  const tile = (l, v, sm) => `<div class="ttile"><span class="lbl">${l}</span><b>${v}</b><small>${sm}</small></div>`;
+  const yPct = posTot > 0 ? 100 * young / posTot : 0;
+  // age-by-wins chart
+  const W = 900, H = 300, m = { l: 48, r: 16, t: 16, b: 36 };
+  const ages = aged.map(i => i.age); const aLo = Math.min(19, ...ages), aHi = Math.max(36, ...ages);
+  const wv = items.map(i => i.war); let wLo = Math.min(-0.5, ...wv), wHi = Math.max(1, ...wv); const pad = (wHi - wLo) * 0.08; wLo -= pad; wHi += pad;
+  const X = a => m.l + (a - aLo) / (aHi - aLo) * (W - m.l - m.r), Y = v => m.t + (wHi - v) / (wHi - wLo) * (H - m.t - m.b);
+  const col = { F: 'var(--c1)', D: 'var(--c3)', G: 'var(--c5)' };
+  const st = niceStep(wHi - wLo, 5);
+  const yt = ticks(wLo, wHi, st).map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" class="axl">${+v.toFixed(1)}</text>`).join('');
+  const xt = ticks(aLo, aHi, aHi - aLo > 16 ? 4 : 2).map(a => `<text x="${X(a)}" y="${H - 14}" text-anchor="middle" class="axl">${a}</text>`).join('');
+  const band = `<rect x="${m.l}" y="${m.t}" width="${Math.max(0, X(25.5) - m.l)}" height="${H - m.t - m.b}" fill="var(--line)" opacity=".25"/><text x="${m.l + 6}" y="${m.t + 12}" class="axl">25 and under</text>`;
+  const lab = new Set(pos.slice().sort((a, b) => b.war - a.war).slice(0, 8).map(i => i.id));
+  // jitter same-age dots a little so they don't sit on top of each other
+  const seen = {};
+  const dots = aged.sort((a, b) => a.war - b.war).map(i => { const k = i.age; seen[k] = (seen[k] || 0) + 1; const jx = ((seen[k] % 3) - 1) * 0.18; const r = 3 + 6 * Math.min(1, i.gp / 82); const cx = X(i.age + jx), cy = Y(i.war);
+    return `<a href="${i.grp === 'G' ? 'goalies.html' : './'}#a=${i.id}&s=${y}"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${col[i.grp]}" fill-opacity=".85" stroke="var(--panel)" stroke-width="1"><title>${esc(i.name)} · ${i.grp === 'G' ? 'goalie' : i.grp === 'D' ? 'defenseman' : 'forward'} · age ${i.age} · ${i.gp} games · ${s1(i.war)} wins</title></circle>${lab.has(i.id) ? `<text x="${(cx + r + 3).toFixed(1)}" y="${(cy + 4).toFixed(1)}" class="sname" style="font-size:11.5px">${esc(last(i.name))}</text>` : ''}</a>`; }).join('');
+  const caps = TP.caps;
+  const rowsT = items.slice().sort((a, b) => b.war - a.war);
+  el.innerHTML = `<div class="ttiles">
+      ${tile('Wins above replacement', s1(tot), `${ord(rk('war'))} of ${league.length} teams`)}
+      ${tile('From players 25 and under', Math.round(yPct) + '%', `of positive wins · ${ord(rk('yng'))} youngest core`)}
+      ${tile('Top 3 players', posTot > 0 ? Math.round(100 * top3 / posTot) + '%' : '—', 'share of positive wins')}
+      ${tile('Average age', nz(avgAge) ? avgAge.toFixed(1) : '—', 'weighted by games played')}
+    </div>
+    <div class="scroll" style="margin-top:12px"><svg class="tchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Each player's wins above replacement by age">${band}${yt}<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)"/>${xt}<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" class="axl">age (Feb 1 of the season)</text>${dots}</svg></div>
+    <p class="tkey"><span><i style="background:var(--c1)"></i>Forward</span><span><i style="background:var(--c3)"></i>Defenseman</span><span><i style="background:var(--c5)"></i>Goalie</span><span class="lab">dot size = games with ${esc(TP.team)} · up = more wins · names: top 8</span></p>
+    <details class="lim" style="margin-top:12px"${Object.keys(caps).length ? ' open' : ''}><summary>Pay vs. value: type cap hits (this page only)</summary>
+      <p class="sub small">Type any player's cap hit in $M (or dollars) to see what he's paid against what the value model says a full season at his rate this year is worth (the same figure as his player page; with few games it's shaky). Cap hits here stay on this page only and clear when you refresh; they don't read or change the ones on player pages or in the trade machine. The model prices every win the same, so stars often look underpaid against the market.</p>
+      <div class="scroll"><table class="tbl" id="paytbl"><thead><tr><th>Player</th><th>Age</th><th>GP</th><th>Wins</th><th>Value a season</th><th>Cap hit ($M)</th><th>Pay vs. value</th></tr></thead><tbody>
+      ${rowsT.map(i => `<tr><td><a href="${i.grp === 'G' ? 'goalies.html' : './'}#a=${i.id}&s=${y}">${esc(i.name)}</a> <span class="lab">${i.grp}</span></td><td>${nz(i.age) ? i.age : '—'}</td><td>${i.gp}</td><td class="${dcls(i.war)}">${s1(i.war)}</td><td>${money(i.worth)}</td>
+        <td><input type="number" step="0.05" min="0" inputmode="decimal" class="capin" data-cap="${i.id}" data-worth="${i.worth}" value="${nz(caps[i.id]) ? caps[i.id] : ''}" aria-label="Cap hit for ${esc(i.name)}" style="width:86px"></td><td id="pv-${i.id}">${payDiff(i.worth, caps[i.id])}</td></tr>`).join('')}
+      </tbody><tfoot><tr><td colspan="7" id="paytot">${payTotal(rowsT)}</td></tr></tfoot></table></div>
+    </details>
+    <p class="sub small">Wins above replacement are the value model's, for the selected season. A player traded mid-season counts only for his share of games with this team. Ranks split every team's players the same way.</p>`;
+  el.oninput = e => {
+    const t = e.target; if (!t.dataset.cap) return;
+    let v = t.value === '' ? null : +t.value; if (nz(v) && v >= 1000) v = Math.round(v / 1e4) / 100;
+    if (nz(v)) TP.caps[t.dataset.cap] = v; else delete TP.caps[t.dataset.cap];
+    $('pv-' + t.dataset.cap).innerHTML = payDiff(+t.dataset.worth, v);
+    $('paytot').innerHTML = payTotal(rowsT);
+  };
+}
+function payDiff(worth, cap) { if (!nz(cap) || !nz(worth)) return '<span class="lab">—</span>'; const d = worth - cap; return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? 'Value above pay' : 'Pay above value'} by ${money(Math.abs(d))}</b>`; }
+function payTotal(rows) {
+  const en = rows.filter(i => nz(TP.caps[i.id])); if (!en.length) return '<span class="lab">No cap hits entered yet.</span>';
+  const pay = en.reduce((a, i) => a + TP.caps[i.id], 0), val = en.reduce((a, i) => a + i.worth, 0);
+  return `${en.length} of ${rows.length} entered: paid ${money(pay)}, worth ${money(val)} · ${payDiff(val, pay)}`;
+}
+
+// ------------------------------------------------------------------ Phase 2: goalie usage
+async function renderGoalies(G) {
+  const el = $('goalies'); if (!G) { el.innerHTML = ''; return; }
+  const y = TP.y;
+  const [GG, gsea] = await Promise.all([loadGoalieGames(y), getJSON(`data/goalies/seasons/${y}.json`).catch(() => null)]);
+  if (y !== TP.y) return;
+  const rows = goalieRowsFor(GG, TP.team);
+  if (!Object.keys(rows).length) { el.innerHTML = '<p class="empty">No goalie game data for this season.</p>'; return; }
+  const names = new Map(); if (gsea) { const f = gsea.fields; gsea.players.forEach(r => names.set(r[f.indexOf('id')], r[f.indexOf('name')])); }
+  const idx = new Map(G.games.map((g, i) => [String(g.game), i]));
+  const n = G.games.length, N = Math.min(TP.win, n);
+  const b2b = new Set(); Object.values(rows).forEach(l => l.forEach(r => { if (r.b2b) b2b.add(String(r.game)); }));
+  const list = Object.entries(rows).map(([id, apps]) => {
+    const st = apps.filter(r => r.start);
+    const by = new Map(apps.map(r => [String(r.game), r]));
+    const cells = G.games.map(g => { const r = by.get(String(g.game)); return r ? (r.start ? 'S' : 'R') : '.'; });
+    const dec = k => apps.filter(r => r.dec === k).length;
+    const sa = apps.reduce((a, r) => a + r.sa, 0), ga = apps.reduce((a, r) => a + r.ga, 0), xga = apps.reduce((a, r) => a + r.xga, 0);
+    const lastN = new Set(G.games.slice(n - N).map(g => String(g.game)));
+    return { id: +id, name: names.get(+id) || (S.byId.get(+id) || {}).name || `#${id}`, gp: apps.length, starts: st.length, w: dec('W'), l: dec('L'), o: dec('O'), sv: sa ? 1 - ga / sa : null, gsax: xga - ga, sa, b2bS: st.filter(r => r.b2b).length, recent: st.filter(r => lastN.has(String(r.game))).length, cells };
+  }).sort((a, b) => b.starts - a.starts || b.gp - a.gp);
+  const cw = 10, rh = 18, nameW = 150, top = 22, Wd = nameW + n * cw + 4;
+  let y0 = top, body = '';
+  list.forEach(gl => {
+    body += `<a href="goalies.html#a=${gl.id}&s=${y}"><text x="${nameW - 8}" y="${y0 + 13}" text-anchor="end" class="sname">${esc(last(gl.name))}</text></a>`;
+    gl.cells.forEach((c, j) => { const g = G.games[j], x = nameW + j * cw; const t = `${esc(gl.name)} · game ${j + 1}, ${gdate(g.date)} ${g.home ? 'vs' : 'at'} ${g.opp}`;
+      if (c === 'S') body += `<rect x="${x}" y="${y0 + 2}" width="${cw - 1.5}" height="${rh - 4}" rx="1.5" fill="var(--c5)"><title>${t} · started</title></rect>`;
+      else if (c === 'R') body += `<rect x="${x}" y="${y0 + 2}" width="${cw - 1.5}" height="${rh - 4}" rx="1.5" fill="var(--c5)" fill-opacity=".35"><title>${t} · came in relief</title></rect>`;
+      else body += `<rect x="${x + 3}" y="${y0 + rh / 2 - 1}" width="${cw - 7.5}" height="1.5" fill="var(--line)"/>`; });
+    y0 += rh;
+  });
+  let axis = ''; G.games.forEach((g, j) => { if ((j + 1) % 10 === 0 || j === 0) axis += `<text x="${nameW + j * cw + cw / 2}" y="${top - 8}" text-anchor="middle" class="axl">${j + 1}</text>`; });
+  el.innerHTML = `<div class="scroll stripwrap"><svg class="strip" width="${Wd}" height="${y0 + 6}" viewBox="0 0 ${Wd} ${y0 + 6}" role="img" aria-label="Which goalie started each game">${axis}${body}</svg></div>
+    <p class="tkey"><span><i style="background:var(--c5)"></i>Started</span><span><i style="background:var(--c5);opacity:.35"></i>Came in relief</span><span class="lab">numbers on top: game number</span></p>
+    <div class="scroll"><table class="tbl"><thead><tr><th>Goalie</th><th>Starts</th><th>GP</th><th>Record</th><th>Save %</th><th>Saves above expected</th><th>Back-to-back starts</th><th>Starts, last ${N} games</th></tr></thead><tbody>
+    ${list.map(gl => `<tr><td><a href="goalies.html#a=${gl.id}&s=${y}">${esc(gl.name)}</a></td><td>${gl.starts}</td><td>${gl.gp}</td><td>${gl.w}-${gl.l}-${gl.o}</td><td>${nz(gl.sv) ? gl.sv.toFixed(3).replace(/^0/, '') : '—'}</td><td class="${dcls(gl.gsax)}">${s1(gl.gsax)}</td><td>${gl.b2bS} of ${b2b.size}</td><td>${gl.recent} of ${N}</td></tr>`).join('')}
+    </tbody></table></div>
+    <p class="sub small">Saves above expected = expected goals against minus goals against, all situations: what happened this season, not a rating (a goalie season is roughly half luck; the goalie page shows his three-season picture). Back-to-back starts count the second game of the team's back-to-backs.</p>`;
+}
+
+// ------------------------------------------------------------------ Phase 2: season-by-season history
+let HIST = null;
+async function loadHistory() { if (HIST !== null) return HIST; try { HIST = await getJSON('data/teams/history.json'); } catch (e) { HIST = false; } return HIST; }
+async function renderHistory() {
+  const el = $('history');
+  const [H] = await Promise.all([loadHistory(), loadValue().catch(() => null)]);
+  if (!H) { el.innerHTML = '<p class="empty">The history summary hasn\'t been built yet. It\'s added by the nightly update.</p>'; return; }
+  const f = H.fields, ix = k => f.indexOf(k);
+  const seasons = Object.keys(H.seasons).map(Number).sort((a, b) => a - b);
+  const rows = [];
+  for (const y of seasons) {
+    const S2 = H.seasons[y]; const code = Object.keys(S2).find(t => sameFranchise(t, TP.team)); if (!code) continue;
+    const r = S2[code]; const share2 = t => { const q = S2[t]; return share(q[ix('xgf')], q[ix('xga')]); };
+    const rk = Object.keys(S2).map(t => ({ t, v: share2(t) })).sort((a, b) => b.v - a.v).findIndex(o => o.t === code) + 1;
+    let mvp = null;
+    if (VAL) {
+      const V = VAL.seasons[y]; if (V) for (const o of V.map.values()) if (o.team === code && (!mvp || o.war > mvp.war)) mvp = { id: o.id, war: o.war, g: false };
+      const gs = VAL.goalie_seasons && VAL.goalie_seasons[y]; if (gs) { const gf = VAL.goalie_fields; gs.rows.forEach(q => { if (q[gf.indexOf('team')] === code && (!mvp || q[gf.indexOf('war')] > mvp.war)) mvp = { id: q[0], war: q[gf.indexOf('war')], g: true }; }); }
+    }
+    rows.push({ y, code, gp: r[ix('gp')], xp: share(r[ix('xgf')], r[ix('xga')]), gp2: share(r[ix('gf')], r[ix('ga')]), rk, nT: Object.keys(S2).length, coaches: (r[ix('coaches')] || '').split('|').filter(Boolean), mvp });
+  }
+  if (!rows.length) { el.innerHTML = '<p class="empty">No history for this team.</p>'; return; }
+  // chart with coaching eras (by the coach who finished each season)
+  const W = 900, Hh = 250, m = { l: 44, r: 16, t: 26, b: 30 };
+  const vals = rows.map(r => r.xp).concat([50]); let lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
+  const X = i => m.l + (rows.length === 1 ? 0.5 : i / (rows.length - 1)) * (W - m.l - m.r), Y = v => m.t + (hi - v) / (hi - lo) * (Hh - m.t - m.b);
+  const eras = []; rows.forEach((r, i) => { const c = r.coaches[r.coaches.length - 1] || '?'; const e = eras[eras.length - 1]; if (e && e.c === c) e.to = i; else eras.push({ c, from: i, to: i }); });
+  const step = rows.length > 1 ? (W - m.l - m.r) / (rows.length - 1) : 0;
+  const bands = eras.map((e, k) => { const x0 = Math.max(m.l, X(e.from) - step / 2), x1 = Math.min(W - m.r, X(e.to) + step / 2); return `${k % 2 ? '' : `<rect x="${x0}" y="${m.t}" width="${x1 - x0}" height="${Hh - m.t - m.b}" fill="var(--line)" opacity=".25"/>`}<text x="${(x0 + x1) / 2}" y="${m.t - 8}" text-anchor="middle" class="axl">${esc(last(e.c))}</text>`; }).join('');
+  const st = niceStep(hi - lo, 5);
+  const yt = ticks(lo, hi, st).map(v => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end" class="axl">${v}%</text>`).join('');
+  const pts = rows.map((r, i) => `${X(i).toFixed(1)},${Y(r.xp).toFixed(1)}`).join(' ');
+  const xt = rows.map((r, i) => (i % (rows.length > 12 ? 2 : 1) === 0 || i === rows.length - 1) ? `<text x="${X(i)}" y="${Hh - 10}" text-anchor="middle" class="axl">${String(r.y).slice(2)}-${String(r.y + 1).slice(2)}</text>` : '').join('');
+  const dots = rows.map((r, i) => `<circle cx="${X(i)}" cy="${Y(r.xp)}" r="${r.y === TP.y ? 6 : 3.5}" fill="var(--c1)" ${r.y === TP.y ? 'stroke="var(--ink)" stroke-width="2"' : ''} style="cursor:pointer" data-hy="${r.y}"><title>${sLabel(r.y)}${r.code !== TP.team ? ` (${r.code})` : ''} · ${f1(r.xp)}% · ${ord(r.rk)} of ${r.nT} · ${esc(r.coaches.join(', then ') || 'coach unknown')}</title></circle>`).join('');
+  const name = id => (S.byId.get(id) || {}).name || (BIOS && BIOS.get(id) || {}).name || `#${id}`;
+  el.innerHTML = `<div class="scroll"><svg class="tchart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Five-on-five expected goal share by season">${bands}${yt}<line x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}" stroke="var(--muted)"/><polyline points="${pts}" fill="none" stroke="var(--c1)" stroke-width="2.5"/>${dots}${xt}</svg></div>
+    <p class="tkey"><span class="lab">Shaded and labeled by the coach who finished each season · click a dot or a season to open it</span></p>
+    <div class="scroll"><table class="tbl" id="histtbl"><thead><tr><th>Season</th><th>GP</th><th>5v5 xGF%</th><th>Rank</th><th>5v5 GF%</th><th>Head coach</th><th>Most valuable</th><th>Used about right</th></tr></thead><tbody>
+    ${rows.slice().reverse().map(r => `<tr${r.y === TP.y ? ' class="isA"' : ''}><td><a href="#t=${encodeURIComponent(r.code)}&s=${r.y}" data-hy="${r.y}">${sLabel(r.y)}</a>${r.code !== TP.team ? ` <span class="lab">${esc(r.code)}</span>` : ''}</td><td>${r.gp}</td><td>${f1(r.xp)}%</td><td>${ord(r.rk)}</td><td>${f1(r.gp2)}%</td><td>${esc(r.coaches.join(', then ')) || '<span class="lab">unknown</span>'}</td>
+      <td>${r.mvp ? `<a href="${r.mvp.g ? 'goalies.html' : './'}#a=${r.mvp.id}&s=${r.y}">${esc(name(r.mvp.id))}</a> <span class="lab">${s1(r.mvp.war)} wins</span>` : '—'}</td><td id="uw-${r.y}"><span class="lab">—</span></td></tr>`).join('')}
+    </tbody></table></div>
+    <p style="margin:10px 0 0"><button type="button" id="uwbtn" class="btn">Show players used well for every season</button> <span class="sub small" id="uwnote">Downloads about 30 MB (three seasons of player data for each season), so it can take a while, especially on a phone.</span></p>`;
+  el.onclick = e => { const t = e.target.closest('[data-hy]'); if (t) { e.preventDefault(); const r = rows.find(q => q.y === +t.dataset.hy); if (!r) return; TP.y = r.y; TP.team = r.code; $('tSeason').value = TP.y; renderTeams(); window.scrollTo({ top: 0, behavior: 'smooth' }); } };
+  $('uwbtn').onclick = () => fillUsedWell(rows);
+}
+async function fillUsedWell(rows) {
+  const btn = $('uwbtn'), note = $('uwnote'); btn.disabled = true;
+  const team = TP.team, y0 = TP.y; let k = 0;
+  for (const r of rows.slice().reverse()) {
+    if (TP.team !== team || TP.y !== y0) return;
+    note.textContent = `Loading ${sLabel(r.y)} (${++k} of ${rows.length})…`;
+    try {
+      const [sd, TD] = await Promise.all([loadSeason(r.y), loadTeams(r.y)]);
+      const G = TD && teamGames(TD, r.code); if (!G) continue;
+      const d = await deployData(G, sd, r.y, Math.min(TP.win, G.games.length));
+      const cell = $('uw-' + r.y); if (!cell) return;
+      if (!d || !d.length) { cell.innerHTML = '<span class="lab">no data</span>'; continue; }
+      const c = fitCounts(d);
+      cell.innerHTML = `${c.ok} of ${c.n} <span class="lab"><span class="pos">${c.up} more</span> · <span class="neg">${c.down} less</span></span>`;
+    } catch (e) { console.error(e); const cell = $('uw-' + r.y); if (cell) cell.innerHTML = '<span class="lab">error</span>'; }
+  }
+  note.textContent = '"More" = could handle a bigger role; "less" = used above his overall value. Same rule as the table above.';
 }
 
 // ------------------------------------------------------------------ page
@@ -236,6 +459,10 @@ async function renderTeams() {
   safe('sec-trend', () => renderTrend(G, CR, prev));
   safe('sec-strip', () => renderStrip(G, sd));
   try { await renderDeploy(G, sd); } catch (e) { console.error(e); $('deploy').innerHTML = `<p class="empty">This section hit an error: ${esc(e.message)}</p>`; }
+  const sec = async (id, fn) => { try { await fn(); } catch (e) { console.error(e); $(id).insertAdjacentHTML('beforeend', `<p class="empty">This section hit an error: ${esc(e.message)}</p>`); } };
+  await sec('sec-roster', () => renderRoster(TD, G));
+  await sec('sec-goalies', () => renderGoalies(G));
+  await sec('sec-history', () => renderHistory());
 }
 
 async function initTeams() {

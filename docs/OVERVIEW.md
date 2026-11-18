@@ -55,6 +55,8 @@ The teams page looks at one team and season at a time: how it used its players g
 
 A lineup strip shows every player's line or pair in every game, set by that night's ice time, so promotions, demotions, call-ups and injuries show up as patterns. A table then compares each regular's role with what his results and value say he could handle, with a "Last 10" column for recent moves. Small samples are labeled: the recent views describe what happened and never change a player's value.
 
+Further down, "Who carries the team" places every player by age and wins above replacement, showing how much of the team's value comes from players 25 and under; cap hits can be typed there to compare pay with value (that page only, cleared on refresh). Goalie usage shows who started each game. A season-by-season history since 2008-09 gives each year's 5v5 share, rank, head coaches and most valuable player.
+
 ## Scouting lists sidebar
 
 A sidebar on both pages lists players who stand out in a specific way. Every list uses three-season numbers with minimum samples (for skaters, 1,500+ five-on-five minutes), so one hot month never makes a list.

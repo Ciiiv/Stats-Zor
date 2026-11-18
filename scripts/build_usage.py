@@ -24,6 +24,8 @@ Output: data/teams/{year}.json (the teams page)
 Output: data/teams/coaches/{year}.json  {gameId: [away head coach, home head coach]} from the NHL's
   game-center right rail. Each run fetches at most --coach-budget games (newest season first), so the
   history fills in over a few nights and later runs only fetch new games.
+Output: data/teams/history.json  one small summary for the teams page's history table: per season, per team
+  [games, 5v5 minutes, xGF, xGA, GF, GA, head coaches in order joined by "|"] (rebuilt every run, a few KB).
 
 Default run rebuilds the current season and anything missing; --full rebuilds everything.
 """
@@ -239,6 +241,41 @@ def update_coaches(cur, budget):
         log(f"coaches {y}: {ok} of {len(todo)} games looked up, {len(have)} of {len(gids)} known")
 
 
+def write_history(cur):
+    out = {}
+    for y in range(MP_FIRST, cur + 1):
+        tf = read_json(os.path.join(DATA, "teams", f"{y}.json"))
+        if not tf:
+            continue
+        co = read_json(os.path.join(DATA, "teams", "coaches", f"{y}.json"), {})
+        f = tf["game_fields"]
+        gi, hi = f.index("game"), f.index("home")
+        row = {}
+        for team, t in tf["teams"].items():
+            g = t["games"]
+            tot = [round(sum(r[f.index(k)] for r in g), 1) for k in ("t5", "xgf", "xga", "gf", "ga")]
+            names = []
+            for r in g:
+                c = co.get(str(r[gi])) or co.get(r[gi])
+                nm = c[r[hi]] if c else None
+                if nm and (not names or names[-1][0] != nm):
+                    names.append([nm, 1])
+                elif nm:
+                    names[-1][1] += 1
+            # fold one- or two-game fill-ins into the run around them, as the page does
+            keep = []
+            for nm, k in names:
+                if keep and (k < 3 or keep[-1][0] == nm):
+                    keep[-1][1] += k
+                else:
+                    keep.append([nm, k])
+            row[team] = [len(g)] + tot + ["|".join(n for n, _ in keep)]
+        out[str(y)] = row
+    write_json(os.path.join(DATA, "teams", "history.json"),
+               {"fields": ["gp", "t5", "xgf", "xga", "gf", "ga", "coaches"], "seasons": out})
+    log(f"history: {len(out)} seasons")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true")
@@ -267,6 +304,10 @@ def main():
         update_coaches(cur, args.coach_budget)
     except Exception as e:  # noqa: BLE001
         log(f"coaches FAILED: {e}")
+    try:
+        write_history(cur)
+    except Exception as e:  # noqa: BLE001
+        log(f"history FAILED: {e}")
 
 
 if __name__ == "__main__":

@@ -279,3 +279,5 @@ svg.strip{display:block}
 svg .sname{fill:var(--ink);font:600 12px var(--f-body)}
 svg a:hover .sname{fill:var(--c1);text-decoration:underline}
 @media (max-width:760px){.tname{font-size:26px}.ttiles{grid-template-columns:1fr 1fr}.ttile b{font-size:22px}#tTeam{min-width:0;max-width:100%}}
+.capin{font:600 13px var(--f-mono);padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
+button:disabled{opacity:.55;cursor:default}

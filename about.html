@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611180400">
+<link rel="stylesheet" href="styles.css?v=202611190000">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -50,7 +50,7 @@
     <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a><a href="#m-gems">Scouting lists</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-comp">Against and with</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
-    <div><b>Teams</b><a href="#m-teams">Teams page</a><a href="#m-t-trend">Season trend</a><a href="#m-t-strip">Lineup over time</a><a href="#m-t-deploy">Is each player used well?</a></div>
+    <div><b>Teams</b><a href="#m-teams">Teams page</a><a href="#m-t-trend">Season trend</a><a href="#m-t-strip">Lineup over time</a><a href="#m-t-deploy">Is each player used well?</a><a href="#m-t-roster">Who carries the team</a><a href="#m-t-goalies">Goalie usage</a><a href="#m-t-history">Season by season</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
   </div>
 </section>
@@ -413,6 +413,21 @@ rolling share at game n = xGF over the last N games ÷ (xGF + xGA over the same 
     <li>A player traded mid-season shows his games and slots with this team only, but his fit columns use his whole season.</li>
     <li>When a team changed coaches, the season's usage is both coaches together.</li>
   </ul></details>
+  <h3 id="m-t-roster">Who carries the team</h3>
+  <p>Every player who played for the team that season, placed by age (as of February 1) and wins above replacement from the <a href="#m-value">value model</a>. Dot size is games with this team. A player traded mid-season counts only his share of games here (wins × games with this team ÷ his games that season), and every team is split the same way for the ranks. The tiles show the team's total wins and rank, how much of its positive wins come from players 25 and under, the top three players' share, and the average age weighted by games.</p>
+  <p><strong>Pay vs. value:</strong> type any player's cap hit to compare it with his value for a full season at his rate (the same figure as his player page). Cap hits typed here stay on this page only and clear on refresh. They don't read or change the ones saved on player pages or typed in the trade machine.</p>
+  <details class="lim"><summary>What this can and can't see</summary><ul>
+    <li>The site doesn't know contracts, so the roster's real payroll isn't shown; only cap hits you type are compared.</li>
+    <li>The model prices every win the same, so stars often look underpaid next to the market (see the <a href="#m-value">value model</a> limits).</li>
+    <li>A player with few games has a shaky value a season; it's his rate, not a full season's proof.</li>
+  </ul></details>
+
+  <h3 id="m-t-goalies">Goalie usage</h3>
+  <p>One row per goalie, one square per game: solid for a start, light for a relief appearance. The table adds starts, games, record, save percentage, saves above expected (expected goals against minus goals against, all situations), starts on the second night of the team's back-to-backs, and starts in the recent window. It's the season as it happened, not a rating: a goalie season is roughly half luck, and the goalie page has his three-season picture.</p>
+
+  <h3 id="m-t-history">Season by season</h3>
+  <p>The franchise's five-on-five expected-goal share every season since 2008-09, with its rank, actual 5v5 goal share, head coach(es) and most valuable player (most wins above replacement on the team that season, skater or goalie). The chart is shaded by the coach who finished each season. Click a season to open it. Relocated teams carry their history (Winnipeg includes Atlanta; Utah includes Arizona).</p>
+  <p>The <strong>Show players used well for every season</strong> button fills in the "used about right" count for every season, using the same rule as the deployment table. It downloads three seasons of player data for each season (about 30 MB), so it only runs when asked and can be slow on phones.</p>
 </section>
 
 <section class="panel">
