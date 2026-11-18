@@ -41,6 +41,7 @@ The goalie page (`goalies.html`) has the same four parts, built for goalies. Sea
 
 Two more pages:
 - **Trade machine** (`trade.html`): two teams picked in the header, with a live score next to them; skaters and goalies (including players under team control who aren't on the active roster, like ones sitting out), prospects and draft picks; years left on each contract and optional cap hits (you enter both); restricted-free-agent seasons estimated from age and NHL games (a checkbox you can override); prospects with 40+ NHL games blend their own record with their draft slot; wins and surplus verdicts side by side; optional team plans (No preference, Contending, Bubble team, Rebuilding) that weigh wins by when they arrive.
+- **Teams** (`teams.html`): one team and season at a time. A card with the 5v5 expected-goal share and rank, the recent trend and the head coach(es); a rolling 10- or 20-game 5v5 trend line (coaching changes marked); a game-by-game lineup strip (each player's line or pair by that night's ice time, or his power-play unit); and the deployment table from the skater page with a "Last 10" column showing recent moves up or down (description only, never used in value).
 - **How it works** (`about.html`): a glossary plus the method for every section.
 
 ## How the data works
@@ -51,7 +52,7 @@ Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning
 |---|---|---|
 | `scripts/build_data.py` | `seasons/`, `lines/`, `careers.json`, `mp_careers.json`, `index.json` | MoneyPuck season summaries and lines; NHL stats API (careers, bios, league scoring) and player API (trophies) |
 | `scripts/build_shots.py` | `shots/`, `goalies/shots/` | MoneyPuck shot data (shots taken by skaters, shots faced by goalies) |
-| `scripts/build_usage.py` | `usage/` | MoneyPuck game-by-game skater data |
+| `scripts/build_usage.py` | `usage/`, `teams/`, `teams/coaches/` | MoneyPuck game-by-game skater data; NHL game-center data for head coaches (`--coach-budget`, 1,500 games a run, newest season first) |
 | `scripts/build_edge.py` | `edge/` | NHL EDGE API, one request per player per season (2021-22 on) |
 | `scripts/build_goalies.py` | `goalies/seasons/`, `goalies/games/`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | MoneyPuck goalie season and game-by-game files; NHL goalie reports (seasons, game logs, careers) and player API (trophies) |
 | `scripts/build_impact.py` | `impact/{season}.json` (isolated 5v5 impact on expected goals, goals and shot attempts, one season and three; isolated power-play and penalty-kill impact; competition and linemate quality in `comp`), `impact/test.json`, `prior_test.json`, `pp_test.json` (the tests behind the settings), `impact/test.json` (forecast test) | NHL shift charts and play-by-play (2010-11 on), MoneyPuck shot data |
@@ -94,11 +95,12 @@ common.js                          shared helpers (formatting, charts, search)
 theme.js                           light/dark toggle in the header (auto follows the device)
 favicon.svg  favicon-32.png  apple-touch-icon.png   site icon (face-off dot on the blue line); PNGs are rendered from the SVG
 trade.html  trade.js               trade machine
+teams.html  teams.js               teams page (loads app.js for the deployment fit, without its init)
 about.html                         how it works (methods and glossary)
 styles.css                         shared styles
 scripts/build_data.py              seasons, lines, careers, index
 scripts/build_shots.py             shot maps
-scripts/build_usage.py             deployment (roles, splits)
+scripts/build_usage.py             deployment (roles, splits), team game-by-game lineups, head coaches
 scripts/build_edge.py              NHL EDGE tracking
 scripts/build_goalies.py           goalie seasons, games, careers
 scripts/build_impact.py            isolated 5v5 impact (shift-by-shift regression) and its forecast test

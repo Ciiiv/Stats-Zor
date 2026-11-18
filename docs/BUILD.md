@@ -21,7 +21,7 @@ By default each script only refreshes the current season and fills in anything m
 |---|---|---|---|---|
 | 1 | `build_data.py` | MoneyPuck season summaries; NHL stats API (careers back to 1917-18, bios, trophies) | `seasons/{y}.json`, `lines/{y}.json`, `careers.json`, `mp_careers.json`, `index.json` | The foundation: every skater's season stats and computed metrics, forward lines and D pairs, full careers, and the search list |
 | 2 | `build_shots.py` | MoneyPuck shot-by-shot files | `shots/{y}.json`, `goalies/shots/{y}.json` | Shot maps: every unblocked shot dropped into 5 × 5 ft cells of the offensive zone, for shooters and for goalies |
-| 3 | `build_usage.py` | MoneyPuck game-by-game skater files | `usage/{y}.json` | Deployment: each night, ranks a team's players by ice time into lines, pairs, PP and PK units, plus zone starts |
+| 3 | `build_usage.py` | MoneyPuck game-by-game skater files; NHL game-center data (head coaches) | `usage/{y}.json`, `teams/{y}.json`, `teams/coaches/{y}.json` | Deployment: each night, ranks a team's players by ice time into lines, pairs, PP and PK units, plus zone starts. Also saves every team's games in order (5v5 xG and goals) with each player's slot that night for the teams page, and looks up each game's head coaches (up to 1,500 games a run, newest season first) |
 | 4 | `build_edge.py` | NHL EDGE API (one call per player per season, 2021-22 on) | `edge/{y}.json` | Skating speed, 20+ mph bursts, distance, shot speed, offensive-zone time |
 | 5 | `build_goalies.py` | MoneyPuck goalie season and game files; NHL goalie stats and trophies | `goalies/seasons/{y}.json`, `goalies/games/{y}.json`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | Everything for the goalie page: saves above expected by situation and danger, starts, decisions, rest, careers |
 | 6 | `build_impact.py` | NHL shift charts and play-by-play for every game since 2010-11; MoneyPuck shot xG | `impact/{y}.json`, `impact/test.json` | Isolated impact: cuts games into stints with the same ten skaters, then solves one big regression for each player's offense and defense. Also the power-play fit, quality of competition and linemates, and the nightly forecast test |
@@ -38,6 +38,7 @@ Step 7 must run last because it reads the output of every other step.
 | Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `lines/`, `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
 | Goalie page, `goalies.html` | `goalies.js` | `index.json`, `goalies/seasons/`, `goalies/games/`, `goalies/shots/`, `goalies/careers.json`, `goalies/mp_careers.json`, `value.json` |
 | Trade machine, `trade.html` | `trade.js` | `value.json`, `rosters.json`, `prospects.json` |
+| Teams, `teams.html` | `teams.js` (plus `app.js` for the deployment fit, with its own start-up skipped) | `teams/{y}.json`, `teams/coaches/{y}.json`, `usage/`, `seasons/`, `value.json` |
 | How it works, `about.html` | none (plain text) | none |
 
 Shared by all pages:

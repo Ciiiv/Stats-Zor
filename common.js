@@ -199,7 +199,7 @@ const TEAM_COLORS = {
   CGY: '#C8102E', CHI: '#CF0A2C', COL: '#6F263D', DAL: '#006847', DET: '#CE1126', EDM: '#FF4C00', FLA: '#C8102E', LAK: '#111111',
   MIN: '#154734', MTL: '#AF1E2D', NJD: '#CE1126', NSH: '#FFB81C', NYI: '#00539B', NYR: '#0038A8', OTT: '#C52032', PHI: '#F74902',
   PIT: '#FCB514', SEA: '#99D9D9', SJS: '#006D75', STL: '#002F87', TBL: '#002868', TOR: '#00205B', UTA: '#71AFE5', VAN: '#00205B',
-  VGK: '#B4975A', WPG: '#041E42', WSH: '#C8102E',
+  VGK: '#B4975A', WPG: '#041E42', WSH: '#C8102E', 'L.A': '#111111', 'N.J': '#CE1126', 'S.J': '#006D75', 'T.B': '#002868',
 };
 const teamColor = t => TEAM_COLORS[t] || null;
 // readable text on a team color

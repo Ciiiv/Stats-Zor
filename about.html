@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
-<link rel="stylesheet" href="styles.css?v=202611171900">
+<link rel="stylesheet" href="styles.css?v=202611180400">
 <script src="theme.js?v=202611150400"></script>
 <style>
 .doc{max-width:860px}
@@ -37,7 +37,7 @@
 <body>
 <header class="top">
   <div class="wrap top-in" style="align-items:center">
-    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="goalies.html">← Goalies</a></div>
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="goalies.html">← Goalies</a><a class="tradelink" href="teams.html">← Teams</a></div>
     <div class="pagetitle"><h1 style="font-size:clamp(26px,4vw,36px)">How it works</h1></div>
   </div>
 </header>
@@ -50,6 +50,7 @@
     <div><b>1 · How he played</b><a href="#m-rank">Two-way composite</a><a href="#m-matrix">Stat board</a><a href="#m-h2h">Head to head</a><a href="#m-env">Shot environment</a><a href="#m-iso">Isolated impact</a><a href="#m-shots">Shot maps</a><a href="#m-mates">Linemates</a><a href="#m-swap">Team swap</a><a href="#m-gems">Scouting lists</a></div>
     <div><b>2 · How he's used</b><a href="#m-role">Role and fit</a><a href="#m-comp">Against and with</a><a href="#m-lineup">Team deployment card</a><b style="margin-top:10px">3 · What he's worth</b><a href="#m-value">Value and worth</a><a href="#m-deal">Fair-value contract</a><a href="#m-trade">Trade machine</a></div>
     <div><b>4 · Vs. history</b><a href="#m-career">Career vs. career</a><a href="#m-arcs">Career arcs and comps</a><b style="margin-top:10px">Data</b><a href="#sources">Sources and updates</a></div>
+    <div><b>Teams</b><a href="#m-teams">Teams page</a><a href="#m-t-trend">Season trend</a><a href="#m-t-strip">Lineup over time</a><a href="#m-t-deploy">Is each player used well?</a></div>
     <div><b>Goalies</b><a href="#m-goalies">Goalie page basics</a><a href="#m-g-rank">Composite and stat board</a><a href="#m-g-env">Environment, shot maps, swap</a><a href="#m-g-role">Workload, form and fit</a><a href="#m-g-value">Goalie value</a><a href="#m-g-career">Goalie careers</a></div>
   </div>
 </section>
@@ -383,6 +384,38 @@ distance = √(weighted average of squared differences); closest = smallest dist
 </section>
 
 <section class="panel">
+  <span class="eyebrow">Teams · teams.html</span>
+  <h2 id="m-teams">Teams page</h2>
+  <p>The teams page looks at one team in one season: how it used its players game by game, how its five-on-five play trended, and whether each regular's role matches his results. Pick a team, a season (2008-09 on) and a recent window (10 or 20 games). Changing the season keeps the same franchise (Atlanta becomes Winnipeg, Arizona becomes Utah).</p>
+  <p>The card at the top shows the season's 5v5 expected-goal share and its rank among all teams, the same over the recent window, the 5v5 goal share, how many skaters dressed, a count of the usage flags from the table below, and the head coach. Head coaches come from the NHL's game-center data, game by game; a change is shown when a new name runs three or more games (a one-night fill-in is ignored). Older seasons are looked up a few at a time, so a season can briefly say it hasn't been looked up yet.</p>
+
+  <h3 id="m-t-trend">Season trend</h3>
+  <p>The team's share of five-on-five expected goals over its last 10 (or 20) games, drawn after every game. The first games of the season are shaded until the window is full. A dotted line does the same with actual goals, and a dashed line marks the season average. A coaching change is marked where it happened.</p>
+  <div class="m">team 5v5 xGF in a game = (sum of its skaters' on-ice 5v5 xGF) ÷ 5   (exact: five skaters are always on the ice at 5v5)
+rolling share at game n = xGF over the last N games ÷ (xGF + xGA over the same games)</div>
+  <details class="lim"><summary>What this can and can't see</summary><ul>
+    <li>Ten games is a small sample: a hot goalie, a soft stretch of schedule or a few injuries can move it several points. Use 20 games or the season average for anything firmer.</li>
+    <li>Goals swing more than expected goals with shooting and goaltending luck, which is why they're drawn lighter.</li>
+    <li>It is five-on-five only; special teams aren't in it.</li>
+  </ul></details>
+
+  <h3 id="m-t-strip">Lineup over time</h3>
+  <p>One row per skater who dressed for the team, one square per game. Each night, the team's forwards are ranked by five-on-five ice time into lines of three and its defensemen into pairs of two, the same rule as the <a href="#m-role">role and fit</a> section; darker means higher in the lineup. A blank square means he wasn't in the lineup for this team (scratched, injured, traded, or not yet called up). The power-play view does the same with 5-on-4 units (top five by 5-on-4 time = first unit, next five = second; 30+ seconds needed). Rows are sorted by usual slot, forwards first. Names link to the player's page.</p>
+  <details class="lim"><summary>What this can and can't see</summary><ul>
+    <li>Slots come from ice time, not the coach's posted line chart. Penalties, injuries during a game and blowouts can shuffle one night, so read the pattern over several games, not a single square.</li>
+    <li>Three forwards with nearly the same ice time can land on different "lines" by a few seconds, which is why middle-six forwards often flicker between 2nd and 3rd.</li>
+  </ul></details>
+
+  <h3 id="m-t-deploy">Is each player used well?</h3>
+  <p>Regulars with games in at least 25% of the team's games. <strong>Used as</strong> is his average slot with this team; <strong>Last 10</strong> (or 20) is the same over the team's last 10 games, with an arrow when it differs by three-quarters of a slot or more. The recent column describes his role only: it doesn't feed his value or any fit rating, because 10 games is too few. The fit columns (5v5 fit, overall fit, vs. role, the even-strength flag, power-play and penalty-kill use) are the same as the <a href="#m-lineup">team deployment card</a> on the skater page and are computed from three seasons, most recent counting most. The "usage flags" tile on the card counts how many regulars are used about right, could do more, or are used above their overall value.</p>
+  <details class="lim"><summary>What this can and can't see</summary><ul>
+    <li>It compares usage with results; it isn't a verdict on the coach. Injuries, matchups, linemates and development plans all shape who plays where.</li>
+    <li>A player traded mid-season shows his games and slots with this team only, but his fit columns use his whole season.</li>
+    <li>When a team changed coaches, the season's usage is both coaches together.</li>
+  </ul></details>
+</section>
+
+<section class="panel">
   <span class="eyebrow">Goalies · goalies.html</span>
   <h2 id="m-goalies">Goalie page basics</h2>
   <p>Goalies have their own page with the same four parts, because almost nothing a skater is judged on applies to them. Searching a goalie's name on the skater page sends you there, and the other way around. Goalies are only compared with goalies.</p>
@@ -475,6 +508,7 @@ Era-adjusted GAA            = GAA × 3.0 ÷ that season's league GAA</div>
     <li><a href="https://moneypuck.com/data.htm">MoneyPuck.com</a>: skater and goalie season summaries, lines and pairs, game-by-game skater and goalie data, and shot data from 2008-09 on. Free for non-commercial use with credit to MoneyPuck.com.</li>
     <li>NHL stats API: every skater and goalie season since 1917-18, bios, league scoring, and goalie game logs (starts and decisions).</li>
     <li>NHL player and roster API: trophies (including the Vezina and Jennings), Hall of Fame, current rosters and draft picks.</li>
+    <li>NHL game-center data: each game's head coaches, for the teams page.</li>
     <li>NHL EDGE API: skating speed, bursts, distance, shot speed and zone time, 2021-22 on.</li>
   </ul>
   <p>A GitHub Actions job rebuilds the data every morning (about 7 a.m. Eastern) after MoneyPuck's overnight update. Past seasons are kept; the current season is refreshed each day. A new season (from September 1) is picked up automatically once MoneyPuck and the NHL publish it.</p>

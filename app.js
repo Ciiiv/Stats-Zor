@@ -1068,7 +1068,7 @@ function renderLineup(U, sd) {
     return `<p class="minihead" style="margin-top:12px">${grp === 'F' ? 'Forwards' : 'Defensemen'}</p><div class="scroll"><table class="tbl"><thead><tr><th>Player</th><th>GP</th><th>Used as</th><th>5v5 fit (3 yr)</th><th>Overall fit</th><th>Vs. role</th><th>Even strength</th><th>PP use</th><th>PP fit</th><th>PK use</th><th>PK fit</th><th>Zone starts</th></tr></thead><tbody>` +
       rs.map(r => `<tr class="${r.p.id === S.A ? 'isA' : ''}"><td><a href="#" data-seta="${r.p.id}">${esc(r.p.name)}</a> <span class="lab">${r.p.pos}</span></td><td>${r.G}</td><td style="white-space:nowrap">${slotName(grp, r.avgSlot)} <span class="lab">${r.avgSlot.toFixed(1)}</span></td><td style="white-space:nowrap">${r.enough ? slotName(grp, r.eq) + ` <span class="lab">${r.eq.toFixed(1)}</span>` : '—'}</td><td style="white-space:nowrap">${nz(r.eqAll) ? slotName(grp, r.eqAll) + ` <span class="lab">${r.eqAll.toFixed(1)}</span>` : '—'}</td><td class="${r.enough ? dcls(r.vsRole) : ''}">${r.enough ? s1(r.vsRole) : '—'}</td><td>${flag(r.allFit)}</td><td style="white-space:nowrap">${r.ppL}</td><td>${flag(r.ppFit)}</td><td style="white-space:nowrap">${r.pkL}</td><td>${flag(r.pkFit)}</td><td>${flag(r.zFit)}</td></tr>`).join('') + '</tbody></table></div>';
   };
-  $('lineup').innerHTML = rows.length ? tbl('F') + tbl('D') + `<p class="sub small">Regulars with ${minG}+ games for ${S.lineupTeam} in ${sLabel(S.season)}. A player traded mid-season shows his whole season, including games for his other team.</p>` : '<p class="empty">No deployment data for this team.</p>';
+  $('lineup').innerHTML = rows.length ? tbl('F') + tbl('D') + `<p class="sub small">Regulars with ${minG}+ games for ${S.lineupTeam} in ${sLabel(S.season)}. A player traded mid-season shows his whole season, including games for his other team. <a href="teams.html#t=${encodeURIComponent(S.lineupTeam)}&s=${S.season}">Game-by-game lineup and trend on the teams page →</a></p>` : '<p class="empty">No deployment data for this team.</p>';
 }
 
 
@@ -1308,4 +1308,5 @@ async function init() {
     $('status').classList.add('err');
   }
 }
-init();
+// the teams page loads this file for its helpers (deployment fit) and runs its own init
+if (window.SZ_PAGE !== 'teams') init();

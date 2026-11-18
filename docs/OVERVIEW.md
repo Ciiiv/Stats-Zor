@@ -18,7 +18,7 @@ At 12:17 UTC each night, GitHub Actions runs seven Python scripts in order, each
 | --- | --- | --- |
 | 1 | build_data | Player seasons, careers, rosters, the search index |
 | 2 | build_shots | Shot maps by location |
-| 3 | build_usage | Ice time, deployment and zone starts |
+| 3 | build_usage | Ice time, deployment and zone starts; team game-by-game lineups and head coaches |
 | 4 | build_edge | NHL EDGE skating and shot-speed tracking |
 | 5 | build_goalies | Goalie seasons, saves above expected |
 | 6 | build_impact | Isolated impact (the shift-by-shift model) and quality of competition |
@@ -48,6 +48,12 @@ Goalie percentiles are based on team games, since no goalie plays all 82. Search
 The trade machine values both sides of a trade in wins and dollars: players, goalies, prospects and draft picks. Players count for the seasons they remain under team control, including estimated RFA years (assumed paid fair value, so they add wins but no surplus).
 
 The site does not know contracts. Users type in cap hits and years left; anything left blank counts as this season only and is flagged. Each team can pick a plan (No preference, Contending, Bubble or Rebuilding) that weights wins by season. Trades reset on refresh, on purpose.
+
+## Teams page
+
+The teams page looks at one team and season at a time: how it used its players game by game, and whether that matches their results. A card shows the team's five-on-five expected-goal share and rank, its recent trend and its head coach. A trend line follows the 5v5 share over the last 10 or 20 games, with coaching changes marked.
+
+A lineup strip shows every player's line or pair in every game, set by that night's ice time, so promotions, demotions, call-ups and injuries show up as patterns. A table then compares each regular's role with what his results and value say he could handle, with a "Last 10" column for recent moves. Small samples are labeled: the recent views describe what happened and never change a player's value.
 
 ## Scouting lists sidebar
 

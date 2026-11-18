@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teams · Stats-Zor</title>
+<meta name="description" content="How an NHL team uses its players: lineup changes game by game, the season's 5v5 trend, and whether each player is used well.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@600;800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles.css?v=202611180400">
+<script src="theme.js?v=202611150400"></script>
+</head>
+<body>
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brandbox"><a class="brand" href="./">STATS<span>-</span>ZOR</a><a class="tradelink" href="./">← Skaters</a><a class="tradelink" href="goalies.html">Goalies →</a><a class="tradelink" href="trade.html">Trade machine →</a><a class="tradelink" href="about.html#m-teams">How it works →</a></div>
+    <div class="pickers">
+      <div class="picker small"><label for="tTeam">Team</label><select id="tTeam"></select></div>
+      <div class="picker small"><label for="tSeason">Season</label><select id="tSeason"></select></div>
+      <div class="picker small"><label for="tWin">Recent window</label><select id="tWin"><option value="10">10 games</option><option value="20">20 games</option></select></div>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <p class="status" id="status">Loading data…</p>
+
+  <section class="panel tcard" id="sec-tcard"></section>
+
+  <section class="panel" id="sec-trend">
+    <div class="head"><h2>Season trend</h2><a class="how" href="about.html#m-t-trend">How this works</a>
+      <p class="sub" id="trend-sub"></p></div>
+    <div id="trend"></div>
+  </section>
+
+  <section class="panel" id="sec-strip">
+    <div class="head"><h2>Lineup over time</h2><a class="how" href="about.html#m-t-strip">How this works</a>
+      <p class="sub" id="strip-sub"></p></div>
+    <div class="ctl"><label class="lbl" for="tView">Show</label><select id="tView"><option value="ev">Even-strength line and pair</option><option value="pp">Power-play unit</option></select>
+      <label class="lbl" for="tSpan">Games</label><select id="tSpan"><option value="all">Whole season</option><option value="20">Last 20</option></select></div>
+    <div id="strip"></div>
+  </section>
+
+  <section class="panel" id="sec-deploy">
+    <div class="head"><h2>Is each player used well?</h2><a class="how" href="about.html#m-t-deploy">How this works</a>
+      <p class="sub" id="deploy-sub"></p></div>
+    <div id="deploy"></div>
+  </section>
+
+  <footer class="foot"><p>Data: <a href="https://moneypuck.com" rel="noopener">MoneyPuck.com</a> and the NHL's public API. <span id="updated"></span></p></footer>
+</main>
+<script>window.SZ_PAGE = 'teams';</script>
+<script src="common.js?v=202611180400"></script>
+<script src="app.js?v=202611180400"></script>
+<script src="teams.js?v=202611180400"></script>
+</body>
+</html>
