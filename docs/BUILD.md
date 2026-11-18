@@ -1,0 +1,59 @@
+# Stats-Zor: How the Build Works
+
+November 17, 2026. A short tour of the code: what runs, in what order, what each piece reads and writes. For the reasoning behind the numbers see the [How it works](https://ciiiv.github.io/Stats-Zor/about.html) page; for a non-technical summary see [OVERVIEW.md](OVERVIEW.md).
+
+## The big picture
+
+There are two halves, and they never talk to each other directly:
+
+1. **The nightly build (Python).** A GitHub Actions job downloads public hockey data, crunches it, and saves the results as JSON files in `data/`, then commits them to the repo.
+2. **The pages (JavaScript).** When someone opens the site, their browser downloads only the JSON files it needs and does the rest of the math on the spot: percentiles, charts, the scouting lists, the trade machine.
+
+There is no server, no database and no AI in either half. Everything is Python's standard library on one side and plain JavaScript with hand-drawn SVG on the other.
+
+## The nightly job
+
+File: `.github/workflows/update-data.yml`. It runs every day at 12:17 UTC (about 7:17 am Eastern), and can also be started by hand. It runs seven scripts from `scripts/`, in order. Each one after the first is allowed to fail without stopping the rest, so one bad download only leaves that part a day old. At the end it commits whatever changed in `data/`.
+
+By default each script only refreshes the current season and fills in anything missing. Past seasons are built once and kept. Running with `--full` (or the job's `full` option) rebuilds everything.
+
+| # | Script | Reads | Writes (under `data/`) | What it does |
+|---|---|---|---|---|
+| 1 | `build_data.py` | MoneyPuck season summaries; NHL stats API (careers back to 1917-18, bios, trophies) | `seasons/{y}.json`, `lines/{y}.json`, `careers.json`, `mp_careers.json`, `index.json` | The foundation: every skater's season stats and computed metrics, forward lines and D pairs, full careers, and the search list |
+| 2 | `build_shots.py` | MoneyPuck shot-by-shot files | `shots/{y}.json`, `goalies/shots/{y}.json` | Shot maps: every unblocked shot dropped into 5 × 5 ft cells of the offensive zone, for shooters and for goalies |
+| 3 | `build_usage.py` | MoneyPuck game-by-game skater files | `usage/{y}.json` | Deployment: each night, ranks a team's players by ice time into lines, pairs, PP and PK units, plus zone starts |
+| 4 | `build_edge.py` | NHL EDGE API (one call per player per season, 2021-22 on) | `edge/{y}.json` | Skating speed, 20+ mph bursts, distance, shot speed, offensive-zone time |
+| 5 | `build_goalies.py` | MoneyPuck goalie season and game files; NHL goalie stats and trophies | `goalies/seasons/{y}.json`, `goalies/games/{y}.json`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | Everything for the goalie page: saves above expected by situation and danger, starts, decisions, rest, careers |
+| 6 | `build_impact.py` | NHL shift charts and play-by-play for every game since 2010-11; MoneyPuck shot xG | `impact/{y}.json`, `impact/test.json` | Isolated impact: cuts games into stints with the same ten skaters, then solves one big regression for each player's offense and defense. Also the power-play fit, quality of competition and linemates, and the nightly forecast test |
+| 7 | `build_value.py` | Everything above (seasons, impact, usage, goalies); NHL roster and draft APIs | `value.json`, `rosters.json`, `prospects.json` | The value model: goals above replacement, wins, dollars, three-season projections, the fitted age curve, current rosters with jersey numbers, and recent draft prospects |
+
+Step 6 is the heavy one. It downloads thousands of games, so the raw game files are kept between nights in the GitHub Actions cache (`.cache/impact`), not in the repo. A night normally only fetches the new games. Older seasons for quality of competition are filled in a few at a time.
+
+Step 7 must run last because it reads the output of every other step.
+
+## The pages
+
+| Page | Script | Main files it reads |
+|---|---|---|
+| Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `lines/`, `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
+| Goalie page, `goalies.html` | `goalies.js` | `index.json`, `goalies/seasons/`, `goalies/games/`, `goalies/shots/`, `goalies/careers.json`, `goalies/mp_careers.json`, `value.json` |
+| Trade machine, `trade.html` | `trade.js` | `value.json`, `rosters.json`, `prospects.json` |
+| How it works, `about.html` | none (plain text) | none |
+
+Shared by all pages:
+
+- `common.js`: number formatting, chart axes, the search box (which jumps between the skater and goalie pages), team colors and badges, jersey numbers from `rosters.json`, the smoothed shot maps, and the scouting-list sidebar.
+- `theme.js`: the auto / dark / light switch.
+- `styles.css`: the look of every page.
+
+Each page loads a season's files only when that season is picked, so opening the skater page downloads about 9 MB (less after the browser caches it), not the whole 74 MB. Every section draws inside a safety wrapper (`safe()`), so one broken section shows an error box instead of taking down the page.
+
+## Where the settings live
+
+- `scripts/build_value.py`, at the top: salary cap figures, replacement levels, the isolated/relative blend weights, goalie weight, finishing shrinkage, small-sample rule.
+- `scripts/build_impact.py`, at the top: regression strength and the starting-point settings.
+- `trade.js`, at the top: draft pick values and the team-plan discounts.
+
+## Testing changes
+
+The cloud workspace usually can't reach the data sources, so real-data tests run on a temporary GitHub branch whose workflow commits results back, which are then inspected and copied to `main`. Page changes are checked by serving the repo locally and driving it in a headless browser (Playwright): no console errors, screenshots look right, and no sideways scrolling at phone width. Details are in the README and CLAUDE.md.

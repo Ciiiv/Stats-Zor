@@ -1,6 +1,6 @@
 # Stats-Zor: Executive Overview
 
-November 17, 2026. A high-level summary of the site. For every formula and its limits, see the site's [How it works](https://ciiiv.github.io/Stats-Zor/about.html) page; for how to run things, see the [README](../README.md).
+November 17, 2026. A high-level summary of the site. For every formula and its limits, see the site's [How it works](https://ciiiv.github.io/Stats-Zor/about.html) page; for how to run things, see the [README](../README.md); for the build process from the code side, see [BUILD.md](BUILD.md).
 
 ## What Stats-Zor is
 

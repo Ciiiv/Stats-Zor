@@ -8,8 +8,10 @@ Value model (Stats-Zor's own, simple and transparent; not Evolving-Hockey's GAR)
                where each 5v5 rate is ISO_WEIGHT x isolated impact (data/impact, stretched to the same
                spread as the relative number) + (1 - ISO_WEIGHT) x 0.5 x relative xGF/60 or xGA/60.
                Seasons before 2010-11 (no shift charts) use the relative number alone.
-  Finishing    0.5 x (goals - expected goals), all situations
-  Power play   0.3 x (on-ice PP xGF/60 - replacement) x PP hours
+  Finishing    finishing_credit(): 3-season goals above expected per shot, shrunk by shots / (shots + FIN_K)
+               (FIN_K 400 forwards, 2,000 defensemen), times this season's shots, all situations
+  Power play   0.3 x (PP rate - replacement) x PP hours, PP rate = ISO_WEIGHT_PP x isolated 5-on-4
+               (stretched, re-centred on the on-ice level) + the rest x on-ice PP xGF/60
   Penalty kill 0.25 x (replacement - on-ice PK xGA/60) x PK hours
   Penalties    0.15 x (penalties drawn - penalties taken)
   Replacement level for each piece is the 20th percentile among regulars at the position.
