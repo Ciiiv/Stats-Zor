@@ -96,6 +96,7 @@
 <section class="panel">
   <h2 id="m-profile">Profile</h2>
   <p>The two cards at the top show the season line (goals, assists, points, games), ice time, 5v5 xGF% and relative xGF%, plus three scores from the <a href="#m-rank">two-way composite</a>: defense, offense and role difficulty. Trophies and Cups come from the NHL's records. Age, size and handedness come from NHL bios.</p>
+  <p>Each card is edged in his team's color, with the team's abbreviation and his current jersey number (shown only on a card for the team he plays for now). There are no team logos or player photos: those belong to the NHL, its teams and photographers.</p>
   <h3 id="m-tools">Tools (NHL EDGE)</h3>
   <p>For 2021-22 on, each card shows tracking data from the NHL's EDGE system: top skating speed, number of 20+ mph bursts, hardest shot, distance skated per game, and share of 5v5 time spent in the offensive zone. Percentiles are the NHL's own, forwards against forwards and defensemen against defensemen.</p>
   <p><strong>Trend:</strong> his top speed and 20+ mph bursts per game this season against his best earlier EDGE season (20+ games). It's flagged <em>Slowing</em> if top speed is down 0.5 mph or more, or bursts per game are down 25% or more. Speed usually fades before production does, so it's an early sign for older players.</p>
@@ -158,14 +159,21 @@ worth 20 hours of ice time, so a player needs a real sample to move far from 0.<
     <li><strong>Zone and score:</strong> from the NHL play-by-play. A stint that starts with an offensive-zone faceoff produces more chances for that team in the first seconds, so that's taken out. Teams that are trailing push and teams that are leading sit back, so score state is taken out too.</li>
     <li><strong>The penalty:</strong> 20 hours was the best of 5 to 120 when 20% of 2024-25 games were held out and predicted from the rest.</li>
     <li><strong>One season or three:</strong> the three-season fit pools that season and the two before it. It's steadier, and it's what most public models show.</li>
+    <li><strong>Where each player starts (one-season fit):</strong> instead of pulling everyone toward 0, each player is pulled toward 75% of his estimate from the season before (when he played 200+ five-on-five minutes then). Players with no usable last season (mostly rookies) start from a box-score estimate: what his individual numbers that season (expected goals, goals, primary assists, shot attempts, high-danger chances, takeaways, giveaways, blocks, hits, penalties drawn and taken, all per 60) usually mean for isolated impact at his position, learned from earlier seasons. Each season then moves him from that starting point only as far as the new evidence says. It predicts next season about 10% better than starting everyone at 0 (0.342 vs. 0.312 over 15 pairs of seasons; best of 8 versions tested: 0%, 50%, 75% or 100% of last season, each with and without the box-score start). The three-season fit still starts at 0.</li>
   </ul>
   <p>Offense is xGF/60 he adds (positive is good). Defense is xGA/60 he adds (negative is good: fewer chances against). Net is offense minus defense. Percentiles are among regulars at his position. Because of the penalty, isolated numbers are smaller than relative ones, about half the spread. Compare players by percentile, not by size.</p>
   <p><strong>Which predicts better?</strong> For every skater with 500+ 5v5 minutes in back-to-back seasons, this season's number is lined up against next season's two ways: next season's on-ice xG differential and next season's relative differential. Using both keeps the test from favouring either method. Over 15 pairs of seasons (2010-11 to 2025-26), each method predicts its own kind of number best: isolated alone lines up better with next season's on-ice results (0.35 vs. 0.28 for relative), and relative alone lines up better with next season's relative results (0.32 vs. 0.27). Scored on both at once, the best mix is about two-thirds isolated and one-third relative (0.319, against 0.300 for relative alone and 0.312 for isolated alone), so that's the mix the value model uses. The skater page shows the full table. The test reruns every night as seasons are added.</p>
+  <p><strong>Same method, other measures.</strong> Each player card also shows the regression run on other targets:</p>
+  <ul>
+    <li><strong>Goals and shot attempts at 5v5:</strong> the same fit with actual goals or unblocked shot attempts (not expected goals) per 60. Goals are the noisiest; shot attempts the steadiest. They're for comparison only and don't feed value.</li>
+    <li><strong>Power play and penalty kill:</strong> a separate fit over every 5-on-4 stretch. Each row is the power-play team's expected goals per 60, with a column for each power-play skater (what he adds) and each penalty killer (what he allows), plus home ice and the opening faceoff zone. The penalty is 80 hours, the best of 5 to 80 at predicting next season. Shown from 50+ minutes (150+ over three seasons).</li>
+  </ul>
   <details class="lim"><summary>Limits</summary><ul>
     <li>It starts in 2010-11, the first season with NHL shift charts. A few games each season have no shift chart and are skipped (57 of 1,312 in 2024-25).</li>
     <li>The regression separates linemates and opponents only as far as they play apart. Two players who are almost always together (the Sedins, a fixed top pair) share credit roughly evenly.</li>
     <li>It doesn't adjust for scorekeeper differences between rinks, or for the quality of the goalie behind him (only chances are measured, not goals).</li>
-    <li>Early in a season the single-season numbers sit close to 0. That's the penalty doing its job, not a sign he's average.</li>
+    <li>Early in a season the single-season numbers sit close to where the player started (his last season, or his box-score estimate). That's the starting point doing its job, not a sign nothing has changed.</li>
+    <li>Penalty-kill numbers barely repeat from one season to the next (a 0.14 correlation even for on-ice numbers), so read them loosely. Power-play units are fixed groups, so credit inside a unit is split roughly evenly.</li>
   </ul></details>
 
   <h3 id="m-gems">Scouting lists (sidebar)</h3>
@@ -288,14 +296,16 @@ Against his role = his 5v5 xGF% − league xGF% for the slots he played, weighte
   5v5 offense   = (5v5 offense rate − replacement) × 5v5 hours
   5v5 defense   = (replacement − 5v5 defense rate) × 5v5 hours
   Finishing     = 0.5 × (goals − individual xG), all situations
-  Power play    = 0.3 × (on-ice PP xGF/60 − replacement) × PP hours
+  Power play    = (PP rate − replacement) × PP hours
   Penalty kill  = 0.25 × (replacement − on-ice PK xGA/60) × PK hours
   Penalties     = 0.15 × (penalties drawn − penalties taken)
 5v5 rate      = 67% × isolated impact (stretched) + 33% × 0.5 × relative xGF/60 or xGA/60
+PP rate       = 50% × isolated PP impact (stretched) + 50% × 0.3 × on-ice PP xGF/60
 Replacement   = 20th percentile among regulars at the position (80th for the against stats),
                 roughly what a call-up provides.
 Wins = goals ÷ 6</div>
   <p><strong>Why these weights:</strong> on-ice stats are shared by five skaters, so relative 5v5 and special-teams credit is scaled down. Only half of finishing is counted, because shooting luck regresses. A penalty drawn is worth about 0.15 goals, roughly the value of a power play.</p>
+  <p><strong>The power-play blend:</strong> power-play credit mixes his isolated 5-on-4 impact (stretched to the same spread as 0.3 × on-ice, like 5v5) with his on-ice numbers, half and half. That mix predicted next season's power-play results best (0.394 vs. 0.389 for on-ice alone). It takes some credit away from players on a great power-play unit who aren't driving it, and gives it to the ones who are. The penalty kill stays on on-ice numbers: the isolated version predicted worse. Players with under 50 power-play minutes use on-ice only.</p>
   <p><strong>The 5v5 blend:</strong> the 5v5 rates mix his <a href="#m-iso">isolated impact</a> with his relative numbers. The mix is 67% isolated, the best of the mixes tried in the forecast test. Isolated numbers come out about half as spread as relative ones, so each season they're stretched (by position) to the same spread as 0.5 × relative before mixing. That keeps 5v5 play's share of all value where it was, and only changes which players get the credit. Seasons before 2010-11 have no shift charts and use relative alone. The Value card's <strong>5v5 method</strong> box shows his 5v5 goals three ways (relative only, isolated only, the blend). It's for reading only: worth, contracts, projections and the trade machine all use the blend.</p>
   <div class="m">Price of a win = 32 teams × (cap × 0.88 skater share − 20 skaters × minimum salary)
                  ÷ all positive wins produced that season

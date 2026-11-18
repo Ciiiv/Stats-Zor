@@ -58,8 +58,8 @@ GOALIE_WEIGHT = 0.5    # share of a goalie's goals saved above expected credited
 GOALIE_ROSTER = 2      # goalies per team counted at minimum salary
 SCHED = {2012: 48, 2019: 70, 2020: 56}
 ISO_WEIGHT = 0.67      # isolated share of the 5v5 rates (set from the forecast test in data/impact/test.json)
-ISO_WEIGHT_PP = 0.0    # isolated share of the power-play rate (set from data/impact/pp_test.json)
-ISO_WEIGHT_PK = 0.0    # isolated share of the penalty-kill rate (set from data/impact/pp_test.json)
+ISO_WEIGHT_PP = 0.5    # isolated share of the power-play rate (best in data/impact/pp_test.json, Nov 2026)
+ISO_WEIGHT_PK = 0.0    # isolated share of the penalty-kill rate (isolated made predictions worse in pp_test.json, Nov 2026)
 
 
 def cap(y):

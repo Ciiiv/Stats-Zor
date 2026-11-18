@@ -57,6 +57,11 @@ OUT = os.path.join(DATA, "impact")
 SHIFT_URL = "https://api.nhle.com/stats/rest/en/shiftcharts?cayenneExp=gameId={gid}"
 PBP_URL = "https://api-web.nhle.com/v1/gamecenter/{gid}/play-by-play"
 SHOTS_URL = "https://peter-tanner.com/moneypuck/downloads/shots_{y}.zip"
+LAMBDA_PP = 80.0        # ridge penalty for the power-play / penalty-kill fit (best of 5-80 in --pp-test, Nov 2026)
+PRIOR_KEEP = 0.75       # share of last season's estimate each player starts from (best of 0/0.5/0.75/1 in --prior-test, Nov 2026)
+PRIOR_SPM = True        # players with no usable last season start from a box-score estimate (--prior-test, Nov 2026)
+PRIOR_MIN_TOI = 200     # minutes last season needed before his estimate is used as a starting point
+NORMAL_VERSION = 2      # cached normal equations older than this are rebuilt
 WEIGHTS = (0, 0.25, 0.5, 0.67, 0.75, 1)  # isolated share of the blend in the forecast test
 CONTEXT = ["intercept", "home", "oz_start", "dz_start", "lead1", "lead2", "trail1", "trail2"]
 
@@ -71,7 +76,8 @@ def mmss(s):
 
 # ------------------------------------------------------------------ shots (MoneyPuck)
 def load_shots(y):
-    """{full game id: [(period, sec_in_period, home_attacking, xg)]} for 5v5, non-empty-net, regular season."""
+    """{full game id: [(period, sec_in_period, home_attacking, xg, goal, home_skaters, away_skaters)]}
+    for every non-empty-net regular-season unblocked shot (5v5 and special teams)."""
     raw = fetch(SHOTS_URL.format(y=y))
     zf = zipfile.ZipFile(io.BytesIO(raw))
     name = next(n for n in zf.namelist() if n.lower().endswith(".csv"))
@@ -81,7 +87,7 @@ def load_shots(y):
         first = True
         for r in rd:
             if first:
-                need = ["game_id", "period", "time", "isHomeTeam", "xGoal", "homeSkatersOnIce", "awaySkatersOnIce"]
+                need = ["game_id", "period", "time", "isHomeTeam", "xGoal", "goal", "homeSkatersOnIce", "awaySkatersOnIce"]
                 miss = [k for k in need if k not in r]
                 if miss:
                     raise RuntimeError(f"shot file missing columns {miss}")
@@ -92,13 +98,12 @@ def load_shots(y):
                 continue
             try:
                 hs, as_ = int(float(r["homeSkatersOnIce"])), int(float(r["awaySkatersOnIce"]))
-                if hs != 5 or as_ != 5:
-                    continue
                 g = int(float(r["game_id"]))
                 gid = g if g > 1_000_000 else y * 1_000_000 + g
                 per = int(float(r["period"]))
                 t = int(float(r["time"])) - (per - 1) * 1200
-                out.setdefault(gid, []).append((per, t, 1 if r["isHomeTeam"] in ("1", "1.0") else 0, float(r["xGoal"] or 0)))
+                out.setdefault(gid, []).append((per, t, 1 if r["isHomeTeam"] in ("1", "1.0") else 0, float(r["xGoal"] or 0),
+                                                1 if r.get("goal") in ("1", "1.0") else 0, hs, as_))
             except (ValueError, KeyError):
                 continue
     return out
@@ -141,8 +146,10 @@ def fetch_game(gid):
     return gid, {"g": goalies, "s": shifts, "f": fo, "goals": goals}, None
 
 
-def stints(game, shots):
-    """Yield (home_skaters, away_skaters, seconds, xg_home, xg_away, home_zone, home_score_diff)."""
+def all_stints(game, shots):
+    """Yield (home_skaters, away_skaters, seconds, shots_in_stint, home_zone, home_score_diff) for every stretch
+    with one goalie per side and the same skaters on the ice, regulation periods only.
+    shots_in_stint: [(home_attacking, xg, goal, home_skaters_mp, away_skaters_mp)]."""
     goalies = set(game["g"])
     fo = {(p, t): z for p, t, z in game["f"]}
     goals = sorted(game["goals"])
@@ -150,8 +157,8 @@ def stints(game, shots):
     for pid, is_home, per, a, b in game["s"]:
         by_per.setdefault(per, []).append((pid, is_home, a, b))
     shot_by_per = {}
-    for per, t, home_att, xg in shots:
-        shot_by_per.setdefault(per, []).append((t, home_att, xg))
+    for sh in shots:
+        shot_by_per.setdefault(sh[0], []).append(sh[1:])
     for per, rows in by_per.items():
         if per > 3:   # regular-season overtime is 3-on-3
             continue
@@ -166,128 +173,204 @@ def stints(game, shots):
             ag = [p for p, h in on if not h and p in goalies]
             hs = sorted(p for p, h in on if h and p not in goalies)
             as_ = sorted(p for p, h in on if not h and p not in goalies)
-            # shots in (a, b]
-            xh = xa = 0.0
             while si < len(ps) and ps[si][0] <= a:
                 si += 1
-            j = si
+            j, inside = si, []
             while j < len(ps) and ps[j][0] <= b:
-                if ps[j][1]:
-                    xh += ps[j][2]
-                else:
-                    xa += ps[j][2]
+                inside.append(ps[j][1:])
                 j += 1
-            if len(hg) != 1 or len(ag) != 1 or len(hs) != 5 or len(as_) != 5:
+            if len(hg) != 1 or len(ag) != 1 or not (3 <= len(hs) <= 6) or not (3 <= len(as_) <= 6):
                 continue
             diff = sum(1 if g[2] else -1 for g in goals if (g[0], g[1]) < (per, a) or (g[0] == per and g[1] == a))
-            yield hs, as_, b - a, xh, xa, fo.get((per, a), "F"), diff
+            yield hs, as_, b - a, inside, fo.get((per, a), "F"), diff
+
+
+def stints(game, shots, full=False):
+    """5v5 stints: (home_skaters, away_skaters, seconds, xg_home, xg_away, home_zone, home_score_diff),
+    with full=True also (goals_home, goals_away, attempts_home, attempts_away). Only shots MoneyPuck
+    also records as 5v5 are counted."""
+    for hs, as_, sec, inside, zone, diff in all_stints(game, shots):
+        if len(hs) != 5 or len(as_) != 5:
+            continue
+        xh = xa = gh = ga = fh = fa = 0.0
+        for home_att, xg, goal, mh, ma in inside:
+            if mh != 5 or ma != 5:
+                continue
+            if home_att:
+                xh += xg; gh += goal; fh += 1
+            else:
+                xa += xg; ga += goal; fa += 1
+        if full:
+            yield hs, as_, sec, xh, xa, zone, diff, gh, ga, fh, fa
+        else:
+            yield hs, as_, sec, xh, xa, zone, diff
+
+
+def pp_stints(game, shots):
+    """5-on-4 stints: (pp_skaters, pk_skaters, seconds, pp_xg, pp_goals, pp_attempts, pp_is_home, zone_from_pp_side).
+    Only the power-play team's shots that MoneyPuck also records as 5-on-4 are counted."""
+    for hs, as_, sec, inside, zone, diff in all_stints(game, shots):
+        if (len(hs), len(as_)) == (5, 4):
+            pp, pk, home = hs, as_, 1
+        elif (len(hs), len(as_)) == (4, 5):
+            pp, pk, home = as_, hs, 0
+        else:
+            continue
+        x = g = f = 0.0
+        for home_att, xg, goal, mh, ma in inside:
+            if home_att == home and ((mh, ma) == (5, 4) if home else (mh, ma) == (4, 5)):
+                x += xg; g += goal; f += 1
+        z = zone if home else {"O": "D", "D": "O"}.get(zone, zone)
+        yield pp, pk, sec, x, g, f, home, z
 
 
 # ------------------------------------------------------------------ regression
+TARGETS = ("xg", "g", "f")   # expected goals, goals, unblocked shot attempts (all per 60)
+
+
 class Normal:
-    """Sparse normal equations X'WX and X'Wy, built row by row."""
+    """Sparse normal equations X'WX and X'Wy (one y per target), built row by row.
+    The same class holds the 5v5 fit (columns ("o", id) offense, ("d", id) defense) and the
+    5-on-4 fit (columns ("p", id) power-play offense, ("k", id) penalty-kill defense)."""
 
     def __init__(self):
         self.idx = {}          # column key -> index
         self.A = []            # list of dicts
-        self.b = []
-        self.toi = {}          # skater -> seconds at 5v5
+        self.B = {t: [] for t in TARGETS}
+        self.toi = {}          # skater -> seconds (5v5, or on the power play)
+        self.toi2 = {}         # skater -> seconds on the penalty kill (5-on-4 fit only)
         self.rows = 0
         self.wsum = 0.0
         self.ysum = 0.0
 
+    @property
+    def b(self):
+        return self.B["xg"]
+
     def col(self, key):
         i = self.idx.get(key)
         if i is None:
-            i = self.idx[key] = len(self.b)
+            i = self.idx[key] = len(self.A)
             self.A.append({})
-            self.b.append(0.0)
+            for t in TARGETS:
+                self.B[t].append(0.0)
         return i
 
-    def add(self, cols, w, xg):
+    def add(self, cols, w, ys):
         A = self.A
         for i in cols:
             Ai = A[i]
             for j in cols:
                 Ai[j] = Ai.get(j, 0.0) + w
-            self.b[i] += xg
+            for t, v in ys.items():
+                self.B[t][i] += v
         self.rows += 1
         self.wsum += w
-        self.ysum += xg
+        self.ysum += ys["xg"]
 
-    def add_stint(self, hs, as_, sec, xh, xa, zone, diff):
+    def _ctx_cols(self, home, z, d):
+        cols = [self.col(("c", "intercept"))]
+        if home:
+            cols.append(self.col(("c", "home")))
+        if z == "O":
+            cols.append(self.col(("c", "oz_start")))
+        elif z == "D":
+            cols.append(self.col(("c", "dz_start")))
+        if d is None:
+            return cols
+        if d == 1:
+            cols.append(self.col(("c", "lead1")))
+        elif d >= 2:
+            cols.append(self.col(("c", "lead2")))
+        elif d == -1:
+            cols.append(self.col(("c", "trail1")))
+        elif d <= -2:
+            cols.append(self.col(("c", "trail2")))
+        return cols
+
+    def add_stint(self, hs, as_, sec, xh, xa, zone, diff, gh=0.0, ga=0.0, fh=0.0, fa=0.0):
         w = sec / 3600.0
         for p in hs + as_:
             self.toi[p] = self.toi.get(p, 0) + sec
-        ctx = {k: self.col(("c", k)) for k in CONTEXT}
-        for att, dfn, xg, home, z, d in ((hs, as_, xh, 1, zone, diff), (as_, hs, xa, 0, {"O": "D", "D": "O"}.get(zone, zone), -diff)):
-            cols = [ctx["intercept"]] + [self.col(("o", p)) for p in att] + [self.col(("d", p)) for p in dfn]
-            if home:
-                cols.append(ctx["home"])
-            if z == "O":
-                cols.append(ctx["oz_start"])
-            elif z == "D":
-                cols.append(ctx["dz_start"])
-            if d == 1:
-                cols.append(ctx["lead1"])
-            elif d >= 2:
-                cols.append(ctx["lead2"])
-            elif d == -1:
-                cols.append(ctx["trail1"])
-            elif d <= -2:
-                cols.append(ctx["trail2"])
-            self.add(cols, w, xg)
+        for k in CONTEXT:
+            self.col(("c", k))
+        for att, dfn, x, g, f, home, z, d in ((hs, as_, xh, gh, fh, 1, zone, diff),
+                                                (as_, hs, xa, ga, fa, 0, {"O": "D", "D": "O"}.get(zone, zone), -diff)):
+            cols = self._ctx_cols(home, z, d) + [self.col(("o", p)) for p in att] + [self.col(("d", p)) for p in dfn]
+            self.add(cols, w, {"xg": x, "g": g, "f": f})
+
+    def add_pp(self, pp, pk, sec, x, g, f, home, z):
+        w = sec / 3600.0
+        for p in pp:
+            self.toi[p] = self.toi.get(p, 0) + sec
+        for p in pk:
+            self.toi2[p] = self.toi2.get(p, 0) + sec
+        cols = self._ctx_cols(home, z, None) + [self.col(("p", p)) for p in pp] + [self.col(("k", p)) for p in pk]
+        self.add(cols, w, {"xg": x, "g": g, "f": f})
 
     def merge(self, other):
-        remap = [self.col(k) for k in other.idx]
-        keys = list(other.idx)
-        for k_i, row in zip(keys, other.A):
-            i = remap[other.idx[k_i]]
+        remap = {k: self.col(k) for k in other.idx}
+        for k, i_o in other.idx.items():
+            i = remap[k]
             Ai = self.A[i]
-            for j, v in row.items():
-                jj = remap[j]
+            for j, v in other.A[i_o].items():
+                jj = remap[other_keys(other)[j]]
                 Ai[jj] = Ai.get(jj, 0.0) + v
-            self.b[i] += other.b[other.idx[k_i]]
-        for p, s in other.toi.items():
-            self.toi[p] = self.toi.get(p, 0) + s
+            for t in TARGETS:
+                self.B[t][i] += other.B[t][i_o]
+        for src, dst in ((other.toi, self.toi), (other.toi2, self.toi2)):
+            for p, sec in src.items():
+                dst[p] = dst.get(p, 0) + sec
         self.rows += other.rows
         self.wsum += other.wsum
         self.ysum += other.ysum
 
     def to_json(self):
         keys = list(self.idx)
-        return {"keys": [list(k) for k in keys], "A": [[[j, round(v, 6)] for j, v in r.items()] for r in self.A],
-                "b": [round(v, 6) for v in self.b], "toi": {str(k): v for k, v in self.toi.items()},
+        return {"v": NORMAL_VERSION, "keys": [list(k) for k in keys], "A": [[[j, round(v, 6)] for j, v in r.items()] for r in self.A],
+                "B": {t: [round(v, 6) for v in self.B[t]] for t in TARGETS},
+                "toi": {str(k): v for k, v in self.toi.items()}, "toi2": {str(k): v for k, v in self.toi2.items()},
                 "rows": self.rows, "wsum": self.wsum, "ysum": self.ysum}
 
     @classmethod
     def from_json(cls, j):
+        if j.get("v") != NORMAL_VERSION:
+            return None
         n = cls()
         for k in j["keys"]:
             n.col((k[0], k[1] if k[0] == "c" else int(k[1])))
         n.A = [{j_: v for j_, v in r} for r in j["A"]]
-        n.b = list(j["b"])
+        n.B = {t: list(j["B"][t]) for t in TARGETS}
         n.toi = {int(k): v for k, v in j["toi"].items()}
+        n.toi2 = {int(k): v for k, v in j.get("toi2", {}).items()}
         n.rows, n.wsum, n.ysum = j["rows"], j["wsum"], j["ysum"]
         return n
 
-    def solve(self, lam, iters=400, tol=1e-8):
-        """Conjugate gradients on (A + lam*I_skaters) x = b."""
-        n = len(self.b)
-        pen = [lam if k[0] != "c" else 1e-6 for k in self.idx]
+    def solve(self, lam, target="xg", prior=None, iters=400, tol=1e-8):
+        """Conjugate gradients on (A + lam*I_skaters) x = b + lam*prior.
+        prior: {column key: value} that skater columns are pulled toward instead of zero."""
+        n = len(self.A)
+        keys = list(self.idx)
+        pen = [lam if k[0] != "c" else 1e-6 for k in keys]
         rows = [list(r.items()) for r in self.A]
+        rhs = list(self.B[target])
+        if prior:
+            for i, k in enumerate(keys):
+                v = prior.get(k)
+                if v:
+                    rhs[i] += lam * v
 
         def mul(x):
             out = [0.0] * n
             for i, r in enumerate(rows):
-                s = pen[i] * x[i]
+                s_ = pen[i] * x[i]
                 for j, v in r:
-                    s += v * x[j]
-                out[i] = s
+                    s_ += v * x[j]
+                out[i] = s_
             return out
 
         x = [0.0] * n
-        r = list(self.b)
+        r = list(rhs)
         p = list(r)
         rs = sum(v * v for v in r)
         b2 = rs or 1.0
@@ -302,6 +385,14 @@ class Normal:
             p = [ri + (rs2 / rs) * pi for ri, pi in zip(r, p)]
             rs = rs2
         return {k: x[i] for k, i in self.idx.items()}
+
+
+def other_keys(n):
+    """Index -> key list for a Normal (cached on the object)."""
+    ks = getattr(n, "_keys", None)
+    if ks is None or len(ks) != len(n.idx):
+        ks = n._keys = list(n.idx)
+    return ks
 
 
 # ------------------------------------------------------------------ season build
@@ -322,17 +413,29 @@ def season_games(y, shots, cache_games):
 
 
 def build_normal(y, games, shots, holdout=None):
-    """Normal equations for a season; holdout = set of game ids to skip (for the lambda test)."""
+    """5v5 normal equations for a season; holdout = set of game ids to skip (for the lambda test)."""
     N = Normal()
     n = 0
     for gid, game in games.items():
         if holdout and int(gid) in holdout:
             continue
-        for st in stints(game, shots.get(int(gid), [])):
+        for st in stints(game, shots.get(int(gid), []), full=True):
             N.add_stint(*st)
             n += 1
     log(f"impact {y}: {n} stints, {len(N.toi)} skaters")
     return N
+
+
+def build_pp(y, games, shots):
+    """5-on-4 normal equations for a season."""
+    P = Normal()
+    n = 0
+    for gid, game in games.items():
+        for st in pp_stints(game, shots.get(int(gid), [])):
+            P.add_pp(*st)
+            n += 1
+    log(f"impact {y}: {n} power-play stints, {len(P.toi)} on the PP, {len(P.toi2)} on the PK")
+    return P
 
 
 def holdout_error(coef, games, shots, ids):
@@ -366,27 +469,287 @@ def choose_lambda(y, games, shots):
     return res
 
 
-def result(y, single, three, lam):
-    def pack(N):
-        coef = N.solve(lam)
-        sk = {}
-        for k, v in coef.items():
-            if k[0] in ("o", "d"):
-                sk.setdefault(k[1], [0.0, 0.0])[0 if k[0] == "o" else 1] = v
-        ctx = {k[1]: round(v, 4) for k, v in coef.items() if k[0] == "c"}
-        return sk, ctx, N
-    s1, c1, N1 = pack(single)
-    s3, c3, N3 = pack(three) if three else ({}, {}, None)
+FIELDS = ["id", "toi", "off", "def", "toi3", "off3", "def3",
+          "goff", "gdef", "goff3", "gdef3", "foff", "fdef", "foff3", "fdef3",
+          "ppt", "pp", "pkt", "pk", "ppt3", "pp3", "pkt3", "pk3"]
+
+
+def coefs(N, lam, target="xg", prior=None, a="o", b="d"):
+    """{skater: [a-coefficient, b-coefficient]} and context from one solve."""
+    c = N.solve(lam, target, prior)
+    sk = {}
+    for k, v in c.items():
+        if k[0] in (a, b):
+            sk.setdefault(k[1], [0.0, 0.0])[0 if k[0] == a else 1] = v
+    return sk, {k[1]: round(v, 4) for k, v in c.items() if k[0] == "c"}
+
+
+def result(y, single, three, lam, prior=None, pp=None, pp3=None, extra=None):
+    """Season file. prior: starting points for the single-season xG fit (see PRIOR_KEEP)."""
+    s1, c1 = coefs(single, lam, "xg", prior)
+    s3, c3 = coefs(three, lam) if three else ({}, {})
+    g1, _ = coefs(single, lam, "g")
+    g3, _ = coefs(three, lam, "g") if three else ({}, {})
+    f1, _ = coefs(single, lam, "f")
+    f3, _ = coefs(three, lam, "f") if three else ({}, {})
+    q1, cq = coefs(pp, LAMBDA_PP, "xg", None, "p", "k") if pp else ({}, {})
+    q3, _ = coefs(pp3, LAMBDA_PP, "xg", None, "p", "k") if pp3 else ({}, {})
+    r4 = lambda v: round(v, 4) if v is not None else None  # noqa: E731
+    m1 = lambda N, p: round(N.toi.get(p, 0) / 60, 1) if N else None  # noqa: E731
+    m2 = lambda N, p: round(N.toi2.get(p, 0) / 60, 1) if N else None  # noqa: E731
     rows = []
-    for p, (o, d) in s1.items():
+    for p in sorted(set(s1) | set(q1)):
+        o, d = s1.get(p, [None, None])
         o3, d3 = s3.get(p, [None, None])
-        rows.append([p, round(N1.toi.get(p, 0) / 60, 1), round(o, 4), round(d, 4),
-                     round(N3.toi.get(p, 0) / 60, 1) if N3 else None,
-                     round(o3, 4) if o3 is not None else None, round(d3, 4) if d3 is not None else None])
-    return {"season": y, "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "lambda": lam,
-            "league_xg60": round(N1.ysum / N1.wsum, 4) if N1.wsum else None,   # per team, per 60
-            "context": c1, "context3": c3,
-            "fields": ["id", "toi", "off", "def", "toi3", "off3", "def3"], "players": rows}
+        go, gd = g1.get(p, [None, None]); go3, gd3 = g3.get(p, [None, None])
+        fo, fd = f1.get(p, [None, None]); fo3, fd3 = f3.get(p, [None, None])
+        pq, kq = (q1[p] if p in q1 else [None, None])
+        pq3, kq3 = (q3[p] if p in q3 else [None, None])
+        if pp and p in q1:   # a PP-only or PK-only player has the other coefficient fixed at zero by the penalty
+            pq = pq if pp.toi.get(p) else None
+            kq = kq if pp.toi2.get(p) else None
+        if pp3 and p in q3:
+            pq3 = pq3 if pp3.toi.get(p) else None
+            kq3 = kq3 if pp3.toi2.get(p) else None
+        rows.append([p, m1(single, p), r4(o), r4(d), m1(three, p) if three else None, r4(o3), r4(d3),
+                     r4(go), r4(gd), r4(go3), r4(gd3), r4(fo), r4(fd), r4(fo3), r4(fd3),
+                     m1(pp, p), r4(pq), m2(pp, p), r4(kq), m1(pp3, p), r4(pq3), m2(pp3, p), r4(kq3)])
+    out = {"season": y, "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "lambda": lam,
+           "lambda_pp": LAMBDA_PP, "prior_keep": PRIOR_KEEP, "prior_spm": PRIOR_SPM,
+           "league_xg60": round(single.ysum / single.wsum, 4) if single.wsum else None,   # per team, per 60
+           "league_pp_xg60": round(pp.ysum / pp.wsum, 4) if pp and pp.wsum else None,
+           "context": c1, "context3": c3, "context_pp": cq, "fields": FIELDS, "players": rows}
+    if extra:
+        out.update(extra)
+    return out
+
+
+# ------------------------------------------------------------------ starting points (priors)
+SPM_FEATS = ["ixg60", "ig60", "ia1_60", "isa60", "ihd60", "tk60", "gv60", "blk60", "hits60", "pend60", "pen60"]
+
+
+def season_rows(y):
+    j = read_json(os.path.join(DATA, "seasons", f"{y}.json"))
+    if not j:
+        return {}
+    f = j["fields"]
+    return {r[0]: dict(zip(f, r)) for r in j["players"]}
+
+
+def _ols(X, Y, W, ridge=1e-3):
+    """Weighted least squares with a tiny ridge, by Gaussian elimination."""
+    k = len(X[0])
+    A = [[0.0] * k for _ in range(k)]
+    b = [0.0] * k
+    for x, yv, w in zip(X, Y, W):
+        for i in range(k):
+            b[i] += w * x[i] * yv
+            for j in range(k):
+                A[i][j] += w * x[i] * x[j]
+    for i in range(k):
+        A[i][i] += ridge
+    M = [row[:] + [bi] for row, bi in zip(A, b)]
+    for c in range(k):
+        piv = max(range(c, k), key=lambda r: abs(M[r][c]))
+        M[c], M[piv] = M[piv], M[c]
+        if abs(M[c][c]) < 1e-12:
+            continue
+        for r in range(k):
+            if r != c:
+                fct = M[r][c] / M[c][c]
+                for cc in range(c, k + 1):
+                    M[r][cc] -= fct * M[c][cc]
+    return [M[i][k] / M[i][i] if abs(M[i][i]) > 1e-12 else 0.0 for i in range(k)]
+
+
+def spm_features(r):
+    try:
+        return [1.0] + [float(r.get(k) or 0) for k in SPM_FEATS]
+    except (TypeError, ValueError):
+        return None
+
+
+def spm_fit(estimates):
+    """Box-score model: predicts a skater's isolated offense and defense from his individual per-60 stats.
+    estimates: {season: {id: (off, def, toi)}}. Fit by position group, weighted by minutes, on 800+ minute seasons."""
+    data = {g: ([], [], [], []) for g in ("F", "D")}
+    for y, est in estimates.items():
+        rows = season_rows(y)
+        for pid, (o, d, toi) in est.items():
+            r = rows.get(pid)
+            if not r or toi < 800:
+                continue
+            x = spm_features(r)
+            if not x:
+                continue
+            g = "D" if r.get("pos") == "D" else "F"
+            data[g][0].append(x); data[g][1].append(o); data[g][2].append(d); data[g][3].append(toi)
+    model = {}
+    for g, (X, O, D, W) in data.items():
+        if len(X) >= 100:
+            model[g] = (_ols(X, O, W), _ols(X, D, W))
+    return model
+
+
+def spm_predict(model, r):
+    g = "D" if r.get("pos") == "D" else "F"
+    if g not in model:
+        return None
+    x = spm_features(r)
+    if not x:
+        return None
+    co, cd = model[g]
+    return sum(a * b for a, b in zip(co, x)), sum(a * b for a, b in zip(cd, x))
+
+
+def make_prior(prev, keep, spm_model=None, rows=None):
+    """Starting points for a single-season fit: keep x last season's estimate where he played PRIOR_MIN_TOI+
+    minutes, else (with a box-score model) the box-score estimate from this season's individual stats."""
+    pr = {}
+    for pid, (o, d, toi) in (prev or {}).items():
+        if toi >= PRIOR_MIN_TOI and keep:
+            pr[("o", pid)] = keep * o
+            pr[("d", pid)] = keep * d
+    if spm_model and rows:
+        for pid, r in rows.items():
+            if ("o", pid) in pr:
+                continue
+            v = spm_predict(spm_model, r)
+            if v:
+                pr[("o", pid)], pr[("d", pid)] = v
+    return pr
+
+
+def file_estimates(y):
+    j = read_json(os.path.join(OUT, f"{y}.json"))
+    if not j:
+        return None
+    f = j["fields"]
+    out = {}
+    for r in j["players"]:
+        d = dict(zip(f, r))
+        if d.get("off") is not None:
+            out[d["id"]] = (d["off"], d["def"], d.get("toi") or 0)
+    return out
+
+
+def next_season_corr(est, y):
+    """Correlation of a skater's net estimate (offense minus defense) with next season's on-ice and relative
+    5v5 xG differential per 60, for skaters with 500+ minutes in both. Returns (onice, relative, n)."""
+    cur, nxt = season_rows(y), season_rows(y + 1)
+    xs, a, b = [], [], []
+    for pid, (o, d, toi) in est.items():
+        n_ = nxt.get(pid)
+        if toi < 500 or not n_ or (n_.get("t5") or 0) < 500:
+            continue
+        try:
+            a.append(n_["xgf60"] - n_["xga60"])
+            b.append((n_["xgf60"] - n_["off_xgf60"]) - (n_["xga60"] - n_["off_xga60"]))
+        except (KeyError, TypeError):
+            continue
+        xs.append(o - d)
+    if len(xs) < 100:
+        return None
+
+    def corr(u, v):
+        mu, mv = sum(u) / len(u), sum(v) / len(v)
+        su = math.sqrt(sum((x - mu) ** 2 for x in u)) or 1
+        sv = math.sqrt(sum((x - mv) ** 2 for x in v)) or 1
+        return sum((x - mu) * (w - mv) for x, w in zip(u, v)) / (su * sv)
+    return corr(xs, a), corr(xs, b), len(xs)
+
+
+def prior_test(normals, first, last):
+    """Which starting point predicts next season best? Variants: keep 0 / 0.5 / 0.75 / 1 of last season's
+    estimate, each with and without a box-score starting point for players with no usable last season."""
+    keeps = (0.0, 0.5, 0.75, 1.0)
+    base = {}   # plain fits (start at zero), also used to fit the box-score model on earlier seasons only
+    for y in range(first, last + 1):
+        if y in normals:
+            sk, _ = coefs(normals[y], LAMBDA)
+            base[y] = {p: (o, d, normals[y].toi.get(p, 0) / 60) for p, (o, d) in sk.items()}
+    res = {}
+    for keep in keeps:
+        for spm in (False, True):
+            if keep == 0.0 and not spm:
+                est_by = base
+            else:
+                est_by, prev = {}, None
+                for y in range(first, last + 1):
+                    if y not in normals:
+                        prev = None
+                        continue
+                    model = spm_fit({z: base[z] for z in base if z < y}) if spm else None
+                    pr = make_prior(prev, keep, model, season_rows(y) if spm else None)
+                    sk, _ = coefs(normals[y], LAMBDA, "xg", pr)
+                    est_by[y] = {p: (o, d, normals[y].toi.get(p, 0) / 60) for p, (o, d) in sk.items()}
+                    prev = est_by[y]
+            per = []
+            for y in range(first, last):
+                if y in est_by:
+                    c = next_season_corr(est_by[y], y)
+                    if c:
+                        per.append({"season": y, "onice": round(c[0], 4), "rel": round(c[1], 4), "n": c[2]})
+            if per:
+                on = sum(r["onice"] for r in per) / len(per)
+                rl = sum(r["rel"] for r in per) / len(per)
+                key = f"keep {keep}" + (" + box score" if spm else "")
+                res[key] = {"keep": keep, "spm": spm, "onice": round(on, 4), "rel": round(rl, 4), "both": round((on + rl) / 2, 4), "seasons": per}
+                log(f"prior test {key}: on-ice {on:.4f} relative {rl:.4f} both {(on + rl) / 2:.4f} ({len(per)} seasons)")
+    best = max(res, key=lambda k: res[k]["both"])
+    write_json(os.path.join(OUT, "prior_test.json"), {"updated": dt.date.today().isoformat(), "variants": res, "best": best,
+                                                       "min_minutes": 500, "prior_min_toi": PRIOR_MIN_TOI})
+    log(f"prior test best: {best}")
+    return res
+
+
+def pp_test(pps, first, last):
+    """Power play and penalty kill: which penalty, and which blend of isolated and on-ice numbers,
+    best predicts next season's on-ice PP xGF/60 (PK xGA/60)? Players with 100+ minutes in both seasons."""
+    def corr(u, v):
+        mu, mv = sum(u) / len(u), sum(v) / len(v)
+        su = math.sqrt(sum((x - mu) ** 2 for x in u)) or 1
+        sv = math.sqrt(sum((x - mv) ** 2 for x in v)) or 1
+        return sum((x - mu) * (w - mv) for x, w in zip(u, v)) / (su * sv)
+
+    def z(v):
+        m = sum(v) / len(v)
+        s_ = math.sqrt(sum((x - m) ** 2 for x in v) / len(v)) or 1
+        return [(x - m) / s_ for x in v]
+    out = {}
+    for lam in (5.0, 10.0, 20.0, 40.0, 80.0):
+        acc = {"pp": {str(w): [] for w in WEIGHTS}, "pk": {str(w): [] for w in WEIGHTS}}
+        for y in range(first, last):
+            if y not in pps:
+                continue
+            sk, _ = coefs(pps[y], lam, "xg", None, "p", "k")
+            cur, nxt = season_rows(y), season_rows(y + 1)
+            for side, fld, ti, idx, sign in (("pp", "pp_xgf60", "pp", 0, 1), ("pk", "pk_xga60", "pk", 1, -1)):
+                iso, onice, tgt = [], [], []
+                for pid, v in sk.items():
+                    c, n_ = cur.get(pid), nxt.get(pid)
+                    tmin = (pps[y].toi if side == "pp" else pps[y].toi2).get(pid, 0) / 60
+                    if not c or not n_ or tmin < 100 or c.get(fld) is None or n_.get(fld) is None:
+                        continue
+                    if (n_.get(ti) or 0) * (n_.get("gp") or 0) < 100:
+                        continue
+                    iso.append(sign * v[idx]); onice.append(sign * c[fld]); tgt.append(sign * n_[fld])
+                if len(iso) < 60:
+                    continue
+                zi, zo = z(iso), z(onice)
+                for w in WEIGHTS:
+                    acc[side][str(w)].append(corr([w * a + (1 - w) * b for a, b in zip(zi, zo)], tgt))
+        out[str(lam)] = {side: {w: round(sum(v) / len(v), 4) for w, v in d.items() if v} for side, d in acc.items()}
+        log(f"pp test lambda {lam}: {out[str(lam)]}")
+    best_lam = max(out, key=lambda l: (out[l]["pp"].get("1", 0) + out[l]["pk"].get("1", 0)))
+    bl = out[best_lam]
+    best_w = {side: float(max(bl[side], key=bl[side].get)) for side in ("pp", "pk") if bl[side]}
+    write_json(os.path.join(OUT, "pp_test.json"), {"updated": dt.date.today().isoformat(), "by_lambda": out,
+                                                    "best_lambda": float(best_lam), "best_isolated_weight": best_w,
+                                                    "target": "next season's on-ice 5-on-4 xGF/60 (PP) or xGA/60 (PK)",
+                                                    "min_minutes": 100})
+    log(f"pp test best lambda {best_lam}, best isolated weights {best_w}")
+    return out
 
 
 # ------------------------------------------------------------------ competition and teammates
@@ -552,56 +915,84 @@ def save_cache(y, kind, obj):
 
 
 def normal_for(y, cur, force=False):
-    """Season normal equations, from cache when the season is finished."""
+    """Season normal equations (5v5, 5-on-4), from cache when the season is finished."""
     if y < cur and not force:
-        j = load_cache(y, "normal")
-        if j:
-            return Normal.from_json(j)
+        jn, jp = load_cache(y, "normal"), load_cache(y, "ppnormal")
+        N = Normal.from_json(jn) if jn else None
+        P = Normal.from_json(jp) if jp else None
+        if N and P:
+            return N, P
     shots = load_shots(y)
     games = season_games(y, shots, load_cache(y, "games") or {})
-    save_cache(y, "games", games)
-    N = build_normal(y, games, shots)
+    if y >= cur - 2:
+        save_cache(y, "games", games)
+    N, P = build_normal(y, games, shots), build_pp(y, games, shots)
     save_cache(y, "normal", N.to_json())
-    return N
+    save_cache(y, "ppnormal", P.to_json())
+    return N, P
+
+
+def merged(parts):
+    M = Normal()
+    for x in parts:
+        M.merge(x)
+    return M
 
 
 def main():
+    global LAMBDA_PP, PRIOR_KEEP, PRIOR_SPM
     ap = argparse.ArgumentParser()
-    ap.add_argument("--full", action="store_true")
+    ap.add_argument("--full", action="store_true", help="refetch and rebuild every season")
+    ap.add_argument("--rewrite", action="store_true", help="rewrite every season file from cached fits (after a settings change)")
     ap.add_argument("--season", type=int)
     ap.add_argument("--first", type=int, default=FIRST)
     ap.add_argument("--lambda-test", type=int, help="run the penalty holdout test on this season and stop")
+    ap.add_argument("--prior-test", action="store_true", help="test starting points for the single-season fit")
+    ap.add_argument("--pp-test", action="store_true", help="test the power-play / penalty-kill penalty and blend")
+    ap.add_argument("--prior-keep", type=float)
+    ap.add_argument("--prior-spm", type=int)
+    ap.add_argument("--lambda-pp", type=float)
     ap.add_argument("--max-backfill", type=int, default=MAX_BACKFILL)
     args = ap.parse_args()
+    if args.prior_keep is not None:
+        PRIOR_KEEP = args.prior_keep
+    if args.prior_spm is not None:
+        PRIOR_SPM = bool(args.prior_spm)
+    if args.lambda_pp is not None:
+        LAMBDA_PP = args.lambda_pp
     cur = args.season or current_season()
     os.makedirs(OUT, exist_ok=True)
     if args.lambda_test:
         y = args.lambda_test
         shots = load_shots(y)
         games = season_games(y, shots, load_cache(y, "games") or {})
-        save_cache(y, "games", games)
         res = choose_lambda(y, games, shots)
         write_json(os.path.join(OUT, "lambda_test.json"), {"season": y, "holdout_error": res})
         return
+    every = args.full or args.rewrite or args.prior_test or args.pp_test
     todo = [y for y in range(args.first, cur + 1)
-            if y == cur or args.full or not os.path.exists(os.path.join(OUT, f"{y}.json"))]
-    past = [y for y in todo if y < cur][: args.max_backfill]
+            if y == cur or every or not os.path.exists(os.path.join(OUT, f"{y}.json"))]
+    past = [y for y in todo if y < cur][: (None if every else args.max_backfill)]
     todo = past + ([cur] if cur in todo else [])
     log(f"impact seasons this run: {todo}")
-    normals = {}
+    normals, pps = {}, {}
     for y in todo:
         try:
             for z in (y - 2, y - 1, y):
                 if z >= args.first and z not in normals:
-                    normals[z] = normal_for(z, cur, force=args.full and z == y)
-            three = None
-            if all(z in normals for z in (y - 2, y - 1)):
-                three = Normal()
-                for z in (y - 2, y - 1, y):
-                    three.merge(normals[z])
-            write_json(os.path.join(OUT, f"{y}.json"), result(y, normals[y], three, LAMBDA))
+                    normals[z], pps[z] = normal_for(z, cur, force=args.full and z == y)
+            three = merged([normals[z] for z in (y - 2, y - 1, y)]) if all(z in normals for z in (y - 2, y - 1)) else None
+            pp3 = merged([pps[z] for z in (y - 2, y - 1, y)]) if all(z in pps for z in (y - 2, y - 1)) else None
+            prior = None
+            if PRIOR_KEEP or PRIOR_SPM:
+                model = spm_fit({z: e for z in range(args.first, y) if (e := file_estimates(z))}) if PRIOR_SPM else None
+                prior = make_prior(file_estimates(y - 1), PRIOR_KEEP, model, season_rows(y) if PRIOR_SPM else None)
+            old = read_json(os.path.join(OUT, f"{y}.json")) or {}
+            keep = {k: old[k] for k in ("comp", "comp_fields") if k in old}
+            write_json(os.path.join(OUT, f"{y}.json"), result(y, normals[y], three, LAMBDA, prior, pps[y], pp3, keep))
             log(f"impact {y}: written")
-            add_competition(y, cur)
+            if "comp" not in keep or y == cur:
+                add_competition(y, cur)
         except Exception as e:  # noqa: BLE001
             log(f"impact {y} FAILED: {e}")
     # seasons built before competition fields existed get them a few at a time
@@ -611,6 +1002,10 @@ def main():
             add_competition(y, cur)
         except Exception as e:  # noqa: BLE001
             log(f"impact {y} competition FAILED: {e}")
+    if args.prior_test:
+        prior_test(normals, args.first, cur - 1)
+    if args.pp_test:
+        pp_test(pps, args.first, cur - 1)
     forecast_test([y for y in range(args.first, cur - 1)])
 
 
