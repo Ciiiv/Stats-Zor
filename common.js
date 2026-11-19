@@ -156,7 +156,7 @@ function renderGems(cfg) {
   const shown = GEMS.more ? list : list.slice(0, 10);
   const cur = cfg.current;
   const items = shown.map(x => `<li class="${x.id === cur ? 'cur' : ''}"><button type="button" class="gnm" data-gem="${x.id}">${esc(x.name)}</button><span class="gpc">${esc(x.pctLabel)}</span>
-    <span class="gm">${esc(x.meta)}</span><span class="gm" style="text-align:right">${esc(x.pctNote || '')}</span>
+    <span class="gm">${esc(x.meta)}</span><span class="gm" style="text-align:right">${esc(/^\d+(st|nd|rd|th)$/.test(x.pctLabel) ? `${x.pctNote ? x.pctNote + ' ' : ''}percentile` : (x.pctNote || ''))}</span>
     <span class="gch">${x.chips.map(([l, k]) => `<i class="gc ${k}">${esc(l)}</i>`).join('')}</span></li>`).join('');
   const flt = cfg.filters ? `<div class="gf">${cfg.filters.map(([k, l]) => `<button type="button" data-gf="${k}" aria-pressed="${GEMS.f === k}">${l}</button>`).join('')}</div>` : '';
   const more = list.length > 10 ? `<button type="button" class="gmore" data-gmore="1">${GEMS.more ? 'Show top 10' : `Show ${list.length - 10} more`}</button>` : '';
