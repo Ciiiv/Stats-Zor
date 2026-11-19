@@ -956,8 +956,10 @@ function compHTML(sd, I) {
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
-const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs']];
-const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs' };
+const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams']];
+const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams' };
+const ST_LISTS = [['pp', 'Power-play heavy'], ['ev', '5v5 scorers, little PP'], ['pk', 'Penalty kill']];
+const ST_MIN_PTS = 100, ST_MIN_EV = 2000, ST_MAX_PP = 1.5, ST_MIN_PK = 300;
 // the faceoff tab's four lists use the filter buttons; minimums over three seasons
 const FO_MIN = 1500, FO_ZONE_MIN = 300;
 const FO_LISTS = [['best', 'Best'], ['dz', 'Own zone'], ['dzbad', 'Struggles'], ['oz', 'Offensive']];
@@ -1083,6 +1085,49 @@ const GEM_BUILD = {
     if (!FO_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'best';
     return { items, filters: FO_LISTS, unit: 'The big number is his faceoff win percentage over three seasons (50% = even).', sub: `Three seasons to ${sLabel(y)}, players who played this season. Best overall needs ${FO_MIN.toLocaleString()}+ draws; the zone lists need ${FO_ZONE_MIN}+ draws in that zone. Own zone = his defensive zone; Struggles = lowest in his own zone; Offensive = in the other team's zone. A win is worth only about a hundredth of a goal (a bit more in his own zone), so this describes a skill and doesn't change value.` };
   },
+  // special teams over three seasons: power-play heavy scorers, 5v5 scorers with little PP time, penalty killers
+  async st(y, sd) {
+    const ys = [y, y - 1, y - 2];
+    const [boxes, seas] = await Promise.all([Promise.all(ys.map(z => loadBox(z).catch(() => null))), Promise.all(ys.map(z => z === y ? sd : loadSeason(z).catch(() => null)))]);
+    if (!boxes[0]) return { empty: `Special-teams data for ${sLabel(y)} isn't built yet.` };
+    const T = new Map(); const get = id => { let t = T.get(id); if (!t) { t = { evp: 0, ppp: 0, shp: 0, shg: 0, gp: 0, evm: 0, ppm: 0, pkm: 0, pkx: 0, pkxm: 0 }; T.set(id, t); } return t; };
+    boxes.forEach(m => m && m.forEach(b => { const t = get(b.id); t.evp += b.evp || 0; t.ppp += b.ppp || 0; t.shp += b.shp || 0; t.shg += b.shg || 0; }));
+    seas.forEach(q => q && q.players.forEach(p => { const t = get(p.id), gp = p.gp || 0; t.gp += gp; t.evm += (p.ev || 0) * gp; t.ppm += (p.pp || 0) * gp; const k = (p.pk || 0) * gp; t.pkm += k; if (nz(p.pk_xga60) && k) { t.pkx += p.pk_xga60 * k; t.pkxm += k; } }));
+    const items = [];
+    for (const g of ['F', 'D']) {
+      const act = [...T.entries()].map(([id, t]) => ({ id, t, p: sd.byId.get(id) })).filter(o => o.p && o.p.grp === g);
+      // 1. power-play heavy: share of points on the PP, ranked within the position
+      const L1 = act.filter(o => o.t.evp + o.t.ppp + o.t.shp >= ST_MIN_PTS && o.t.evm > 0);
+      const share = o => o.t.ppp / (o.t.evp + o.t.ppp + o.t.shp), ev60 = o => o.t.evp / (o.t.evm / 60);
+      // five-on-five scoring is judged against every regular at the position (2,000+ even-strength minutes)
+      const pSh = pctOf(L1, share), pEv = pctOf(act.filter(o => o.t.evm >= ST_MIN_EV), ev60);
+      for (const o of L1) {
+        const sh = share(o), pc = pSh(sh); if (pc < 80) continue;
+        const e = Math.max(1, Math.round(pEv(ev60(o)) || 0));
+        const chips = e <= 50 ? [[`below-average 5v5 scoring (${ordn(e)})`, 'tough']] : [[`5v5 scoring ${ordn(e)}`, 'mate']];
+        items.push(gemItem(o.p, 'pp', sh, Math.round(100 * sh) + '%', 'of points on PP', `${o.p.team} · ${g} · ${o.t.ppp} of ${o.t.evp + o.t.ppp + o.t.shp} pts`, chips, pc));
+      }
+      // 2. five-on-five scorers with little power-play time
+      const L2 = act.filter(o => o.t.evm >= ST_MIN_EV);
+      const pE2 = pctOf(L2, ev60);
+      for (const o of L2) {
+        const ppg = o.t.gp ? o.t.ppm / o.t.gp : 0, pc = pE2(ev60(o));
+        if (ppg >= ST_MAX_PP || pc < 70) continue;
+        items.push(gemItem(o.p, 'ev', ev60(o), ev60(o).toFixed(2), 'even-strength pts/60', `${o.p.team} · ${g} · ${o.t.evp} even-strength pts`, [[`${ordn(pc)} at 5v5`, 'mate'], [`PP ${mmss(ppg)} a night`, 'tough']], pc));
+      }
+      // 3. penalty kill: lowest expected goals against per 60 shorthanded
+      const L3 = act.filter(o => o.t.pkxm >= ST_MIN_PK);
+      const xa = o => o.t.pkx / o.t.pkxm, pX = pctOf(L3, o => -xa(o));
+      for (const o of L3) {
+        const pc = pX(-xa(o)); if (pc < 75) continue;
+        const chips = [[`PK ${mmss(o.t.pkm / Math.max(1, o.t.gp))} a night`, 'mate']];
+        if (o.t.shp) chips.push([`${o.t.shp} shorthanded ${o.t.shp === 1 ? 'point' : 'points'}`, 'mate']);
+        items.push(gemItem(o.p, 'pk', xa(o), xa(o).toFixed(2), 'xGA/60 shorthanded', `${o.p.team} · ${g} · ${Math.round(o.t.pkm)} PK min`, chips, pc));
+      }
+    }
+    if (!ST_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'pp';
+    return { items, filters: ST_LISTS, unit: 'Power-play heavy: share of his points on the power play. 5v5 scorers: even-strength points per 60. Penalty kill: expected goals against per 60 while he kills penalties (lower is better). Each list is ranked within his position.', sub: `Three seasons to ${sLabel(y)}, players who played this season. <b>Power-play heavy</b>: ${ST_MIN_PTS}+ points, top 20% at his position in share of points on the power play (a chip says whether his five-on-five scoring holds up). <b>5v5 scorers, little PP</b>: ${ST_MIN_EV.toLocaleString()}+ even-strength minutes, top 30% at his position in even-strength points per 60, under ${ST_MAX_PP.toFixed(1).replace('.5', ':30')} of power-play time a night: players who might produce more with power-play minutes. <b>Penalty kill</b>: ${ST_MIN_PK}+ shorthanded minutes, top quarter at his position. Penalty-kill results barely repeat and depend on the team's system and goalie, so read it as "trusted, with good results", not a rating. Nothing here changes value.` };
+  },
   // heavy ice time, weak isolated impact
   big(y, sd) {
     const items = [];
@@ -1101,11 +1146,11 @@ const GEM_BUILD = {
 async function renderGemsSkaters() {
   const y = S.season, tab = GEMS.tab;
   const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, onTab: () => renderGemsSkaters().catch(e => console.error(e)), current: S.A };
-  if (tab !== 'fo' && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
-  if (y < 2010 && tab !== 'bounce' && tab !== 'fo') { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  if (tab !== 'fo' && tab !== 'st' && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
+  if (y < 2010 && !['bounce', 'fo', 'st'].includes(tab)) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
   const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
   if (y !== S.season || tab !== GEMS.tab) return;
-  if (!sd || (tab !== 'bounce' && tab !== 'fo' && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  if (!sd || (!['bounce', 'fo', 'st'].includes(tab) && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
   const r = await GEM_BUILD[tab](y, sd);
   if (y !== S.season || tab !== GEMS.tab) return;
   if (r.items) r.items.sort((a, b) => b.sort - a.sort);
