@@ -958,7 +958,7 @@ function compHTML(sd, I) {
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
 const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams']];
 const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams' };
-const ST_LISTS = [['pp', 'Power-play heavy'], ['ev', '5v5 scorers, little PP'], ['pk', 'Penalty kill']];
+const ST_LISTS = [['pp', 'Power-play heavy'], ['ev', '5v5 scorers, little PP'], ['ppbad', 'PP struggles'], ['pk', 'Penalty kill'], ['pkbad', 'PK struggles']];
 const ST_MIN_PTS = 100, ST_MIN_EV = 2000, ST_MAX_PP = 1.5, ST_MIN_PK = 300;
 // the faceoff tab's four lists use the filter buttons; minimums over three seasons
 const FO_MIN = 1500, FO_ZONE_MIN = 300;
@@ -1090,10 +1090,25 @@ const GEM_BUILD = {
     const ys = [y, y - 1, y - 2];
     const [boxes, seas] = await Promise.all([Promise.all(ys.map(z => loadBox(z).catch(() => null))), Promise.all(ys.map(z => z === y ? sd : loadSeason(z).catch(() => null)))]);
     if (!boxes[0]) return { empty: `Special-teams data for ${sLabel(y)} isn't built yet.` };
-    const T = new Map(); const get = id => { let t = T.get(id); if (!t) { t = { evp: 0, ppp: 0, shp: 0, shg: 0, gp: 0, evm: 0, ppm: 0, pkm: 0, pkx: 0, pkxm: 0 }; T.set(id, t); } return t; };
+    const T = new Map(); const get = id => { let t = T.get(id); if (!t) { t = { evp: 0, ppp: 0, shp: 0, shg: 0, gp: 0, evm: 0, ppm: 0, pkm: 0, pp: [0, 0, 0, 0], pk: [0, 0, 0, 0] }; T.set(id, t); } return t; };
     boxes.forEach(m => m && m.forEach(b => { const t = get(b.id); t.evp += b.evp || 0; t.ppp += b.ppp || 0; t.shp += b.shp || 0; t.shg += b.shg || 0; }));
-    seas.forEach(q => q && q.players.forEach(p => { const t = get(p.id), gp = p.gp || 0; t.gp += gp; t.evm += (p.ev || 0) * gp; t.ppm += (p.pp || 0) * gp; const k = (p.pk || 0) * gp; t.pkm += k; if (nz(p.pk_xga60) && k) { t.pkx += p.pk_xga60 * k; t.pkxm += k; } }));
-    let px = 0, pm = 0; T.forEach(t => { px += t.pkx; pm += t.pkxm; }); const pkAvg = pm ? px / pm : 0;
+    // special-teams results compared with his own team: each season, his on-ice rate against the rate of the
+    // team's other players on the same special team (time-weighted), so a strong or weak unit doesn't decide the list.
+    // pp / pk = [his rate × min, min, teammates' rate × his min, his min with a team figure]
+    seas.forEach(q => {
+      if (!q) return;
+      const team = {};
+      q.players.forEach(p => { const gp = p.gp || 0, tm = team[p.team] = team[p.team] || { ppx: 0, ppm: 0, pkx: 0, pkm: 0 }; const pm = (p.pp || 0) * gp, km = (p.pk || 0) * gp; if (nz(p.pp_xgf60) && pm) { tm.ppx += p.pp_xgf60 * pm; tm.ppm += pm; } if (nz(p.pk_xga60) && km) { tm.pkx += p.pk_xga60 * km; tm.pkm += km; } });
+      q.players.forEach(p => {
+        const t = get(p.id), gp = p.gp || 0, tm = team[p.team];
+        t.gp += gp; t.evm += (p.ev || 0) * gp; t.ppm += (p.pp || 0) * gp; t.pkm += (p.pk || 0) * gp;
+        const pm = (p.pp || 0) * gp, km = (p.pk || 0) * gp;
+        if (nz(p.pp_xgf60) && pm) { t.pp[0] += p.pp_xgf60 * pm; t.pp[1] += pm; const om = tm.ppm - pm; if (om > 0) { t.pp[2] += (tm.ppx - p.pp_xgf60 * pm) / om * pm; t.pp[3] += pm; } }
+        if (nz(p.pk_xga60) && km) { t.pk[0] += p.pk_xga60 * km; t.pk[1] += km; const om = tm.pkm - km; if (om > 0) { t.pk[2] += (tm.pkx - p.pk_xga60 * km) / om * km; t.pk[3] += km; } }
+      });
+    });
+    const rate = a => a[1] ? a[0] / a[1] : null, mates = a => a[3] ? a[2] / a[3] : null;
+    const rel = a => a[3] ? (a[0] / a[1]) - mates(a) : null;  // his rate minus his teammates'
     const items = [];
     for (const g of ['F', 'D']) {
       const act = [...T.entries()].map(([id, t]) => ({ id, t, p: sd.byId.get(id) })).filter(o => o.p && o.p.grp === g);
@@ -1116,18 +1131,28 @@ const GEM_BUILD = {
         if (ppg >= ST_MAX_PP || pc < 70) continue;
         items.push(gemItem(o.p, 'ev', pc, ordn(pc), '5v5 scoring', `${o.p.team} · ${g} · ${o.t.evp} even-strength pts`, [[`${ev60(o).toFixed(2)} pts per 60 at even strength`, 'mate'], [`PP ${mmss(ppg)} a night`, 'tough']], pc));
       }
-      // 3. penalty kill: lowest expected goals against per 60 shorthanded
-      const L3 = act.filter(o => o.t.pkxm >= ST_MIN_PK);
-      const xa = o => o.t.pkx / o.t.pkxm, pX = pctOf(L3, o => -xa(o));
+      // 3. penalty kill vs his team: fewest expected goals against per 60 compared with teammates (best and struggling)
+      const L3 = act.filter(o => o.t.pk[3] >= ST_MIN_PK);
+      const pK = pctOf(L3, o => -rel(o.t.pk));
       for (const o of L3) {
-        const pc = Math.min(99, pX(-xa(o))); if (pc < 75) continue;
-        const chips = [[`${xa(o).toFixed(2)} expected goals against per 60 (league ${pkAvg.toFixed(1)})`, 'mate'], [`PK ${mmss(o.t.pkm / Math.max(1, o.t.gp))} a night`, 'mate']];
+        const raw = Math.min(99, Math.max(1, pK(-rel(o.t.pk))));
+        const chips = [[`${rate(o.t.pk).toFixed(2)} xGA/60, team ${mates(o.t.pk).toFixed(2)}`, raw >= 50 ? 'mate' : 'tough'], [`PK ${mmss(o.t.pkm / Math.max(1, o.t.gp))} a night`, 'mate']];
         if (o.t.shp) chips.push([`${o.t.shp} shorthanded ${o.t.shp === 1 ? 'point' : 'points'}`, 'mate']);
-        items.push(gemItem(o.p, 'pk', pc, ordn(pc), 'penalty kill', `${o.p.team} · ${g} · ${Math.round(o.t.pkm)} PK min`, chips, pc));
+        const meta = `${o.p.team} · ${g} · ${Math.round(o.t.pkm)} PK min`;
+        if (raw >= 75) items.push(gemItem(o.p, 'pk', raw, ordn(raw), 'penalty kill', meta, chips, raw));
+        if (raw <= 25) items.push(gemItem(o.p, 'pkbad', raw, ordn(raw), 'penalty kill', meta, chips, -raw));
+      }
+      // 4. power play vs his team: struggling (fewest expected goals for per 60 compared with teammates)
+      const L4 = act.filter(o => o.t.pp[3] >= ST_MIN_PK);
+      const pP = pctOf(L4, o => rel(o.t.pp));
+      for (const o of L4) {
+        const raw = Math.min(99, Math.max(1, pP(rel(o.t.pp))));
+        if (raw > 25) continue;
+        items.push(gemItem(o.p, 'ppbad', raw, ordn(raw), 'power play', `${o.p.team} · ${g} · ${Math.round(o.t.ppm)} PP min`, [[`${rate(o.t.pp).toFixed(2)} xGF/60, team ${mates(o.t.pp).toFixed(2)}`, 'tough'], [`PP ${mmss(o.t.ppm / Math.max(1, o.t.gp))} a night`, 'mate']], -raw));
       }
     }
     if (!ST_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'pp';
-    return { items, filters: ST_LISTS, unit: 'Power-play heavy: the big number is the share of his points scored on the power play. 5v5 scorers and Penalty kill: the big number is a percentile among regulars at his position (97th = better than 97%): for 5v5 scorers, even-strength points per 60; for the penalty kill, fewest expected goals against per 60 while he kills penalties (the actual rate and the league average are in the chip).', sub: `Three seasons to ${sLabel(y)}, players who played this season. <b>Power-play heavy</b>: ${ST_MIN_PTS}+ points, top 20% at his position in share of points on the power play (a chip says whether his five-on-five scoring holds up). <b>5v5 scorers, little PP</b>: ${ST_MIN_EV.toLocaleString()}+ even-strength minutes, top 30% at his position in even-strength points per 60, under ${ST_MAX_PP.toFixed(1).replace('.5', ':30')} of power-play time a night: players who might produce more with power-play minutes. <b>Penalty kill</b>: ${ST_MIN_PK}+ shorthanded minutes, top quarter at his position. Penalty-kill results barely repeat and depend on the team's system and goalie, so read it as "trusted, with good results", not a rating. Nothing here changes value.` };
+    return { items, filters: ST_LISTS, unit: 'Power-play heavy: the big number is the share of his points scored on the power play. The other lists show a percentile among regulars at his position (97th = better than 97%). The penalty-kill and power-play lists compare his on-ice results with his own teammates on the same special team, so a strong or weak unit doesn\'t decide who appears; the chip shows his rate and his teammates\'.', sub: `Three seasons to ${sLabel(y)}, players who played this season. <b>Power-play heavy</b>: ${ST_MIN_PTS}+ points, top 20% at his position in share of points on the power play (a chip says whether his five-on-five scoring holds up). <b>5v5 scorers, little PP</b>: ${ST_MIN_EV.toLocaleString()}+ even-strength minutes, top 30% at his position in even-strength points per 60, under ${ST_MAX_PP.toFixed(1).replace('.5', ':30')} of power-play time a night: players who might produce more with power-play minutes. <b>Penalty kill</b> / <b>PK struggles</b>: ${ST_MIN_PK}+ shorthanded minutes, top / bottom quarter at his position in expected goals against per 60 compared with his teammates on the kill. <b>PP struggles</b>: ${ST_MIN_PK}+ power-play minutes, bottom quarter in expected goals for per 60 compared with his teammates on the power play. Special-teams results barely repeat and change with the team, the unit and the goalie, so read these as leads to look into, not ratings. Nothing here changes value.` };
   },
   // heavy ice time, weak isolated impact
   big(y, sd) {
