@@ -71,7 +71,7 @@ A sidebar on both pages lists players who stand out in a specific way. Every lis
 | Shutdown | Top defensive impact against top competition |
 | Breakout | Age 24 or under and improving sharply |
 | Bounce | Finishers shooting well below their usual level this season |
-| Special teams | Power-play-heavy scorers, five-on-five scorers with little power-play time, and trusted penalty killers with good results (three seasons) |
+| Special teams | Power-play-heavy scorers, five-on-five scorers with little power-play time, and the best and struggling penalty killers and power-play players compared with their own teammates (three seasons) |
 | Faceoffs | Best on the draw, best and worst in their own zone, and best in the offensive zone (three seasons, 1,500+ draws or 300+ in the zone) |
 | Big minutes | Heavy ice time with weak isolated results |
 
