@@ -24,6 +24,11 @@ Output: data/teams/{year}.json (the teams page)
 Output: data/teams/coaches/{year}.json  {gameId: [away head coach, home head coach]} from the NHL's
   game-center right rail. Each run fetches at most --coach-budget games (newest season first), so the
   history fills in over a few nights and later runs only fetch new games.
+Output: data/puck/{year}.json  per skater, all situations: ice time and takeaways, giveaways, hits and blocked
+  shots, raw and arena-adjusted. Each arena's scorekeeper counts these differently (through 2023-24 the
+  stingiest arena recorded about half the league rate of takeaways and giveaways, the most generous 1.6-1.8x;
+  tested Nov 2026), so every game's counts are divided by that arena's factor for the season: the arena's
+  rate (both teams, all games there) over the league rate, pulled toward 1 by home games / (home games + 20).
 Output: data/teams/history.json  one small summary for the teams page's history table: per season, per team
   [games, 5v5 minutes, xGF, xGA, GF, GA, head coaches in order joined by "|"] (rebuilt every run, a few KB).
 
@@ -47,6 +52,8 @@ GBG_URL = "https://peter-tanner.com/moneypuck/downloads/seasonPlayersSummary/ska
 SITS = {"5on5", "5on4", "4on5"}
 COACH_URL = "https://api-web.nhle.com/v1/gamecenter/{g}/right-rail"
 COACH_BUDGET = 1500  # games looked up per run
+PUCK = [("tk", "I_F_takeaways"), ("gv", "I_F_giveaways"), ("hit", "I_F_hits"), ("blk", "shotsBlockedByPlayer")]
+PUCK_K = 20  # arena factors are pulled toward 1 by home games / (home games + PUCK_K)
 # 5v5 tallies kept per bucket: games, seconds, xGF, xGA, GF, GA, CF, CA, points, ixG
 EV_KEYS = ("t", "xgf", "xga", "gf", "ga", "cf", "ca", "pts", "ixg")
 
@@ -91,6 +98,8 @@ def build(y: int):
         si, pi, gi, ti, oi = ix["situation"], ix["playerId"], ix["gameId"], ix["playerTeam"], ix["position"]
         di, opi, hi = ix.get("gameDate"), ix.get("opposingTeam"), ix.get("home_or_away")
         ginfo = {}  # (gameId, team) -> (date, opponent, home)
+        pk_ix = [ix[c] for _, c in PUCK] if all(c in ix for _, c in PUCK) else None
+        pk_rows, pk_home = [], {}  # (pid, arena, seconds, [tk, gv, hit, blk]); arena -> home game ids
         cols = [ix[k] for k in ("icetime", "OnIce_F_xGoals", "OnIce_A_xGoals", "OnIce_F_goals", "OnIce_A_goals",
                                 "OnIce_F_shotAttempts", "OnIce_A_shotAttempts", "I_F_points", "I_F_xGoals",
                                 "I_F_oZoneShiftStarts", "I_F_dZoneShiftStarts")]
@@ -98,6 +107,18 @@ def build(y: int):
             if len(row) < len(head):
                 continue
             sit = row[si]
+            if sit == "all" and pk_ix and hi is not None and opi is not None:
+                try:
+                    home = row[hi].upper().startswith("H")
+                    arena = row[ti] if home else row[opi]
+                    t = fnum(row[ix["icetime"]])
+                    v = [fnum(row[c]) for c in pk_ix]
+                    pid = int(float(row[pi]))
+                    pk_rows.append((pid, arena, t, v))
+                    if home:
+                        pk_home.setdefault(arena, set()).add(row[gi])
+                except (ValueError, KeyError):
+                    pass
             if sit not in SITS:
                 continue
             key = (row[gi], row[ti])
@@ -107,6 +128,7 @@ def build(y: int):
             p = games.setdefault(key, {}).setdefault(int(float(row[pi])), {"pos": row[oi]})
             p[sit] = [fnum(row[c]) for c in cols]
     log(f"usage {y}: {len(games)} team-games")
+    puck = build_puck(pk_rows, pk_home) if pk_rows else None
 
     players = {}
     base_ev = {"F": [new_ev() for _ in range(4)], "D": [new_ev() for _ in range(3)]}
@@ -196,6 +218,7 @@ def build(y: int):
                        "pp": {k: "".join(v) for k, v in pp.items()}}
     return {
         "season": y,
+        "puck": puck,
         "teams": teams,
         "ev_fields": ["games", *EV_KEYS],
         "baselines": {
@@ -205,6 +228,33 @@ def build(y: int):
         },
         "players": out,
     }
+
+
+def build_puck(rows, home_games):
+    """Per-player takeaways, giveaways, hits and blocks, raw and divided by each arena's scorekeeper factor."""
+    ar = {}
+    for _, arena, t, v in rows:
+        a = ar.setdefault(arena, [0.0] * 5)
+        a[0] += t
+        for i, x in enumerate(v):
+            a[i + 1] += x
+    tot = [sum(a[i] for a in ar.values()) for i in range(5)]
+    fac = {}
+    for arena, a in ar.items():
+        n = len(home_games.get(arena, ()))
+        w = n / (n + PUCK_K)
+        fac[arena] = [1 + w * ((a[i] / a[0]) / (tot[i] / tot[0]) - 1) if a[0] and tot[i] else 1.0 for i in range(1, 5)]
+    pl = {}
+    for pid, arena, t, v in rows:
+        p = pl.setdefault(pid, [0.0] * 9)
+        p[0] += t
+        for i, x in enumerate(v):
+            p[1 + i] += x
+            p[5 + i] += x / fac[arena][i] if fac[arena][i] > 0 else x
+    fields = ["id", "toi"] + [k for k, _ in PUCK] + [k + "_a" for k, _ in PUCK]
+    out = [[pid, round(p[0] / 60, 1)] + [int(x) for x in p[1:5]] + [round(x, 1) for x in p[5:]] for pid, p in sorted(pl.items())]
+    return {"fields": fields, "rows": out,
+            "arena_factor": {k: [round(x, 3) for x in f] for k, f in sorted(fac.items())}}
 
 
 def coach_of(gid):
@@ -287,10 +337,14 @@ def main():
     for y in range(MP_FIRST, cur + 1):
         path = os.path.join(DATA, "usage", f"{y}.json")
         tpath = os.path.join(DATA, "teams", f"{y}.json")
-        if not args.full and y < cur and os.path.exists(path) and os.path.exists(tpath):
+        ppath = os.path.join(DATA, "puck", f"{y}.json")
+        if not args.full and y < cur and os.path.exists(path) and os.path.exists(tpath) and os.path.exists(ppath):
             continue
         try:
             out = build(y)
+            puck = out.pop("puck", None)
+            if puck:
+                write_json(os.path.join(DATA, "puck", f"{y}.json"), {"season": y, **puck})
             write_json(os.path.join(DATA, "teams", f"{y}.json"), {
                 "season": y, "game_fields": ["game", "date", "opp", "home", "t5", "xgf", "xga", "gf", "ga"],
                 "teams": out.pop("teams")})
