@@ -275,7 +275,7 @@ svg .axl{fill:var(--muted);font:600 11px var(--f-mono)}
 .tkey i.dot2{background:none;border-top:2px dotted;height:0;width:16px;border-radius:0;vertical-align:3px}
 .tkey i.dash{background:none;border-top:2px dashed;height:0;width:16px;border-radius:0;vertical-align:3px}
 .stripwrap{max-width:100%}
-svg.strip{display:block}
+svg.strip{display:block;width:auto;max-width:none;height:auto} /* drawn at its own pixel size, so a short season doesn't blow up the names */
 svg .sname{fill:var(--ink);font:600 12px var(--f-body)}
 svg a:hover .sname{fill:var(--c1);text-decoration:underline}
 @media (max-width:760px){.tname{font-size:26px}.ttiles{grid-template-columns:1fr 1fr}.ttile b{font-size:22px}#tTeam{min-width:0;max-width:100%}}

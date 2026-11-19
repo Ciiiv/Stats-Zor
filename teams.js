@@ -123,7 +123,8 @@ function stripRows(G, sd) {
     const p = sd && sd.byId.get(+id); const pos = p ? p.pos : '';
     const grp = p ? p.grp : null;
     const a = avgSlotOf(s); if (!a.n) continue;
-    rows.push({ id: +id, name: p ? p.name : `#${id}`, pos, grp: grp || 'F', s, pp: G.pp[id] || '.'.repeat(s.length), avg: a.avg, n: a.n });
+    // names from the search index (MoneyPuck season files drop some accents, e.g. Brandsegg-Nygård)
+    rows.push({ id: +id, name: (S.byId.get(+id) || {}).name || (p ? p.name : `#${id}`), pos, grp: grp || 'F', s, pp: G.pp[id] || '.'.repeat(s.length), avg: a.avg, n: a.n });
   }
   rows.sort((a, b) => (a.grp === b.grp ? 0 : a.grp === 'F' ? -1 : 1) || a.avg - b.avg || b.n - a.n);
   return rows;
@@ -350,7 +351,7 @@ async function renderGoalies(G) {
     const dec = k => apps.filter(r => r.dec === k).length;
     const sa = apps.reduce((a, r) => a + r.sa, 0), ga = apps.reduce((a, r) => a + r.ga, 0), xga = apps.reduce((a, r) => a + r.xga, 0);
     const lastN = new Set(G.games.slice(n - N).map(g => String(g.game)));
-    return { id: +id, name: names.get(+id) || (S.byId.get(+id) || {}).name || `#${id}`, gp: apps.length, starts: st.length, w: dec('W'), l: dec('L'), o: dec('O'), sv: sa ? 1 - ga / sa : null, gsax: xga - ga, sa, b2bS: st.filter(r => r.b2b).length, recent: st.filter(r => lastN.has(String(r.game))).length, cells };
+    return { id: +id, name: (S.byId.get(+id) || {}).name || names.get(+id) || `#${id}`, gp: apps.length, starts: st.length, w: dec('W'), l: dec('L'), o: dec('O'), sv: sa ? 1 - ga / sa : null, gsax: xga - ga, sa, b2bS: st.filter(r => r.b2b).length, recent: st.filter(r => lastN.has(String(r.game))).length, cells };
   }).sort((a, b) => b.starts - a.starts || b.gp - a.gp);
   const cw = 10, rh = 18, nameW = 150, top = 22, Wd = nameW + n * cw + 4;
   let y0 = top, body = '';
