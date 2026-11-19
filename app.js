@@ -1093,6 +1093,7 @@ const GEM_BUILD = {
     const T = new Map(); const get = id => { let t = T.get(id); if (!t) { t = { evp: 0, ppp: 0, shp: 0, shg: 0, gp: 0, evm: 0, ppm: 0, pkm: 0, pkx: 0, pkxm: 0 }; T.set(id, t); } return t; };
     boxes.forEach(m => m && m.forEach(b => { const t = get(b.id); t.evp += b.evp || 0; t.ppp += b.ppp || 0; t.shp += b.shp || 0; t.shg += b.shg || 0; }));
     seas.forEach(q => q && q.players.forEach(p => { const t = get(p.id), gp = p.gp || 0; t.gp += gp; t.evm += (p.ev || 0) * gp; t.ppm += (p.pp || 0) * gp; const k = (p.pk || 0) * gp; t.pkm += k; if (nz(p.pk_xga60) && k) { t.pkx += p.pk_xga60 * k; t.pkxm += k; } }));
+    let px = 0, pm = 0; T.forEach(t => { px += t.pkx; pm += t.pkxm; }); const pkAvg = pm ? px / pm : 0;
     const items = [];
     for (const g of ['F', 'D']) {
       const act = [...T.entries()].map(([id, t]) => ({ id, t, p: sd.byId.get(id) })).filter(o => o.p && o.p.grp === g);
@@ -1111,22 +1112,22 @@ const GEM_BUILD = {
       const L2 = act.filter(o => o.t.evm >= ST_MIN_EV);
       const pE2 = pctOf(L2, ev60);
       for (const o of L2) {
-        const ppg = o.t.gp ? o.t.ppm / o.t.gp : 0, pc = pE2(ev60(o));
+        const ppg = o.t.gp ? o.t.ppm / o.t.gp : 0, pc = Math.min(99, pE2(ev60(o)));
         if (ppg >= ST_MAX_PP || pc < 70) continue;
-        items.push(gemItem(o.p, 'ev', ev60(o), ev60(o).toFixed(2), 'even-strength pts/60', `${o.p.team} · ${g} · ${o.t.evp} even-strength pts`, [[`${ordn(pc)} at 5v5`, 'mate'], [`PP ${mmss(ppg)} a night`, 'tough']], pc));
+        items.push(gemItem(o.p, 'ev', pc, ordn(pc), '5v5 scoring', `${o.p.team} · ${g} · ${o.t.evp} even-strength pts`, [[`${ev60(o).toFixed(2)} pts per 60 at even strength`, 'mate'], [`PP ${mmss(ppg)} a night`, 'tough']], pc));
       }
       // 3. penalty kill: lowest expected goals against per 60 shorthanded
       const L3 = act.filter(o => o.t.pkxm >= ST_MIN_PK);
       const xa = o => o.t.pkx / o.t.pkxm, pX = pctOf(L3, o => -xa(o));
       for (const o of L3) {
-        const pc = pX(-xa(o)); if (pc < 75) continue;
-        const chips = [[`PK ${mmss(o.t.pkm / Math.max(1, o.t.gp))} a night`, 'mate']];
+        const pc = Math.min(99, pX(-xa(o))); if (pc < 75) continue;
+        const chips = [[`${xa(o).toFixed(2)} expected goals against per 60 (league ${pkAvg.toFixed(1)})`, 'mate'], [`PK ${mmss(o.t.pkm / Math.max(1, o.t.gp))} a night`, 'mate']];
         if (o.t.shp) chips.push([`${o.t.shp} shorthanded ${o.t.shp === 1 ? 'point' : 'points'}`, 'mate']);
-        items.push(gemItem(o.p, 'pk', xa(o), xa(o).toFixed(2), 'xGA/60 shorthanded', `${o.p.team} · ${g} · ${Math.round(o.t.pkm)} PK min`, chips, pc));
+        items.push(gemItem(o.p, 'pk', pc, ordn(pc), 'penalty kill', `${o.p.team} · ${g} · ${Math.round(o.t.pkm)} PK min`, chips, pc));
       }
     }
     if (!ST_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'pp';
-    return { items, filters: ST_LISTS, unit: 'Power-play heavy: share of his points on the power play. 5v5 scorers: even-strength points per 60. Penalty kill: expected goals against per 60 while he kills penalties (lower is better). Each list is ranked within his position.', sub: `Three seasons to ${sLabel(y)}, players who played this season. <b>Power-play heavy</b>: ${ST_MIN_PTS}+ points, top 20% at his position in share of points on the power play (a chip says whether his five-on-five scoring holds up). <b>5v5 scorers, little PP</b>: ${ST_MIN_EV.toLocaleString()}+ even-strength minutes, top 30% at his position in even-strength points per 60, under ${ST_MAX_PP.toFixed(1).replace('.5', ':30')} of power-play time a night: players who might produce more with power-play minutes. <b>Penalty kill</b>: ${ST_MIN_PK}+ shorthanded minutes, top quarter at his position. Penalty-kill results barely repeat and depend on the team's system and goalie, so read it as "trusted, with good results", not a rating. Nothing here changes value.` };
+    return { items, filters: ST_LISTS, unit: 'Power-play heavy: the big number is the share of his points scored on the power play. 5v5 scorers and Penalty kill: the big number is a percentile among regulars at his position (97th = better than 97%): for 5v5 scorers, even-strength points per 60; for the penalty kill, fewest expected goals against per 60 while he kills penalties (the actual rate and the league average are in the chip).', sub: `Three seasons to ${sLabel(y)}, players who played this season. <b>Power-play heavy</b>: ${ST_MIN_PTS}+ points, top 20% at his position in share of points on the power play (a chip says whether his five-on-five scoring holds up). <b>5v5 scorers, little PP</b>: ${ST_MIN_EV.toLocaleString()}+ even-strength minutes, top 30% at his position in even-strength points per 60, under ${ST_MAX_PP.toFixed(1).replace('.5', ':30')} of power-play time a night: players who might produce more with power-play minutes. <b>Penalty kill</b>: ${ST_MIN_PK}+ shorthanded minutes, top quarter at his position. Penalty-kill results barely repeat and depend on the team's system and goalie, so read it as "trusted, with good results", not a rating. Nothing here changes value.` };
   },
   // heavy ice time, weak isolated impact
   big(y, sd) {
