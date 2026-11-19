@@ -199,6 +199,13 @@ async function loadBox(y) {
   return BOX[y];
 }
 const foPct = (w, l) => (w + l) ? (100 * w / (w + l)).toFixed(1) + '%' : '—';
+const DISCD = {};
+async function loadDisc(y) {
+  if (DISCD[y] !== undefined) return DISCD[y];
+  try { const j = await getJSON(`data/disc/${y}.json`); DISCD[y] = j.rows.map(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); return o; }); }
+  catch (e) { DISCD[y] = null; }
+  return DISCD[y];
+}
 const PUCKD = {};
 async function loadPuck(y) {
   if (PUCKD[y] !== undefined) return PUCKD[y];
@@ -963,8 +970,10 @@ function compHTML(sd, I) {
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
-const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play']];
-const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play' };
+const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play'], ['disc', 'Discipline']];
+const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play', disc: 'Discipline' };
+const DISC_LISTS = [['drawn', 'Draws penalties'], ['undisc', 'Undisciplined'], ['clean', 'Clean physical'], ['fight', 'Fighters']];
+const DISC_MIN_TOI = 1500, DISC_MIN_GP = 60, DISC_MIN_FIGHTS = 3;
 const PUCK_LISTS = [['take', 'Takes it away'], ['care', 'Careful with it'], ['loose', 'Loose with it'], ['blk', 'Shot blockers'], ['hit', 'Physical']];
 const PUCK_MIN_TOI = 1500, PUCK_MIN_EV = 60;
 const ST_LISTS = [['pp', 'Power-play heavy'], ['ev', '5v5 scorers, little PP'], ['ppbad', 'PP struggles'], ['pk', 'Penalty kill'], ['pkbad', 'PK struggles']];
@@ -1203,6 +1212,50 @@ const GEM_BUILD = {
     if (!PUCK_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'take';
     return { items, filters: PUCK_LISTS, unit: 'The big number is a percentile among regulars at his position (97th = better than 97%; for Loose with it, low is the point). Counts are adjusted for each arena\'s scorekeeper; the chip shows the adjusted rate.', sub: `Three seasons to ${sLabel(y)}, all situations, players who played this season, ${PUCK_MIN_TOI.toLocaleString()}+ minutes. <b>Takes it away</b>: most takeaways per 60. <b>Careful with it</b> / <b>Loose with it</b>: takes the puck away about as often as he gives it away, or gives it away far more often than he takes it (ranked by his share of takeaways among his takeaways and giveaways, ${PUCK_MIN_EV}+ of them). The chips show which side drives it: many giveaways, few takeaways, or both, plus his points per 60 so a playmaker taking risks reads differently from a depth player. <b>Shot blockers</b> and <b>Physical</b>: most blocked shots / hits per 60. Arena scorekeepers count these very differently (through 2023-24 some recorded half the league rate of takeaways and giveaways, others 1.6-1.8 times), so every game is adjusted for its arena. Hits and blocks repeat strongly from season to season; takeaways and giveaways only moderately. Blocking and hitting often mean the other team has the puck, so these describe a style, not value. Nothing here changes value.` };
   },
+  // discipline over three seasons: draws penalties, takes them, hits cleanly, fights (data/disc from build_disc.py)
+  async disc(y, sd) {
+    const ys = [y, y - 1, y - 2];
+    const [ds, ps] = await Promise.all([Promise.all(ys.map(z => loadDisc(z).catch(() => null))), Promise.all(ys.map(z => loadPuck(z).catch(() => null)))]);
+    if (!ds[0]) return { empty: `Discipline data for ${sLabel(y)} isn't built yet.` };
+    const T = new Map(); const get = id => { let t = T.get(id); if (!t) { t = { gp: 0, toi: 0, minors: 0, majors: 0, misc: 0, drawn: 0, fights: 0, instig: 0, rough: 0, mt: 0, md: 0, hit: 0, htoi: 0 }; T.set(id, t); } return t; };
+    ds.forEach(m => m && m.forEach(r => { const t = get(r.id); for (const k of ['gp', 'toi', 'minors', 'majors', 'misc', 'drawn', 'fights', 'instig', 'rough', 'mt', 'md']) t[k] += r[k] || 0; }));
+    ps.forEach(m => m && m.forEach(r => { const t = T.get(r.id); if (t) { t.hit += r.hit_a; t.htoi += r.toi; } }));
+    const items = [], cap = v => Math.min(99, Math.max(1, Math.round(v)));
+    for (const g of ['F', 'D']) {
+      const posName = g === 'F' ? 'forwards' : 'defensemen';
+      const all = [...T.entries()].map(([id, t]) => ({ id, t, p: sd.byId.get(id) })).filter(o => o.p && o.p.grp === g);
+      const act = all.filter(o => o.t.toi >= DISC_MIN_TOI);
+      const r60 = (o, k) => o.t[k] / o.t.toi * 60, net = o => r60(o, 'md') - r60(o, 'mt');
+      const meta = o => `${o.p.team} · ${g} · ${o.t.gp} GP`;
+      const pDr = pctOf(act, o => r60(o, 'md')), pMi = pctOf(act, o => r60(o, 'mt'));
+      const cmp = v => v >= 50 ? `more than ${v}% of ${posName}` : `fewer than ${100 - v}% of ${posName}`;
+      for (const o of act) {
+        const dr = cap(pDr(r60(o, 'md'))), mi = cap(pMi(r60(o, 'mt')));
+        const chips = [[`draws ${r60(o, 'md').toFixed(2)} per 60, ${cmp(dr)}`, 'mate'], [`takes ${r60(o, 'mt').toFixed(2)} minors per 60, ${cmp(mi)}`, mi >= 70 ? 'tough' : 'mate'], [`net ${net(o) >= 0 ? '+' : ''}${net(o).toFixed(2)} per 60`, net(o) >= 0 ? 'mate' : 'tough']];
+        if (dr >= 80) items.push(gemItem(o.p, 'drawn', dr, ordn(dr), 'penalties drawn', meta(o), chips, pDr(r60(o, 'md')) + r60(o, 'md') / 100));
+        if (mi >= 80) items.push(gemItem(o.p, 'undisc', 100 - mi, ordn(cap(100 - mi)), 'discipline', meta(o), chips, pMi(r60(o, 'mt')) + r60(o, 'mt') / 100));
+      }
+      // clean physical: hit a lot (arena-adjusted, Puck play data) without taking many minors
+      const H = act.filter(o => o.t.htoi >= DISC_MIN_TOI), h60 = o => o.t.hit / o.t.htoi * 60, pH = pctOf(H, h60), pM2 = pctOf(H, o => r60(o, 'mt'));
+      for (const o of H) {
+        const hp = cap(pH(h60(o))), mp = cap(pM2(r60(o, 'mt')));
+        if (hp < 70 || mp > 50) continue;
+        items.push(gemItem(o.p, 'clean', hp, ordn(hp), 'hits', meta(o), [[`${h60(o).toFixed(2)} hits per 60, ${cmp(hp)}`, 'mate'], [`takes ${r60(o, 'mt').toFixed(2)} minors per 60, ${cmp(mp)}`, 'mate'], [`draws ${r60(o, 'md').toFixed(2)} per 60`, 'mate']], hp - mp));
+      }
+      // fighters: fights over three seasons (60+ games, 3+ fights), counts only
+      for (const o of all) {
+        if (o.t.gp < DISC_MIN_GP || o.t.fights < DISC_MIN_FIGHTS) continue;
+        const per82 = o.t.fights / o.t.gp * 82, chips = [[`${per82.toFixed(1)} fights per 82 games`, 'mate']];
+        if (o.t.instig) chips.push([`${o.t.instig} instigator ${o.t.instig === 1 ? 'penalty' : 'penalties'}`, 'tough']);
+        if (o.t.misc) chips.push([`${o.t.misc} ${o.t.misc === 1 ? 'misconduct' : 'misconducts'} (any reason)`, 'tough']);
+        if (o.t.rough) chips.push([`${o.t.rough} roughing minors`, 'mate']);
+        if (o.t.toi) chips.push([`draws ${r60(o, 'md').toFixed(2)}, takes ${r60(o, 'mt').toFixed(2)} minors per 60`, net(o) >= 0 ? 'mate' : 'tough']);
+        items.push(gemItem(o.p, 'fight', o.t.fights, String(o.t.fights), 'fights, 3 seasons', meta(o), chips, o.t.fights + per82 / 100));
+      }
+    }
+    if (!DISC_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'drawn';
+    return { items, filters: DISC_LISTS, unit: 'Draws penalties, Undisciplined and Clean physical: the big number is a percentile among regulars at his position (for Undisciplined, low = takes the most minors). Fighters: the number of fights over three seasons.', sub: `Three seasons to ${sLabel(y)}, players who played this season, from the NHL's penalty records. Penalties drawn and taken count minor penalties only and leave out scrum calls (roughing, fighting, unsportsmanlike conduct, misconducts), which usually go both ways and rarely change the man advantage. <b>Draws penalties</b>: most minors drawn per 60 (${DISC_MIN_TOI.toLocaleString()}+ minutes). <b>Undisciplined</b>: most minors taken per 60, mostly stick and obstruction penalties like tripping, hooking and holding. <b>Clean physical</b>: hits in the top 30% at his position (adjusted for each arena's scorekeeper) while taking fewer minors than half his position. <b>Fighters</b>: fighting majors (${DISC_MIN_GP}+ games, ${DISC_MIN_FIGHTS}+ fights), with instigator penalties, misconducts (any reason, not only fights) and roughing minors. Who won a fight isn't recorded anywhere official, so it isn't shown. Drawing and taking penalties already count in value through the power play; this tab changes nothing.` };
+  },
   // heavy ice time, weak isolated impact
   big(y, sd) {
     const items = [];
@@ -1221,11 +1274,11 @@ const GEM_BUILD = {
 async function renderGemsSkaters() {
   const y = S.season, tab = GEMS.tab;
   const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, onTab: () => renderGemsSkaters().catch(e => console.error(e)), current: S.A };
-  if (!['fo', 'st', 'puck'].includes(tab) && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
-  if (y < 2010 && !['bounce', 'fo', 'st', 'puck'].includes(tab)) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  if (!['fo', 'st', 'puck', 'disc'].includes(tab) && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
+  if (y < 2010 && !['bounce', 'fo', 'st', 'puck', 'disc'].includes(tab)) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
   const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
   if (y !== S.season || tab !== GEMS.tab) return;
-  if (!sd || (!['bounce', 'fo', 'st', 'puck'].includes(tab) && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  if (!sd || (!['bounce', 'fo', 'st', 'puck', 'disc'].includes(tab) && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
   const r = await GEM_BUILD[tab](y, sd);
   if (y !== S.season || tab !== GEMS.tab) return;
   if (r.items) r.items.sort((a, b) => b.sort - a.sort);

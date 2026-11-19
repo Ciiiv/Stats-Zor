@@ -12,7 +12,7 @@ It is a static site on GitHub Pages: no server, no database and no AI running wh
 
 The data comes from two free sources: the NHL's public APIs (games, rosters, shift charts, play-by-play, EDGE skating and shot speeds) and MoneyPuck (shot-by-shot expected goals, used non-commercially with credit on every page). No contract data is collected; cap hits are typed in by the user and stay in their browser.
 
-At 12:17 UTC each night, GitHub Actions runs eight Python scripts in order, each building on the last, and commits the results as JSON files. If one step fails, the rest still run and the site keeps yesterday's numbers for that part.
+At 12:17 UTC each night, GitHub Actions runs nine Python scripts in order, each building on the last, and commits the results as JSON files. If one step fails, the rest still run and the site keeps yesterday's numbers for that part.
 
 | Step | Script | What it builds |
 | --- | --- | --- |
@@ -21,9 +21,10 @@ At 12:17 UTC each night, GitHub Actions runs eight Python scripts in order, each
 | 3 | build_usage | Ice time, deployment and zone starts; team game-by-game lineups and head coaches |
 | 4 | build_edge | NHL EDGE skating and shot-speed tracking |
 | 5 | build_box | Box-score detail (EV/PP/SH, assists, attempts, GWG/OT/shootout, plus/minus) and faceoffs by zone |
-| 6 | build_goalies | Goalie seasons, saves above expected |
-| 7 | build_impact | Isolated impact (the shift-by-shift model) and quality of competition |
-| 8 | build_value | Wins above replacement, dollar value, projections |
+| 6 | build_disc | Penalties drawn and taken, fights, instigators and misconducts |
+| 7 | build_goalies | Goalie seasons, saves above expected |
+| 8 | build_impact | Isolated impact (the shift-by-shift model) and quality of competition |
+| 9 | build_value | Wins above replacement, dollar value, projections |
 
 ## The skater page
 
@@ -73,6 +74,7 @@ A sidebar on both pages lists players who stand out in a specific way. Every lis
 | Bounce | Finishers shooting well below their usual level this season |
 | Special teams | Power-play-heavy scorers, five-on-five scorers with little power-play time, and the best and struggling penalty killers and power-play players compared with their own teammates (three seasons) |
 | Puck play | Takeaways, careful or loose with the puck, shot blockers and hitters, adjusted for each arena's scorekeeper (three seasons) |
+| Discipline | Draws penalties, undisciplined, clean physical (hits without penalties) and fighters, with instigators and misconducts (three seasons) |
 | Faceoffs | Best on the draw, best and worst in their own zone, and best in the offensive zone (three seasons, 1,500+ draws or 300+ in the zone) |
 | Big minutes | Heavy ice time with weak isolated results |
 

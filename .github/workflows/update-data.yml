@@ -74,6 +74,10 @@ jobs:
             python scripts/build_box.py
           fi
 
+      - name: Build discipline (penalties and fights)
+        continue-on-error: true
+        run: python scripts/build_disc.py
+
       - name: Build goalies
         continue-on-error: true
         run: |
