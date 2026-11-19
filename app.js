@@ -215,6 +215,27 @@ async function loadPuck(y) {
   catch (e) { PUCKD[y] = null; }
   return PUCKD[y];
 }
+// hat tricks, multi-point games and streaks (data/streaks/{y}.json, career.json; MoneyPuck game by game)
+const STRK = {};
+async function loadStreaks(y) {
+  if (STRK[y] !== undefined) return STRK[y];
+  try { const j = await getJSON(`data/streaks/${y}.json`); const m = new Map(); j.rows.forEach(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); m.set(o.id, o); }); STRK[y] = m; }
+  catch (e) { STRK[y] = null; }
+  return STRK[y];
+}
+function streakHTML(id, y) {
+  const s = STRK[y] && STRK[y].get(id); if (!s || !s.gp) return '';
+  const c = STRK.career && STRK.career.get(id);
+  const gm = v => `${v} game${v === 1 ? '' : 's'}`;
+  const a = [`hat tricks ${s.hat}`, `multi-point games ${s.multi} <small>(${Math.round(100 * s.multi / s.gp)}% of ${s.gp})</small>`];
+  if (s.four) a.push(`4+ point games ${s.four}`);
+  a.push(`longest point streak ${gm(s.ps)}`, `goal streak ${gm(s.gs)}`, s.dry ? `longest without a point ${gm(s.dry)}` : 'no pointless games');
+  const live = y === S.idx.current && (s.pcur >= 2 || s.gcur >= 2)
+    ? ` <b>Now:</b> ${s.pcur >= 2 ? `${s.pcur}-game point streak` : ''}${s.pcur >= 2 && s.gcur >= 2 ? ', ' : ''}${s.gcur >= 2 ? `${s.gcur}-game goal streak` : ''}.` : '';
+  const ix = S.byId.get(id), since = STRK.since || 2008, clab = ix && ix.first >= since ? 'Career' : `Since ${sLabel(since)}`;
+  const car = c && c.gp > s.gp ? `<br><span>${clab}</span> ${c.hat} hat trick${c.hat === 1 ? '' : 's'} · ${c.multi} multi-point games in ${c.gp} · best point streak ${gm(c.ps)} (${sLabel(c.ps_season)})` : '';
+  return `<p class="boxrec"><span>Big nights</span> ${a.join(' · ')}.${live}${car}</p>`;
+}
 // the "box score detail" lines on a player card; descriptive only (nothing here feeds value)
 function boxHTML(id, y, p) {
   const b = BOX[y] && BOX[y].get(id); if (!b) return '';
@@ -236,7 +257,7 @@ function boxHTML(id, y, p) {
   }
   const rec = [`game-winning goals ${n(b.gwg)}`, `overtime goals ${n(b.otg)}`, `empty-net goals ${n(b.eng)}`, `shootout ${n(b.so_g)} of ${n(b.so_s)}`, `plus/minus ${sgn(n(b.pm))}`];
   return `<div class="boxd"><p class="minihead">Box score detail · ${sLabel(y)}</p><dl>${items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
-    <p class="boxrec"><span>For the record</span> ${rec.join(' · ')}. <a class="how" href="about.html#m-box">Mostly luck: these barely repeat</a></p></div>`;
+    <p class="boxrec"><span>For the record</span> ${rec.join(' · ')}. <a class="how" href="about.html#m-box">Mostly luck: these barely repeat</a></p>${streakHTML(id, y)}</div>`;
 }
 
 // ------------------------------------------------------------------ NHL EDGE tracking (2021-22 on)
@@ -1480,6 +1501,7 @@ async function render() {
   renderValue().catch(e => console.error(e));
   renderGemsSkaters().catch(e => console.error(e));
   if (!BOX[S.season]) loadBox(S.season).then(m => { if (m) safe('sec-profile', renderProfile); }).catch(() => {});
+  if (STRK[S.season] === undefined || STRK.career === undefined) Promise.all([loadStreaks(S.season), STRK.career !== undefined ? null : getJSON('data/streaks/career.json').then(j => { const m = new Map(); j.rows.forEach(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); m.set(o.id, o); }); STRK.career = m; STRK.since = j.since; }).catch(() => { STRK.career = null; })]).then(() => safe('sec-profile', renderProfile)).catch(() => {});
   if (S.season >= 2021) loadAllEdge().then(() => { safe('sec-profile', renderProfile); if (S.boardMode === 'sim' && A) { safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); } }).catch(() => {});
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }

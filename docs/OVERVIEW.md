@@ -37,7 +37,7 @@ The skater page compares any two players on any season since 2008-09 (default: S
 | 3 · What he's worth | Value and worth, fair-value contract | Wins above replacement, his dollar value this season and over three seasons, and a fair contract by age |
 | 4 · Vs. history | Against history, career vs. career, career arcs and comps | Where his season sits all-time and which past players had similar careers |
 
-Each player card also has a box score detail block: goals and points by situation, primary and secondary assists, shots against attempts, shooting next to expected, penalties drawn and taken, faceoffs by zone, and a "for the record" line (game-winning, overtime and shootout goals, plus/minus) labeled as mostly luck.
+Each player card also has a box score detail block: goals and points by situation, primary and secondary assists, shots against attempts, shooting next to expected, penalties drawn and taken, faceoffs by zone, and a "for the record" line (game-winning, overtime and shootout goals, plus/minus) labeled as mostly luck. A "Big nights" line adds hat tricks, multi-point games and point and goal streaks (current ones too), for the season and his career since 2008-09.
 
 Each section head links to its explanation on the How it works page, and one broken section never takes down the rest of the page.
 

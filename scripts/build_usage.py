@@ -29,6 +29,9 @@ Output: data/puck/{year}.json  per skater, all situations: ice time and takeaway
   stingiest arena recorded about half the league rate of takeaways and giveaways, the most generous 1.6-1.8x;
   tested Nov 2026), so every game's counts are divided by that arena's factor for the season: the arena's
   rate (both teams, all games there) over the league rate, pulled toward 1 by home games / (home games + 20).
+Output: data/streaks/{year}.json  per skater-season from his games in order (all situations): hat tricks,
+  multi-point (2+) and 4+ point games, longest point / goal streak, longest pointless stretch, and the point and
+  goal streaks running into his last game. data/streaks/career.json sums them since 2008-09. Descriptive only.
 Output: data/teams/history.json  one small summary for the teams page's history table: per season, per team
   [games, 5v5 minutes, xGF, xGA, GF, GA, head coaches in order joined by "|"] (rebuilt every run, a few KB).
 
@@ -100,6 +103,8 @@ def build(y: int):
         ginfo = {}  # (gameId, team) -> (date, opponent, home)
         pk_ix = [ix[c] for _, c in PUCK] if all(c in ix for _, c in PUCK) else None
         pk_rows, pk_home = [], {}  # (pid, arena, seconds, [tk, gv, hit, blk]); arena -> home game ids
+        gl_ix = (ix["I_F_goals"], ix["I_F_points"]) if "I_F_goals" in ix else None
+        glog = {}  # pid -> [(date, gameId, goals, points)] from the all-situations rows
         cols = [ix[k] for k in ("icetime", "OnIce_F_xGoals", "OnIce_A_xGoals", "OnIce_F_goals", "OnIce_A_goals",
                                 "OnIce_F_shotAttempts", "OnIce_A_shotAttempts", "I_F_points", "I_F_xGoals",
                                 "I_F_oZoneShiftStarts", "I_F_dZoneShiftStarts")]
@@ -107,6 +112,12 @@ def build(y: int):
             if len(row) < len(head):
                 continue
             sit = row[si]
+            if sit == "all" and gl_ix:
+                try:
+                    glog.setdefault(int(float(row[pi])), []).append(
+                        (row[di] if di is not None else "", row[gi], int(fnum(row[gl_ix[0]])), int(fnum(row[gl_ix[1]]))))
+                except ValueError:
+                    pass
             if sit == "all" and pk_ix and hi is not None and opi is not None:
                 try:
                     home = row[hi].upper().startswith("H")
@@ -129,6 +140,7 @@ def build(y: int):
             p[sit] = [fnum(row[c]) for c in cols]
     log(f"usage {y}: {len(games)} team-games")
     puck = build_puck(pk_rows, pk_home) if pk_rows else None
+    streaks = build_streaks(glog) if glog else None
 
     players = {}
     base_ev = {"F": [new_ev() for _ in range(4)], "D": [new_ev() for _ in range(3)]}
@@ -219,6 +231,7 @@ def build(y: int):
     return {
         "season": y,
         "puck": puck,
+        "streaks": streaks,
         "teams": teams,
         "ev_fields": ["games", *EV_KEYS],
         "baselines": {
@@ -255,6 +268,52 @@ def build_puck(rows, home_games):
     out = [[pid, round(p[0] / 60, 1)] + [int(x) for x in p[1:5]] + [round(x, 1) for x in p[5:]] for pid, p in sorted(pl.items())]
     return {"fields": fields, "rows": out,
             "arena_factor": {k: [round(x, 3) for x in f] for k, f in sorted(fac.items())}}
+
+
+STREAK_FIELDS = ["id", "gp", "hat", "multi", "four", "ps", "gs", "dry", "pcur", "gcur"]
+
+
+def build_streaks(glog):
+    """Per player-season, from his games in date order: hat tricks (3+ goals), multi-point games (2+),
+    4+ point games, longest point streak, longest goal streak, longest pointless stretch, and the streaks
+    running into his last game (current ones, for this season). Games he didn't play don't break a streak
+    (the NHL's convention). Descriptive only."""
+    rows = []
+    for pid, gl in glog.items():
+        gl = sorted(set(gl))
+        hat = multi = four = ps = gs = dry = 0
+        cp = cg = cd = 0
+        for _, _, g, p in gl:
+            hat += g >= 3
+            multi += p >= 2
+            four += p >= 4
+            cp = cp + 1 if p > 0 else 0
+            cg = cg + 1 if g > 0 else 0
+            cd = cd + 1 if p == 0 else 0
+            ps, gs, dry = max(ps, cp), max(gs, cg), max(dry, cd)
+        rows.append([pid, len(gl), hat, multi, four, ps, gs, dry, cp, cg])
+    rows.sort()
+    return {"fields": STREAK_FIELDS, "rows": rows}
+
+
+def write_streak_career(cur):
+    """data/streaks/career.json: per player since 2008-09, games, hat tricks, multi-point and 4+ point games,
+    and his longest point streak in any one season (with that season)."""
+    car = {}
+    for y in range(MP_FIRST, cur + 1):
+        j = read_json(os.path.join(DATA, "streaks", f"{y}.json"))
+        if not j:
+            continue
+        f = j["fields"]
+        for r in j["rows"]:
+            o = dict(zip(f, r))
+            c = car.setdefault(o["id"], [o["id"], 0, 0, 0, 0, 0, 0])
+            c[1] += o["gp"]; c[2] += o["hat"]; c[3] += o["multi"]; c[4] += o["four"]
+            if o["ps"] > c[5]:
+                c[5], c[6] = o["ps"], y
+    write_json(os.path.join(DATA, "streaks", "career.json"),
+               {"since": MP_FIRST, "fields": ["id", "gp", "hat", "multi", "four", "ps", "ps_season"],
+                "rows": sorted(car.values())})
 
 
 def coach_of(gid):
@@ -338,13 +397,17 @@ def main():
         path = os.path.join(DATA, "usage", f"{y}.json")
         tpath = os.path.join(DATA, "teams", f"{y}.json")
         ppath = os.path.join(DATA, "puck", f"{y}.json")
-        if not args.full and y < cur and os.path.exists(path) and os.path.exists(tpath) and os.path.exists(ppath):
+        spath = os.path.join(DATA, "streaks", f"{y}.json")
+        if not args.full and y < cur and all(os.path.exists(q) for q in (path, tpath, ppath, spath)):
             continue
         try:
             out = build(y)
             puck = out.pop("puck", None)
             if puck:
                 write_json(os.path.join(DATA, "puck", f"{y}.json"), {"season": y, **puck})
+            streaks = out.pop("streaks", None)
+            if streaks:
+                write_json(spath, {"season": y, **streaks})
             write_json(os.path.join(DATA, "teams", f"{y}.json"), {
                 "season": y, "game_fields": ["game", "date", "opp", "home", "t5", "xgf", "xga", "gf", "ga"],
                 "teams": out.pop("teams")})
@@ -358,6 +421,10 @@ def main():
         update_coaches(cur, args.coach_budget)
     except Exception as e:  # noqa: BLE001
         log(f"coaches FAILED: {e}")
+    try:
+        write_streak_career(cur)
+    except Exception as e:  # noqa: BLE001
+        log(f"streak career FAILED: {e}")
     try:
         write_history(cur)
     except Exception as e:  # noqa: BLE001
