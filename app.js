@@ -73,6 +73,8 @@ async function loadSeason(y) {
   if (S.seasons[y]) return S.seasons[y];
   const j = await getJSON(`data/seasons/${y}.json`);
   const players = j.players.map(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); return derive(o); });
+  // names from the search index: MoneyPuck's season files drop some accents and use other spellings (Raty, Lafrenire, Alex Nylander)
+  players.forEach(p => { const ix = S.byId.get(p.id); if (ix && ix.name) p.name = ix.name; });
   const sd = { y, gpmax: j.gpmax, teams: j.teams, updated: j.updated, players, byId: new Map(players.map(p => [p.id, p])) };
   S.seasons[y] = sd;
   return sd;

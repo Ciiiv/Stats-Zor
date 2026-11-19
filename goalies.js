@@ -63,6 +63,7 @@ async function loadSeason(y) {
   if (S.seasons[y]) return S.seasons[y];
   const j = await getJSON(`data/goalies/seasons/${y}.json`);
   const players = j.players.map(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); return derive(o); });
+  players.forEach(p => { const ix = S.byId.get(p.id); if (ix && ix.name) p.name = ix.name; });  // index names keep accents
   const sd = { y, gpmax: j.team_gp || j.gpmax, teams: j.teams, players, byId: new Map(players.map(p => [p.id, p])) };
   S.seasons[y] = sd;
   return sd;

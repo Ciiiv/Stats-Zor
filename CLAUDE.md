@@ -35,6 +35,7 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 - **Seasons are start years:** `2025` = 2025-26. A new season starts September 1 (`current_season()`).
 - **Age** is as of February 1 of the season.
 - **Percentiles** are within position group only (F, D, G), flipped where lower is better, so blue is always good.
+- **Player names come from `data/index.json`** (NHL spellings with accents). MoneyPuck's season files drop accents and use other spellings (Raty, Lafrenire, Alex Nylander), so `loadSeason` in app.js and goalies.js swaps in the index name; sidebar and teams-page strips do the same.
 - **Goalie pools use team games**, not the goalie max: `team_gp` in the goalie season files (no goalie plays 82).
 - **Cache busting:** pages load `styles.css?v=…`, `theme.js?v=…`, `common.js?v=…`, `app.js?v=…`, `goalies.js?v=…`, `trade.js?v=…`. Bump the `v` (a timestamp like `202611150400`) in every page that loads a file you changed.
 - **When a calculation changes, update its section in `about.html`** (and the README if a setting or script changes).
