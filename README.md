@@ -52,6 +52,7 @@ Nothing runs on a server. `.github/workflows/update-data.yml` runs every morning
 |---|---|---|
 | `scripts/build_data.py` | `seasons/`, `lines/`, `careers.json`, `mp_careers.json`, `index.json` | MoneyPuck season summaries and lines; NHL stats API (careers, bios, league scoring) and player API (trophies) |
 | `scripts/build_shots.py` | `shots/`, `goalies/shots/` | MoneyPuck shot data (shots taken by skaters, shots faced by goalies) |
+| `scripts/build_box.py` | `box/` | NHL stats API (summary, scoring per game, realtime, shootout and faceoff-by-zone reports) |
 | `scripts/build_usage.py` | `usage/`, `teams/`, `teams/coaches/`, `teams/history.json` | MoneyPuck game-by-game skater data; NHL game-center data for head coaches (`--coach-budget`, 1,500 games a run, newest season first) |
 | `scripts/build_edge.py` | `edge/` | NHL EDGE API, one request per player per season (2021-22 on) |
 | `scripts/build_goalies.py` | `goalies/seasons/`, `goalies/games/`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | MoneyPuck goalie season and game-by-game files; NHL goalie reports (seasons, game logs, careers) and player API (trophies) |
@@ -100,6 +101,7 @@ about.html                         how it works (methods and glossary)
 styles.css                         shared styles
 scripts/build_data.py              seasons, lines, careers, index
 scripts/build_shots.py             shot maps
+scripts/build_box.py               box-score detail and faceoffs by zone (descriptive)
 scripts/build_usage.py             deployment (roles, splits), team game-by-game lineups, head coaches
 scripts/build_edge.py              NHL EDGE tracking
 scripts/build_goalies.py           goalie seasons, games, careers

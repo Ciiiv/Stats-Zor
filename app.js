@@ -190,6 +190,39 @@ async function loadCareers() {
 // ------------------------------------------------------------------ svg helpers
 
 
+// ------------------------------------------------------------------ box-score detail and faceoffs (NHL stats API, data/box/{y}.json)
+const BOX = {};
+async function loadBox(y) {
+  if (BOX[y] !== undefined) return BOX[y];
+  try { const j = await getJSON(`data/box/${y}.json`); const m = new Map(); j.rows.forEach(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); m.set(o.id, o); }); BOX[y] = m; }
+  catch (e) { BOX[y] = null; }
+  return BOX[y];
+}
+const foPct = (w, l) => (w + l) ? (100 * w / (w + l)).toFixed(1) + '%' : '—';
+// the "box score detail" lines on a player card; descriptive only (nothing here feeds value)
+function boxHTML(id, y, p) {
+  const b = BOX[y] && BOX[y].get(id); if (!b) return '';
+  const n = v => nz(v) ? v : 0, sgn = v => (v > 0 ? '+' : '') + v;
+  const items = [];
+  items.push(['Goals', `${n(b.g)} <small>EV ${n(b.evg)} · PP ${n(b.ppg)} · SH ${n(b.shg)}</small>`]);
+  items.push(['Assists', `${n(b.a)} <small>primary ${n(b.a1)} · secondary ${n(b.a2)}</small>`]);
+  items.push(['Points by situation', `<small>EV ${n(b.evp)} · PP ${n(b.ppp)} · SH ${n(b.shp)}</small>`]);
+  const shp = b.sog ? 100 * b.g / b.sog : null;
+  const xg = p && nz(p.gax) ? p.g - p.gax : null, xsh = nz(xg) && b.sog ? 100 * xg / b.sog : null;
+  items.push(['Shots', `${n(b.sog)} on net <small>${nz(b.att) ? `of ${b.att} attempts (${n(b.miss)} missed, ${n(b.blkd)} blocked)` : ''}</small>`]);
+  items.push(['Shooting', `${nz(shp) ? shp.toFixed(1) + '%' : '—'} <small>${nz(xsh) ? `chances worth about ${xsh.toFixed(1)}% · ${s1(p.gax)} goals vs. expected` : ''}</small>`]);
+  if (p && nz(p.pend)) items.push(['Penalties', `drew ${p.pend} · took ${p.pen} <small>${n(b.pim)} PIM</small>`]);
+  else items.push(['Penalty minutes', `${n(b.pim)}`]);
+  const fo = n(b.fow) + n(b.fol);
+  if (fo >= 50) {
+    const z = nz(b.dz_w) ? ` · own zone ${foPct(b.dz_w, b.dz_l)} of ${b.dz_w + b.dz_l} · offensive zone ${foPct(b.oz_w, b.oz_l)} of ${b.oz_w + b.oz_l}` : '';
+    items.push(['Faceoffs', `${foPct(b.fow, b.fol)} <small>of ${fo}${z}</small>`]);
+  }
+  const rec = [`game-winning goals ${n(b.gwg)}`, `overtime goals ${n(b.otg)}`, `empty-net goals ${n(b.eng)}`, `shootout ${n(b.so_g)} of ${n(b.so_s)}`, `plus/minus ${sgn(n(b.pm))}`];
+  return `<div class="boxd"><p class="minihead">Box score detail · ${sLabel(y)}</p><dl>${items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
+    <p class="boxrec"><span>For the record</span> ${rec.join(' · ')}. <a class="how" href="about.html#m-box">Mostly luck: these barely repeat</a></p></div>`;
+}
+
 // ------------------------------------------------------------------ NHL EDGE tracking (2021-22 on)
 const EDGE = {};
 async function loadEdge(y) {
@@ -257,7 +290,7 @@ function renderProfile() {
     }
     const team = p ? p.team : ix.team; const tc = teamColor(team); const num = jerseyNum(id, team);
     const meta2 = [pos, c && c.shoots ? `Shoots ${c.shoots}` : '', age ? `Age ${age}` : '', c ? [htFmt(c.ht), c.wt ? c.wt + ' lb' : ''].filter(Boolean).join(', ') : ''].filter(Boolean).join(' · ');
-    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}${nowLine(id, team)}</p>${tiles}${toolsHTML(id, S.season)}${badges}</div>`;
+    return `<div class="pcard ${cls}${tc ? ' tc' : ''}"${tc ? ` style="--tc:${tc}"` : ''}>${nz(num) ? `<span class="jnum" aria-hidden="true">${num}</span>` : ''}<h1>${esc(ix.name || (c && c.name) || id)}</h1><p class="meta">${teamBadge(team)}${nz(num) ? `#${num} · ` : ''}${esc(meta2)}${nowLine(id, team)}</p>${tiles}${boxHTML(id, S.season, p)}${toolsHTML(id, S.season)}${badges}</div>`;
   };
   $('sec-profile').innerHTML = `<div class="prof">${card(S.A, 'a')}${card(S.B, 'b')}</div>`;
 }
@@ -923,12 +956,16 @@ function compHTML(sd, I) {
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
-const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes']];
-const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact' };
+const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs']];
+const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs' };
+// the faceoff tab's four lists use the filter buttons; minimums over three seasons
+const FO_MIN = 1500, FO_ZONE_MIN = 300;
+const FO_LISTS = [['best', 'Best'], ['dz', 'Own zone'], ['dzbad', 'Struggles'], ['oz', 'Offensive']];
 const mmss = m => nz(m) ? `${Math.floor(m)}:${String(Math.round((m % 1) * 60)).padStart(2, '0')}` : '—';
 // regulars at a position; with three = true only those with a three-season isolated number on 1,500+ minutes
 const gemPool = (sd, g, three = true) => pool(sd, g, 'reg').list.filter(p => p.gp && (!three || (nz(p.iso3_net) && (p.iso3_toi || 0) >= GEM_MIN_TOI3 && nz(p.q_mate))));
-const gemItem = (p, g, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: g, name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
+// names from the search index (MoneyPuck's season files drop some accented letters, e.g. Räty)
+const gemItem = (p, g, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: g, name: (S.byId.get(p.id) || {}).name || p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
 const UNIT_PCT = 'The big number is a percentile: 97th means better than 97% of regulars at his position that season.';
 const GEM_BUILD = {
   // elite isolated impact, little box-score credit
@@ -1022,6 +1059,30 @@ const GEM_BUILD = {
     }
     return { items, unit: 'The big number is goals compared with expected this season (−6.4 = 6.4 goals fewer than an average shooter would have scored on his chances).', sub: `Scored at least 4 goals below expected in ${sLabel(y)} (scaled to games played so far), after finishing 2+ goals above expected over the two seasons before (40+ games in each). Furthest below expected first.` };
   },
+  // faceoffs over three seasons: best overall, own zone, own-zone struggles, offensive zone
+  async fo(y, sd) {
+    const ms = await Promise.all([y, y - 1, y - 2].map(z => loadBox(z).catch(() => null)));
+    if (!ms[0]) return { empty: `Faceoff data for ${sLabel(y)} isn't built yet.` };
+    const tot = new Map();
+    ms.forEach(m => m && m.forEach(b => { const t = tot.get(b.id) || { w: 0, l: 0, dw: 0, dl: 0, ow: 0, ol: 0, z: false }; t.w += b.fow || 0; t.l += b.fol || 0; if (nz(b.dz_w)) { t.z = true; t.dw += b.dz_w; t.dl += b.dz_l || 0; t.ow += b.oz_w || 0; t.ol += b.oz_l || 0; } tot.set(b.id, t); }));
+    const items = [];
+    const pct = (w, l) => 100 * w / (w + l);
+    for (const [id, t] of tot) {
+      const p = sd.byId.get(id); if (!p) continue;  // on the ice this season
+      const all = t.w + t.l, dz = t.dw + t.dl, oz = t.ow + t.ol;
+      const meta = `${p.team} · ${p.pos}`;
+      const overall = all ? `overall ${pct(t.w, t.l).toFixed(1)}%` : '';
+      if (all >= FO_MIN) { const v = pct(t.w, t.l); items.push({ ...gemItem(p, 'best', v, v.toFixed(1) + '%', `of ${all.toLocaleString()}`, meta, t.z && dz ? [[`own zone ${pct(t.dw, t.dl).toFixed(1)}%`, 'mate']] : [], v) }); }
+      if (t.z && dz >= FO_ZONE_MIN) {
+        const v = pct(t.dw, t.dl);
+        items.push(gemItem(p, 'dz', v, v.toFixed(1) + '%', `of ${dz} own-zone`, meta, [[overall, 'mate']], v));
+        items.push(gemItem(p, 'dzbad', v, v.toFixed(1) + '%', `of ${dz} own-zone`, meta, [[overall, 'tough']], -v));
+      }
+      if (t.z && oz >= FO_ZONE_MIN) { const v = pct(t.ow, t.ol); items.push(gemItem(p, 'oz', v, v.toFixed(1) + '%', `of ${oz} offensive-zone`, meta, [[overall, 'mate']], v)); }
+    }
+    if (!FO_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'best';
+    return { items, filters: FO_LISTS, unit: 'The big number is his faceoff win percentage over three seasons (50% = even).', sub: `Three seasons to ${sLabel(y)}, players who played this season. Best overall needs ${FO_MIN.toLocaleString()}+ draws; the zone lists need ${FO_ZONE_MIN}+ draws in that zone. Own zone = his defensive zone; Struggles = lowest in his own zone; Offensive = in the other team's zone. A win is worth only about a hundredth of a goal (a bit more in his own zone), so this describes a skill and doesn't change value.` };
+  },
   // heavy ice time, weak isolated impact
   big(y, sd) {
     const items = [];
@@ -1040,10 +1101,11 @@ const GEM_BUILD = {
 async function renderGemsSkaters() {
   const y = S.season, tab = GEMS.tab;
   const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, onTab: () => renderGemsSkaters().catch(e => console.error(e)), current: S.A };
-  if (y < 2010 && tab !== 'bounce') { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  if (tab !== 'fo' && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
+  if (y < 2010 && tab !== 'bounce' && tab !== 'fo') { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
   const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
   if (y !== S.season || tab !== GEMS.tab) return;
-  if (!sd || (tab !== 'bounce' && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  if (!sd || (tab !== 'bounce' && tab !== 'fo' && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
   const r = await GEM_BUILD[tab](y, sd);
   if (y !== S.season || tab !== GEMS.tab) return;
   if (r.items) r.items.sort((a, b) => b.sort - a.sort);
@@ -1242,6 +1304,7 @@ async function render() {
   }
   renderValue().catch(e => console.error(e));
   renderGemsSkaters().catch(e => console.error(e));
+  if (!BOX[S.season]) loadBox(S.season).then(m => { if (m) safe('sec-profile', renderProfile); }).catch(() => {});
   if (S.season >= 2021) loadAllEdge().then(() => { safe('sec-profile', renderProfile); if (S.boardMode === 'sim' && A) { safe('sec-matrix', renderMatrix); safe('sec-env', renderEnv); } }).catch(() => {});
   if (CAR) { safe('sec-career', renderCareer); safe('sec-arcs', renderArcs); }
 }

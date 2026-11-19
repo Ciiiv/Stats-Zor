@@ -12,7 +12,7 @@ It is a static site on GitHub Pages: no server, no database and no AI running wh
 
 The data comes from two free sources: the NHL's public APIs (games, rosters, shift charts, play-by-play, EDGE skating and shot speeds) and MoneyPuck (shot-by-shot expected goals, used non-commercially with credit on every page). No contract data is collected; cap hits are typed in by the user and stay in their browser.
 
-At 12:17 UTC each night, GitHub Actions runs seven Python scripts in order, each building on the last, and commits the results as JSON files. If one step fails, the rest still run and the site keeps yesterday's numbers for that part.
+At 12:17 UTC each night, GitHub Actions runs eight Python scripts in order, each building on the last, and commits the results as JSON files. If one step fails, the rest still run and the site keeps yesterday's numbers for that part.
 
 | Step | Script | What it builds |
 | --- | --- | --- |
@@ -20,9 +20,10 @@ At 12:17 UTC each night, GitHub Actions runs seven Python scripts in order, each
 | 2 | build_shots | Shot maps by location |
 | 3 | build_usage | Ice time, deployment and zone starts; team game-by-game lineups and head coaches |
 | 4 | build_edge | NHL EDGE skating and shot-speed tracking |
-| 5 | build_goalies | Goalie seasons, saves above expected |
-| 6 | build_impact | Isolated impact (the shift-by-shift model) and quality of competition |
-| 7 | build_value | Wins above replacement, dollar value, projections |
+| 5 | build_box | Box-score detail (EV/PP/SH, assists, attempts, GWG/OT/shootout, plus/minus) and faceoffs by zone |
+| 6 | build_goalies | Goalie seasons, saves above expected |
+| 7 | build_impact | Isolated impact (the shift-by-shift model) and quality of competition |
+| 8 | build_value | Wins above replacement, dollar value, projections |
 
 ## The skater page
 
@@ -34,6 +35,8 @@ The skater page compares any two players on any season since 2008-09 (default: S
 | 2 · How he's used | Role and fit, team deployment card | Who he faces and plays with, and whether his coach uses him well |
 | 3 · What he's worth | Value and worth, fair-value contract | Wins above replacement, his dollar value this season and over three seasons, and a fair contract by age |
 | 4 · Vs. history | Against history, career vs. career, career arcs and comps | Where his season sits all-time and which past players had similar careers |
+
+Each player card also has a box score detail block: goals and points by situation, primary and secondary assists, shots against attempts, shooting next to expected, penalties drawn and taken, faceoffs by zone, and a "for the record" line (game-winning, overtime and shootout goals, plus/minus) labeled as mostly luck.
 
 Each section head links to its explanation on the How it works page, and one broken section never takes down the rest of the page.
 
@@ -68,6 +71,7 @@ A sidebar on both pages lists players who stand out in a specific way. Every lis
 | Shutdown | Top defensive impact against top competition |
 | Breakout | Age 24 or under and improving sharply |
 | Bounce | Finishers shooting well below their usual level this season |
+| Faceoffs | Best on the draw, best and worst in their own zone, and best in the offensive zone (three seasons, 1,500+ draws or 300+ in the zone) |
 | Big minutes | Heavy ice time with weak isolated results |
 
 The goalie lists work the same way: Little help, Stealing games, Danger specialist, Breakout goalie, Due for a bounce and Heavy workload. Goalie lists are often short (2 to 7 names), because a goalie season is roughly half luck and the minimums are strict.

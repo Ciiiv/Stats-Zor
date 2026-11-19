@@ -13,7 +13,7 @@ There is no server, no database and no AI in either half. Everything is Python's
 
 ## The nightly job
 
-File: `.github/workflows/update-data.yml`. It runs every day at 12:17 UTC (about 7:17 am Eastern), and can also be started by hand. It runs seven scripts from `scripts/`, in order. Each one after the first is allowed to fail without stopping the rest, so one bad download only leaves that part a day old. At the end it commits whatever changed in `data/`.
+File: `.github/workflows/update-data.yml`. It runs every day at 12:17 UTC (about 7:17 am Eastern), and can also be started by hand. It runs eight scripts from `scripts/`, in order. Each one after the first is allowed to fail without stopping the rest, so one bad download only leaves that part a day old. At the end it commits whatever changed in `data/`.
 
 By default each script only refreshes the current season and fills in anything missing. Past seasons are built once and kept. Running with `--full` (or the job's `full` option) rebuilds everything.
 
@@ -23,19 +23,20 @@ By default each script only refreshes the current season and fills in anything m
 | 2 | `build_shots.py` | MoneyPuck shot-by-shot files | `shots/{y}.json`, `goalies/shots/{y}.json` | Shot maps: every unblocked shot dropped into 5 × 5 ft cells of the offensive zone, for shooters and for goalies |
 | 3 | `build_usage.py` | MoneyPuck game-by-game skater files; NHL game-center data (head coaches) | `usage/{y}.json`, `teams/{y}.json`, `teams/coaches/{y}.json`, `teams/history.json` | Deployment: each night, ranks a team's players by ice time into lines, pairs, PP and PK units, plus zone starts. Also saves every team's games in order (5v5 xG and goals) with each player's slot that night for the teams page, and looks up each game's head coaches (up to 1,500 games a run, newest season first). Last, a few-KB summary of every team-season for the history table |
 | 4 | `build_edge.py` | NHL EDGE API (one call per player per season, 2021-22 on) | `edge/{y}.json` | Skating speed, 20+ mph bursts, distance, shot speed, offensive-zone time |
-| 5 | `build_goalies.py` | MoneyPuck goalie season and game files; NHL goalie stats and trophies | `goalies/seasons/{y}.json`, `goalies/games/{y}.json`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | Everything for the goalie page: saves above expected by situation and danger, starts, decisions, rest, careers |
-| 6 | `build_impact.py` | NHL shift charts and play-by-play for every game since 2010-11; MoneyPuck shot xG | `impact/{y}.json`, `impact/test.json` | Isolated impact: cuts games into stints with the same ten skaters, then solves one big regression for each player's offense and defense. Also the power-play fit, quality of competition and linemates, and the nightly forecast test |
-| 7 | `build_value.py` | Everything above (seasons, impact, usage, goalies); NHL roster and draft APIs | `value.json`, `rosters.json`, `prospects.json` | The value model: goals above replacement, wins, dollars, three-season projections, the fitted age curve, current rosters with jersey numbers, and recent draft prospects |
+| 5 | `build_box.py` | NHL stats API reports (a few per season) | `box/{y}.json` | Box-score detail for the player cards (EV/PP/SH goals and points, primary and secondary assists, shot attempts, game-winning, OT, empty-net and shootout goals, plus/minus, PIM) and faceoffs by zone and situation for the faceoff list. Descriptive only |
+| 6 | `build_goalies.py` | MoneyPuck goalie season and game files; NHL goalie stats and trophies | `goalies/seasons/{y}.json`, `goalies/games/{y}.json`, `goalies/careers.json`, `goalies/mp_careers.json`; adds goalies to `index.json` | Everything for the goalie page: saves above expected by situation and danger, starts, decisions, rest, careers |
+| 7 | `build_impact.py` | NHL shift charts and play-by-play for every game since 2010-11; MoneyPuck shot xG | `impact/{y}.json`, `impact/test.json` | Isolated impact: cuts games into stints with the same ten skaters, then solves one big regression for each player's offense and defense. Also the power-play fit, quality of competition and linemates, and the nightly forecast test |
+| 8 | `build_value.py` | Everything above (seasons, impact, usage, goalies); NHL roster and draft APIs | `value.json`, `rosters.json`, `prospects.json` | The value model: goals above replacement, wins, dollars, three-season projections, the fitted age curve, current rosters with jersey numbers, and recent draft prospects |
 
-Step 6 is the heavy one. It downloads thousands of games, so the raw game files are kept between nights in the GitHub Actions cache (`.cache/impact`), not in the repo. A night normally only fetches the new games. Older seasons for quality of competition are filled in a few at a time.
+Step 7 is the heavy one. It downloads thousands of games, so the raw game files are kept between nights in the GitHub Actions cache (`.cache/impact`), not in the repo. A night normally only fetches the new games. Older seasons for quality of competition are filled in a few at a time.
 
-Step 7 must run last because it reads the output of every other step.
+Step 8 must run last because it reads the output of every other step.
 
 ## The pages
 
 | Page | Script | Main files it reads |
 |---|---|---|
-| Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `lines/`, `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
+| Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `box/`, `lines/`, `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
 | Goalie page, `goalies.html` | `goalies.js` | `index.json`, `goalies/seasons/`, `goalies/games/`, `goalies/shots/`, `goalies/careers.json`, `goalies/mp_careers.json`, `value.json` |
 | Trade machine, `trade.html` | `trade.js` | `value.json`, `rosters.json`, `prospects.json` |
 | Teams, `teams.html` | `teams.js` (plus `app.js` for the deployment fit, with its own start-up skipped) | `teams/{y}.json`, `teams/coaches/{y}.json`, `teams/history.json`, `usage/`, `seasons/`, `value.json`, `careers.json` and `goalies/careers.json` (ages), `goalies/games/{y}.json` |

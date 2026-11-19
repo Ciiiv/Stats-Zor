@@ -65,6 +65,15 @@ jobs:
             python scripts/build_edge.py
           fi
 
+      - name: Build box-score detail and faceoffs
+        continue-on-error: true
+        run: |
+          if [ "${{ inputs.full }}" = "true" ]; then
+            python scripts/build_box.py --full
+          else
+            python scripts/build_box.py
+          fi
+
       - name: Build goalies
         continue-on-error: true
         run: |

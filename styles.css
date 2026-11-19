@@ -219,7 +219,7 @@ table{border-collapse:collapse}
 .gems .gchev{margin-left:auto;font-style:normal;color:var(--muted);transition:transform .15s}
 .gems[open] .gchev{transform:rotate(180deg)}
 .gsub{font-size:13px;color:var(--muted);margin:6px 0 8px;line-height:1.45}
-.gf{display:flex;gap:6px;margin:0 0 4px}
+.gf{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px}
 .gf button,.gmore{font:600 12px var(--f-body);background:transparent;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:3px 10px;cursor:pointer}
 .gf button[aria-pressed=true]{background:var(--ink);color:var(--panel);border-color:var(--ink)}
 .gmore{margin:8px 0 2px;width:100%;border-radius:6px}
@@ -281,3 +281,13 @@ svg a:hover .sname{fill:var(--c1);text-decoration:underline}
 @media (max-width:760px){.tname{font-size:26px}.ttiles{grid-template-columns:1fr 1fr}.ttile b{font-size:22px}#tTeam{min-width:0;max-width:100%}}
 .capin{font:600 13px var(--f-mono);padding:3px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink)}
 button:disabled{opacity:.55;cursor:default}
+/* box score detail on player cards */
+.boxd{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.boxd dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr));gap:6px 18px;margin:6px 0 0}
+.boxd dl div{display:flex;gap:8px;align-items:baseline;min-width:0}
+.boxd dt{font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;color:var(--muted);flex:0 0 auto}
+.boxd dd{margin:0;font-weight:600;min-width:0}
+.boxd dd small{font-weight:400;color:var(--muted);font-size:12.5px}
+.boxrec{font-size:12.5px;color:var(--muted);margin:8px 0 0}
+.boxrec span{font:600 11px var(--f-mono);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.boxrec .how{margin-left:4px}
