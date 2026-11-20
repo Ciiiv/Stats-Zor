@@ -95,6 +95,10 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 - Defaults: skater page Seider vs. Makar; goalie page Vasilevskiy vs. Shesterkin. Both open on the last complete season until the current one passes 41 team games.
 
 ## Next ideas
+Owner's next items (Nov 19, 2026; talk through options first, test before changing any number):
+- **Goalie credit for describing a season:** the standings check (docs/CHECKS.md) found a credited goalie win moved same-season points about 1.4× a skater win, so half credit (`GOALIE_WEIGHT`) may read a bit low for "what happened" (e.g. Price 2014-15), while next-season carry-over (~0.7 pts per goalie win vs 2.1 per skater win) backs the cautious projections. Question: something between half and full credit for season value only, projections unchanged. Test against standings before changing.
+- **Comparables to other public models:** rank agreement of our top players with public lists (JFresh/TopDown, Patrick Bacon's public WAR; Evolving-Hockey only where it publishes free), plus the biggest disagreements and why. Report only, kept in docs/CHECKS.md "Comparables", nothing copied into the site.
+
 The Nov 2026 list (history-based starting points, power play / penalty kill, goals and shot attempts, box-score stabilizer, team-color cards, six scouting tabs per page, plus skater tabs for faceoffs, special teams, puck play, discipline and leaders, and the player-card Big nights line) is all built. Ask the owner before starting anything new; every new list or model change must avoid small samples and be tested before it changes a number.
 
 ## If ever going widespread or paid

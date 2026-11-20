@@ -116,4 +116,4 @@ Standing rules:
 - MoneyPuck credited on every page; non-commercial use only.
 - Python standard library for the pipeline; plain JavaScript and hand-drawn SVG for the pages, with no frameworks. The pages use the browser’s built-in tools only, with no add-on frameworks or chart libraries.
 
-Two scheduled check-ins report on health: a weekly check every Monday (nightly runs, data freshness, missing games, test drift) and a September upkeep check (paused workflow, new cap figures). Known limits: no contract data, every win priced the same, and 50 current-season games still missing from the NHL feed.
+Two scheduled check-ins report on health: a weekly check every Monday (nightly runs, data freshness, missing games, test drift) and a September upkeep check (paused workflow, new cap figures, and a yearly rerun of the value-vs-standings check, tracked over time in CHECKS.md). Known limits: no contract data, every win priced the same, goalie seasons possibly a bit under-credited when describing a single season (CHECKS.md), and 50 current-season games (one week in late October, 2 to 4 per team) missing shift charts in the NHL feed.
