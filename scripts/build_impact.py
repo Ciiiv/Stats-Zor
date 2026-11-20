@@ -400,16 +400,48 @@ def season_games(y, shots, cache_games):
     """Fetch any games not in the cache; return {gid: compact game}."""
     need = [g for g in sorted(shots) if str(g) not in cache_games]
     log(f"impact {y}: {len(shots)} games with shots, {len(need)} to fetch")
-    failed = 0
+    failed = {}
     with ThreadPoolExecutor(max_workers=8) as ex:
         for gid, game, err in ex.map(fetch_game, need):
             if game:
                 cache_games[str(gid)] = game
             else:
-                failed += 1
+                failed[str(gid)] = err or "unavailable"
     if failed:
-        log(f"impact {y}: {failed} games unavailable")
+        log(f"impact {y}: {len(failed)} games unavailable")
+    try:
+        write_missing(y, failed, len(shots))
+    except Exception as e:  # noqa: BLE001
+        log(f"impact {y}: missing-games file FAILED: {e}")
     return cache_games
+
+
+def write_missing(y, failed, n_games):
+    """data/impact/missing.json: per season, the games whose NHL shift charts couldn't be read (so isolated impact
+    leaves them out), with date, teams and reason, and a count by team. Read by the weekly health check."""
+    path = os.path.join(OUT, "missing.json")
+    allm = read_json(path, {}) or {}
+    tf = read_json(os.path.join(DATA, "teams", f"{y}.json")) or {}
+    info = {}
+    for team, d in (tf.get("teams") or {}).items():
+        for g in d.get("games", []):
+            gid, date, opp, home = str(g[0]), g[1], g[2], g[3]
+            if gid in failed and home:
+                info[gid] = {"date": date, "home": team, "away": opp}
+            elif gid in failed and gid not in info:
+                info[gid] = {"date": date, "home": opp, "away": team}
+    games, by_team = [], {}
+    for gid in sorted(failed):
+        i = info.get(gid, {})
+        games.append({"game": gid, "date": i.get("date"), "home": i.get("home"), "away": i.get("away"), "why": failed[gid][:80]})
+        for t in (i.get("home"), i.get("away")):
+            if t:
+                by_team[t] = by_team.get(t, 0) + 1
+    allm[str(y)] = {"updated": dt.date.today().isoformat(), "games_with_shots": n_games, "missing": len(failed),
+                    "by_team": dict(sorted(by_team.items(), key=lambda kv: (-kv[1], kv[0]))), "games": games}
+    write_json(path, allm)
+    if by_team:
+        log(f"impact {y}: missing by team {allm[str(y)]['by_team']}")
 
 
 def build_normal(y, games, shots, holdout=None):
