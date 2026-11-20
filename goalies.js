@@ -791,8 +791,8 @@ async function render() {
 // One goalie season is about half luck, so every list needs a shot minimum: GEM_SA shots this season (scaled to
 // the share of the season played), GEM_SA3 shots for three-season judgments.
 const GEM_SA = 1000, GEM_SA3 = 2500;
-const GEM_TABS = [['box', 'Little help'], ['steal', 'Stealing games'], ['danger', 'Danger'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['heavy', 'Heavy workload']];
-const GEM_TITLE = { box: 'Doing more than the box score', steal: 'Stealing games', danger: 'Danger specialist', break: 'Breakout goalie', bounce: 'Due for a bounce', heavy: 'Heavy workload, below average' };
+const GEM_TABS = [['box', 'Little help'], ['steal', 'Stealing games'], ['danger', 'Danger'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['heavy', 'Heavy workload'], ['lead', 'Leaders']];
+const GEM_TITLE = { box: 'Doing more than the box score', steal: 'Stealing games', danger: 'Danger specialist', break: 'Breakout goalie', bounce: 'Due for a bounce', heavy: 'Heavy workload, below average', lead: 'Leaders' };
 const recPct = p => { const d = (p.w || 0) + (p.l || 0) + (p.otl || 0); return d >= 5 ? (2 * (p.w || 0) + (p.otl || 0)) / (2 * d) : null; };
 const recStr = p => `${p.w}-${p.l}-${p.otl || 0}`;
 const gemG = (p, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: 'G', name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
@@ -811,7 +811,39 @@ async function three(y) {
   return T;
 }
 const UNIT_PCT = 'The big number is a percentile: 97th means better than 97% of regular goalies that season.';
+const LEAD_LISTS = [['gsax', 'Saves above expected'], ['hd', 'High danger']];
 const GEM_BUILD = {
+  // plain leaderboards: goals saved above expected (all shots, or high-danger shots), best and worst
+  async lead(y, sd) {
+    if (!LEAD_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'gsax';
+    const best = GEMS.opt.side !== 'worst', three3 = GEMS.opt.span === 'three', list = GEMS.f;
+    const prog = Math.min(1, (sd.gpmax || 82) / 82), min = three3 ? GEM_SA3 : Math.round(GEM_SA * prog);
+    // high-danger: MoneyPuck's high-danger expected goals run well above actual goals league-wide (about +0.09 a shot),
+    // so each season is measured against the league-average goalie on those shots instead of raw expected goals
+    const ss = (await Promise.all((three3 ? [y, y - 1, y - 2] : [y]).map(z => z === y ? sd : loadSeason(z).catch(() => null)))).filter(Boolean);
+    const T = new Map();
+    for (const d of ss) {
+      const lg = d.players.reduce((a, p) => { a.n += p.hd_n || 0; a.d += (p.hd_x || 0) - (p.hd_g || 0); return a; }, { n: 0, d: 0 });
+      const bias = lg.n ? lg.d / lg.n : 0;
+      for (const p of d.players) {
+        const t = T.get(p.id) || { sa: 0, ga: 0, xga: 0, hn: 0, hv: 0 };
+        t.sa += p.sa || 0; t.ga += p.ga || 0; t.xga += p.xga || 0; t.hn += p.hd_n || 0; t.hv += (p.hd_x || 0) - (p.hd_g || 0) - bias * (p.hd_n || 0);
+        T.set(p.id, t);
+      }
+    }
+    const items = [];
+    for (const p of pool(sd, 'reg').list) {
+      const t = T.get(p.id);
+      if (!t || t.sa < min) continue;
+      const v = list === 'hd' ? t.hv : t.xga - t.ga;
+      const pct = list === 'hd' ? (t.hn ? 100 * v / t.hn : null) : (t.sa ? 100 * v / t.sa : null);
+      const chips = [[`${s2(pct)} sv% ${list === 'hd' ? 'vs. average' : 'vs exp.'} on ${f0(list === 'hd' ? t.hn : t.sa)} ${list === 'hd' ? 'high-danger shots' : 'shots'}`, (v >= 0) === best ? 'mate' : 'tough']];
+      if (!three3) chips.push([`${recStr(p)} · ${p.gs} starts`, 'mate']);
+      items.push({ ...gemG(p, v, (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1), list === 'hd' ? 'vs. average' : 'goals saved', `${p.team} · ${three3 ? '3 seasons' : sLabel(y)}`, chips, best ? v : -v), grp: list });
+    }
+    const toggles = [['side', [['best', 'Best'], ['worst', 'Worst']]], ['span', [['season', 'This season'], ['three', '3 seasons']]]];
+    return { items, toggles, rebuild: true, filters: LEAD_LISTS, unit: list === 'hd' ? 'The big number is goals saved on high-danger shots compared with a league-average goalie facing the same shots (+5.0 = five fewer goals allowed). MoneyPuck\'s high-danger expected goals run well above what goalies actually allow, so the average goalie that season is the yardstick here, not raw expected goals.' : 'The big number is goals saved above expected: the expected goals on the shots he faced minus the goals he let in (+5.0 = five goals better than an average goalie on the same shots).', sub: `${best ? 'Best' : 'Worst'} goalies, ${three3 ? `three seasons to ${sLabel(y)}` : sLabel(y)}, ${f0(min)}+ shots${three3 ? '' : ' (the minimum grows with the season)'}. ${list === 'hd' ? 'High-danger shots only (MoneyPuck\'s danger bands). ' : ''}A goalie season is roughly half luck, so a few weeks can move these a lot. A plain leaderboard: nothing here changes value.` };
+  },
   // elite saves, little help
   box(y, sd) {
     const L = gPool(sd);
@@ -900,6 +932,7 @@ const GEM_BUILD = {
 };
 async function renderGemsGoalies() {
   const y = S.season, tab = GEMS.tab in GEM_TITLE ? GEMS.tab : (GEMS.tab = 'box');
+  if (tab !== 'lead') GEMS.f = 'all';
   const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: null, onPick: pickGem, onTab: () => renderGemsGoalies().catch(e => console.error(e)), current: S.A };
   const sd = await loadSeason(y).catch(() => null);
   if (y !== S.season || tab !== GEMS.tab) return;

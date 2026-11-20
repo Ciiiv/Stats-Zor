@@ -147,7 +147,7 @@ function cellArrays(G, m) {
 // ------------------------------------------------------------------ "Doing more than the box score" sidebar
 // Shared by the skater and goalie pages. Each page builds the list (items sorted best first) and calls renderGems.
 // cfg: { title, sub, items: [{ id, grp, name, meta, pct, pctLabel, chips: [[label, kind]] }], filters, how, empty, onPick }
-const GEMS = { f: 'all', more: false, cfg: null, tab: 'box' };
+const GEMS = { f: 'all', more: false, cfg: null, tab: 'box', opt: { side: 'best', span: 'season', grp: 'F' } };
 const GEMS_WIDE = '(min-width: 1400px)';
 function renderGems(cfg) {
   const el = document.getElementById('gems'); if (!el) return;
@@ -155,13 +155,14 @@ function renderGems(cfg) {
   const list = (cfg.items || []).filter(x => GEMS.f === 'all' || x.grp === GEMS.f);
   const shown = GEMS.more ? list : list.slice(0, 10);
   const cur = cfg.current;
-  const items = shown.map(x => `<li class="${x.id === cur ? 'cur' : ''}"><button type="button" class="gnm" data-gem="${x.id}">${esc(x.name)}</button><span class="gpc">${esc(x.pctLabel)}</span>
+  const items = shown.map(x => `<li class="${x.id === cur ? 'cur' : ''}"><button type="button" class="gnm" data-gem="${x.id}"${x.id2 ? ` data-gem2="${x.id2}"` : ''}>${esc(x.name)}</button><span class="gpc">${esc(x.pctLabel)}</span>
     <span class="gm">${esc(x.meta)}</span><span class="gm" style="text-align:right">${esc(/^\d+(st|nd|rd|th)$/.test(x.pctLabel) ? `${x.pctNote ? x.pctNote + ' ' : ''}percentile` : (x.pctNote || ''))}</span>
     <span class="gch">${x.chips.map(([l, k]) => `<i class="gc ${k}">${esc(l)}</i>`).join('')}</span></li>`).join('');
   const flt = cfg.filters ? `<div class="gf">${cfg.filters.map(([k, l]) => `<button type="button" data-gf="${k}" aria-pressed="${GEMS.f === k}">${l}</button>`).join('')}</div>` : '';
   const more = list.length > 10 ? `<button type="button" class="gmore" data-gmore="1">${GEMS.more ? 'Show top 10' : `Show ${list.length - 10} more`}</button>` : '';
+  const tog = (cfg.toggles || []).map(([k, opts]) => `<div class="gf">${opts.map(([v, l]) => `<button type="button" data-go="${k}|${v}" aria-pressed="${GEMS.opt[k] === v}">${l}</button>`).join('')}</div>`).join('');
   const tabs = cfg.tabs ? `<div class="gf gt">${cfg.tabs.map(([k, l]) => `<button type="button" data-gt="${k}" aria-pressed="${GEMS.tab === k}">${l}</button>`).join('')}</div>` : '';
-  const body = tabs + (cfg.empty ? `<p class="gsub">${cfg.empty}</p>` : `<p class="gsub">${cfg.sub}</p>${cfg.unit ? `<p class="gsub gunit">${cfg.unit}</p>` : ''}${flt}${list.length ? `<ol class="glist">${items}</ol>` : '<p class="gsub">No one qualifies in this group yet.</p>'}${more}`);
+  const body = tabs + (cfg.empty ? `<p class="gsub">${cfg.empty}</p>` : `<p class="gsub">${cfg.sub}</p>${cfg.unit ? `<p class="gsub gunit">${cfg.unit}</p>` : ''}${flt}${tog}${list.length ? `<ol class="glist">${items}</ol>` : '<p class="gsub">No one qualifies in this group yet.</p>'}${more}`);
   const open = el.querySelector('details') ? el.querySelector('details').open : matchMedia(GEMS_WIDE).matches;
   el.innerHTML = `<details class="gems"${open || matchMedia(GEMS_WIDE).matches ? ' open' : ''}><summary><span>${esc(cfg.title)}</span>${cfg.empty ? '' : `<span class="gn">${list.length}</span>`}<i class="gchev" aria-hidden="true">▾</i></summary>${body}
     <a class="how" href="${cfg.how}">How it's picked</a></details>`;
@@ -178,9 +179,10 @@ function renderGems(cfg) {
     sync(); window.addEventListener('resize', sync);
     el.addEventListener('click', e => {
       if (e.target.closest('summary') && matchMedia(GEMS_WIDE).matches) { e.preventDefault(); return; }
-      const g = e.target.closest('[data-gem]'); if (g && GEMS.cfg) { GEMS.cfg.onPick(+g.dataset.gem); return; }
+      const g = e.target.closest('[data-gem]'); if (g && GEMS.cfg) { GEMS.cfg.onPick(+g.dataset.gem, g.dataset.gem2 ? +g.dataset.gem2 : null); return; }
+      const o = e.target.closest('[data-go]'); if (o && GEMS.cfg && GEMS.cfg.onTab) { const [k, v] = o.dataset.go.split('|'); GEMS.opt[k] = v; GEMS.more = false; GEMS.cfg.onTab(GEMS.tab); return; }
       const t = e.target.closest('[data-gt]'); if (t && GEMS.cfg && GEMS.cfg.onTab) { GEMS.tab = t.dataset.gt; GEMS.more = false; GEMS.cfg.onTab(GEMS.tab); return; }
-      const f = e.target.closest('[data-gf]'); if (f) { GEMS.f = f.dataset.gf; renderGems(); return; }
+      const f = e.target.closest('[data-gf]'); if (f) { GEMS.f = f.dataset.gf; if (GEMS.cfg && GEMS.cfg.rebuild && GEMS.cfg.onTab) { GEMS.more = false; GEMS.cfg.onTab(GEMS.tab); } else renderGems(); return; }
       if (e.target.closest('[data-gmore]')) { GEMS.more = !GEMS.more; renderGems(); }
     });
   };

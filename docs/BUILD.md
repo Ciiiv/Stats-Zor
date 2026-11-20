@@ -37,7 +37,7 @@ Step 9 must run last because it reads the output of every other step.
 
 | Page | Script | Main files it reads |
 |---|---|---|
-| Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `box/`, `streaks/`, `puck/`, `disc/`, `lines/`, `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
+| Skater page, `index.html` | `app.js` | `index.json`, `seasons/`, `box/`, `streaks/`, `puck/`, `disc/`, `lines/` (also the Leaders lines and pairs), `teams/{y}.json` (team 5v5 share for Leaders), `shots/`, `usage/`, `edge/`, `impact/`, `careers.json`, `mp_careers.json`, `value.json` |
 | Goalie page, `goalies.html` | `goalies.js` | `index.json`, `goalies/seasons/`, `goalies/games/`, `goalies/shots/`, `goalies/careers.json`, `goalies/mp_careers.json`, `value.json` |
 | Trade machine, `trade.html` | `trade.js` | `value.json`, `rosters.json`, `prospects.json` |
 | Teams, `teams.html` | `teams.js` (plus `app.js` for the deployment fit, with its own start-up skipped) | `teams/{y}.json`, `teams/coaches/{y}.json`, `teams/history.json`, `usage/`, `seasons/`, `value.json`, `careers.json` and `goalies/careers.json` (ages), `goalies/games/{y}.json` |

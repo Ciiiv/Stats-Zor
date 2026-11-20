@@ -77,8 +77,9 @@ A sidebar on both pages lists players who stand out in a specific way. Every lis
 | Discipline | Draws penalties, undisciplined, clean physical (hits without penalties) and fighters, with instigators and misconducts (three seasons) |
 | Faceoffs | Best on the draw, best and worst in their own zone, and best in the offensive zone (three seasons, 1,500+ draws or 300+ in the zone) |
 | Big minutes | Heavy ice time with weak isolated results |
+| Leaders | Plain five-on-five leaderboards, best and worst: expected-goal share (with a teammate comparison), own expected goals, expected goals against, forward lines and D pairs; this season (minimum grows with the season) or three seasons |
 
-The goalie lists work the same way: Little help, Stealing games, Danger specialist, Breakout goalie, Due for a bounce and Heavy workload. Goalie lists are often short (2 to 7 names), because a goalie season is roughly half luck and the minimums are strict.
+The goalie lists work the same way: Little help, Stealing games, Danger specialist, Breakout goalie, Due for a bounce, Heavy workload, and Leaders (goals saved above expected, all shots and high-danger, best and worst). Goalie lists are often short (2 to 7 names), because a goalie season is roughly half luck and the minimums are strict.
 
 ## How the value model works
 

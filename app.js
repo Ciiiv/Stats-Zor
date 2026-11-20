@@ -993,8 +993,8 @@ function compHTML(sd, I) {
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
-const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play'], ['disc', 'Discipline']];
-const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play', disc: 'Discipline' };
+const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play'], ['disc', 'Discipline'], ['lead', 'Leaders']];
+const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play', disc: 'Discipline', lead: 'Leaders' };
 const DISC_LISTS = [['drawn', 'Draws penalties'], ['undisc', 'Undisciplined'], ['clean', 'Clean physical'], ['fight', 'Fighters']];
 const DISC_MIN_TOI = 1500, DISC_MIN_GP = 60, DISC_MIN_FIGHTS = 3;
 const PUCK_LISTS = [['take', 'Takes it away'], ['care', 'Careful with it'], ['loose', 'Loose with it'], ['blk', 'Shot blockers'], ['hit', 'Physical']];
@@ -1010,7 +1010,97 @@ const gemPool = (sd, g, three = true) => pool(sd, g, 'reg').list.filter(p => p.g
 // names from the search index (MoneyPuck's season files drop some accented letters, e.g. Räty)
 const gemItem = (p, g, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: g, name: (S.byId.get(p.id) || {}).name || p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
 const UNIT_PCT = 'The big number is a percentile: 97th means better than 97% of regulars at his position that season.';
+// Leaders: plain five-on-five leaderboards, best and worst, this season (minimum grows with the season) or three seasons
+const LEAD_LISTS = [['xgs', '5v5 xG share'], ['ixg', 'Creates'], ['xga', 'Suppresses'], ['lines', 'Forward lines'], ['pairs', 'D pairs']];
+const LEAD_MIN = 600, LEAD_MIN3 = 1500, LEAD_LINE = 300, LEAD_LINE3 = 400, LEAD_LINE_FLOOR = 100, LEAD_MIN_FLOOR = 150;
+const LINESD = {};
+async function loadLines(y) {
+  if (LINESD[y] !== undefined) return LINESD[y];
+  try { const j = await getJSON(`data/lines/${y}.json`); LINESD[y] = j.lines.map(r => { const o = {}; j.fields.forEach((k, i) => { o[k] = r[i]; }); return o; }); }
+  catch (e) { LINESD[y] = null; }
+  return LINESD[y];
+}
+const TEAM5 = {};
+async function loadTeam5(y) {
+  if (TEAM5[y] !== undefined) return TEAM5[y];
+  try {
+    const j = await getJSON(`data/teams/${y}.json`), f = j.game_fields, it = f.indexOf('t5'), ix = f.indexOf('xgf'), ia = f.indexOf('xga'), m = new Map();
+    for (const [t, d] of Object.entries(j.teams)) { const a = { t: 0, xgf: 0, xga: 0 }; for (const g of d.games) { a.t += g[it]; a.xgf += g[ix]; a.xga += g[ia]; } m.set(t, a); }
+    TEAM5[y] = m;
+  } catch (e) { TEAM5[y] = null; }
+  return TEAM5[y];
+}
+const lastName = id => { const n = (S.byId.get(id) || {}).name || String(id); const w = n.split(' '); return w.length > 1 ? w.slice(1).join(' ') : n; };
+const shareOf = (f, a) => (f + a) > 0 ? 100 * f / (f + a) : null;
+const sgn1 = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1);
 const GEM_BUILD = {
+  // plain leaderboards (descriptive): players by 5v5 xG share, own expected goals per 60, fewest expected goals against per 60; lines and pairs by xG share together
+  async lead(y, sd) {
+    if (!LEAD_LISTS.some(([k]) => k === GEMS.f)) GEMS.f = 'xgs';
+    const O = GEMS.opt, best = O.side !== 'worst', three = O.span === 'three', list = GEMS.f, grp = O.grp === 'D' ? 'D' : 'F';
+    const prog = Math.min(1, (sd.gpmax || 82) / 82), ys = three ? [y, y - 1, y - 2] : [y];
+    const items = [];
+    const span = three ? `three seasons to ${sLabel(y)}` : sLabel(y);
+    const toggles = [['side', [['best', 'Best'], ['worst', 'Worst']]], ...(list === 'lines' || list === 'pairs' ? [] : [['grp', [['F', 'Forwards'], ['D', 'Defense']]]]), ['span', [['season', 'This season'], ['three', '3 seasons']]]];
+    if (list === 'lines' || list === 'pairs') {
+      const [ls, ts] = await Promise.all([Promise.all(ys.map(z => loadLines(z).catch(() => null))), Promise.all(ys.map(z => loadTeam5(z).catch(() => null)))]);
+      if (!ls[0]) return { items, toggles, rebuild: true, filters: LEAD_LISTS, unit: '', sub: `No line data for ${sLabel(y)} yet.` };
+      const type = list === 'lines' ? 'L' : 'P', C = new Map();
+      ls.forEach((L, k) => (L || []).forEach(r => {
+        if (r.type !== type) return;
+        const key = r.team + '|' + [...r.ids].sort((a, b) => a - b).join(',');
+        const c = C.get(key) || { ids: r.ids, team: r.team, t: 0, xgf: 0, xga: 0, gf: 0, ga: 0, tt: 0, txf: 0, txa: 0, now: false };
+        c.t += r.t; c.xgf += r.xgf; c.xga += r.xga; c.gf += r.gf; c.ga += r.ga; if (k === 0) c.now = true;
+        const T = ts[k] && ts[k].get(r.team); if (T) { c.tt += r.t; c.txf += T.xgf * r.t / Math.max(1, T.t); c.txa += T.xga * r.t / Math.max(1, T.t); }
+        C.set(key, c);
+      }));
+      const min = three ? LEAD_LINE3 : Math.max(LEAD_LINE_FLOOR, Math.round(LEAD_LINE * prog));
+      for (const c of C.values()) {
+        if (!c.now || c.t / 60 < min) continue;
+        const sh = shareOf(c.xgf, c.xga); if (!nz(sh)) continue;
+        const team = shareOf(c.txf, c.txa), rel = nz(team) ? sh - team : null;
+        const ids = c.ids, name = ids.map(lastName).join(' – ');
+        const chips = [[`${Math.round(c.t / 60)} min together`, 'mate'], [`xGF ${c.xgf.toFixed(1)} · xGA ${c.xga.toFixed(1)}`, 'mate']];
+        if (nz(rel)) chips.push([`${sgn1(rel)} vs. team`, (rel >= 0) === best ? 'mate' : 'tough']);
+        chips.push([`goals ${c.gf}-${c.ga}`, 'mate']);
+        items.push({ id: ids[0], id2: ids[1], grp: list, name, meta: `${c.team} · ${type === 'L' ? 'forward line' : 'D pair'}`, pct: sh, sort: best ? sh : -sh, pctLabel: sh.toFixed(1) + '%', pctNote: 'xG share', chips });
+      }
+      return { items, toggles, rebuild: true, filters: LEAD_LISTS, unit: 'The big number is the share of five-on-five expected goals (both teams) that went his team\'s way while this combination was on the ice together. The chip compares it with the team\'s own share, so a strong or weak team doesn\'t decide the list on its own.', sub: `${best ? 'Best' : 'Worst'} ${list === 'lines' ? 'forward lines' : 'defense pairs'} by five-on-five expected-goal share together, ${span}, ${min}+ minutes together${three ? '' : ' (the minimum grows with the season)'}${three ? ', combinations that played together this season' : ''}. Lines change often, so most combinations never reach the minimum. Descriptive only; nothing here changes value.` };
+    }
+    // players
+    const ss = await Promise.all(ys.map(z => z === y ? sd : loadSeason(z).catch(() => null)));
+    const T = new Map();
+    ss.forEach(d => (d ? d.players : []).forEach(p => {
+      if (!sd.byId.get(p.id) || !p.t5) return;
+      const t = T.get(p.id) || { t: 0, xgf: 0, xga: 0, ixg: 0, oxf: 0, oxa: 0, ot: 0 };
+      t.t += p.t5; t.xgf += p.xgf5 || 0; t.xga += p.xga5 || 0; t.ixg += (p.ixg60 || 0) * p.t5 / 3600;
+      if (nz(p.off_xgf60) && nz(p.off_xga60)) { t.oxf += p.off_xgf60 * p.t5; t.oxa += p.off_xga60 * p.t5; t.ot += p.t5; }
+      T.set(p.id, t);
+    }));
+    const min = three ? LEAD_MIN3 : Math.max(LEAD_MIN_FLOOR, Math.round(LEAD_MIN * prog));
+    const L = sd.players.filter(p => p.grp === grp && T.has(p.id) && T.get(p.id).t / 60 >= min);
+    for (const p of L) {
+      const t = T.get(p.id), h = t.t / 3600, sh = shareOf(t.xgf, t.xga);
+      const off = t.ot ? shareOf(t.oxf, t.oxa) : null, oxa = t.ot ? t.oxa / t.ot : null;
+      const meta = `${p.team} · ${grp} · ${Math.round(t.t / 60)} 5v5 min`;
+      let v, label, note, chips = [];
+      if (list === 'xgs') {
+        v = sh; label = sh.toFixed(1) + '%'; note = 'xG share';
+        if (nz(off)) chips.push([`${sgn1(sh - off)} vs. teammates`, (sh - off >= 0) === best ? 'mate' : 'tough']);
+        chips.push([`xGF ${(t.xgf / h).toFixed(2)} · xGA ${(t.xga / h).toFixed(2)} per 60`, 'mate']);
+      } else if (list === 'ixg') {
+        v = t.ixg / h; label = v.toFixed(2); note = 'own xG per 60';
+        chips.push([`${t.ixg.toFixed(1)} expected goals on his shots`, 'mate']);
+      } else {
+        v = -(t.xga / h); label = (t.xga / h).toFixed(2); note = 'xGA per 60';
+        if (nz(oxa)) { const d = oxa - t.xga / h; chips.push([`${d >= 0 ? d.toFixed(2) + ' fewer' : (-d).toFixed(2) + ' more'} than teammates`, (d >= 0) === best ? 'mate' : 'tough']); }
+      }
+      if (!nz(v)) continue;
+      items.push(gemItem(p, list, v, label, note, meta, chips, best ? v : -v));
+    }
+    const what = { xgs: 'share of five-on-five expected goals (both teams) that went his team\'s way while he was on the ice', ixg: 'expected goals from his own shots per 60 minutes at five-on-five', xga: 'expected goals against per 60 while he was on the ice at five-on-five (lower is better)' }[list];
+    return { items, toggles, rebuild: true, filters: LEAD_LISTS, unit: `The big number is the ${what}. ${list === 'ixg' ? 'It counts his own shots only, so it barely depends on his team.' : 'Raw on-ice numbers depend a lot on the team around him, so the chip compares him with his own teammates when he was off the ice.'}`, sub: `${best ? 'Best' : 'Worst'} ${grp === 'F' ? 'forwards' : 'defensemen'}, ${span}, ${min.toLocaleString()}+ five-on-five minutes${three ? '' : ' (the minimum grows with the season)'}, players who played this season. A plain leaderboard: for who does more than these numbers show, see the other tabs. Descriptive only; nothing here changes value.` };
+  },
   // elite isolated impact, little box-score credit
   box(y, sd) {
     const items = [];
@@ -1297,19 +1387,19 @@ const GEM_BUILD = {
 async function renderGemsSkaters() {
   const y = S.season, tab = GEMS.tab;
   const base = { title: GEM_TITLE[tab], how: 'about.html#m-gems', tabs: GEM_TABS, filters: [['all', 'Both'], ['F', 'Forwards'], ['D', 'Defense']], onPick: pickGem, onTab: () => renderGemsSkaters().catch(e => console.error(e)), current: S.A };
-  if (!['fo', 'st', 'puck', 'disc'].includes(tab) && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
-  if (y < 2010 && !['bounce', 'fo', 'st', 'puck', 'disc'].includes(tab)) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
+  if (!['fo', 'st', 'puck', 'disc', 'lead'].includes(tab) && !['all', 'F', 'D'].includes(GEMS.f)) GEMS.f = 'all';
+  if (y < 2010 && !['bounce', 'fo', 'st', 'puck', 'disc', 'lead'].includes(tab)) { renderGems({ ...base, empty: 'Starts in 2010-11, the first season with NHL shift charts.' }); return; }
   const [sd, I] = await Promise.all([loadSeason(y).catch(() => null), loadImpact(y).catch(() => null)]);
   if (y !== S.season || tab !== GEMS.tab) return;
-  if (!sd || (!['bounce', 'fo', 'st', 'puck', 'disc'].includes(tab) && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
+  if (!sd || (!['bounce', 'fo', 'st', 'puck', 'disc', 'lead'].includes(tab) && (!I || !I.comp))) { renderGems({ ...base, empty: `Not built for ${sLabel(y)} yet. It's added by the nightly update.` }); return; }
   const r = await GEM_BUILD[tab](y, sd);
   if (y !== S.season || tab !== GEMS.tab) return;
   if (r.items) r.items.sort((a, b) => b.sort - a.sort);
   renderGems({ ...base, ...r });
 }
-function pickGem(id) {
-  if (!id || id === S.A) return;
-  if (id === S.B) S.B = S.A;
+function pickGem(id, id2) {
+  if (!id || (id === S.A && (!id2 || id2 === S.B))) return;
+  if (id2 && id2 !== id) S.B = id2; else if (id === S.B) S.B = S.A;
   S.A = id; S.extra = []; S.removed.clear(); S.sortKey = null;
   if (!hasSeason(id, S.season)) S.season = bestSeason(id);
   render(); window.scrollTo({ top: 0, behavior: 'smooth' });
