@@ -4,7 +4,7 @@ NHL player analysis that runs entirely in the browser. Search any skater or goal
 
 **Live site:** https://ciiiv.github.io/Stats-Zor/
 **How it works:** https://ciiiv.github.io/Stats-Zor/about.html explains the math, logic and limits behind every section.
-**Executive overview:** [docs/OVERVIEW.md](docs/OVERVIEW.md) is a short, high-level summary of each section, the models and the code. [docs/BUILD.md](docs/BUILD.md) walks through the build: script order, inputs, outputs, and which page reads which file.
+**Executive overview:** [docs/OVERVIEW.md](docs/OVERVIEW.md) is a short, high-level summary of each section, the models and the code. [docs/BUILD.md](docs/BUILD.md) walks through the build: script order, inputs, outputs, and which page reads which file. [docs/CHECKS.md](docs/CHECKS.md) records the checks the site is tested against (missing games, value vs. real standings, data matches) and what each found.
 
 ## What's on the site
 

@@ -60,3 +60,5 @@ Each page loads a season's files only when that season is picked, so opening the
 ## Testing changes
 
 The cloud workspace usually can't reach the data sources, so real-data tests run on a temporary GitHub branch whose workflow commits results back, which are then inspected and copied to `main`. Page changes are checked by serving the repo locally and driving it in a headless browser (Playwright): no console errors, screenshots look right, and no sideways scrolling at phone width. Details are in the README and CLAUDE.md.
+
+One-off checks that are not part of the nightly job: `scripts/fetch_standings.py` (final standings since 2008-09 into `data/checks/standings.json`, run on a temporary branch) and `scripts/check_value_vs_standings.py` (value model vs. real standings, prints only). What each check looks for and what it found is in [CHECKS.md](CHECKS.md).

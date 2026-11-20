@@ -1,6 +1,6 @@
 # Stats-Zor: Executive Overview
 
-November 17, 2026. A high-level summary of the site. For every formula and its limits, see the site's [How it works](https://ciiiv.github.io/Stats-Zor/about.html) page; for how to run things, see the [README](../README.md); for the build process from the code side, see [BUILD.md](BUILD.md).
+November 17, 2026. A high-level summary of the site. For every formula and its limits, see the site's [How it works](https://ciiiv.github.io/Stats-Zor/about.html) page; for how to run things, see the [README](../README.md); for the build process from the code side, see [BUILD.md](BUILD.md); for the checks the site is tested against and what they found, see [CHECKS.md](CHECKS.md).
 
 ## What Stats-Zor is
 
@@ -106,7 +106,7 @@ Version 2 (November 2026) starts each season from 75% of the player's previous e
 
 ## Testing, rules and limits
 
-No model number changes until a test shows the change predicts next season better on real data. Examples: the 2/3 isolated blend, the finishing rule (11% better for forwards, 14% for defensemen) and the fitted age curve each beat the setting they replaced. The blend test reruns every night.
+No model number changes until a test shows the change predicts next season better on real data. Against real standings since 2008-09, team totals of the value model predict next season's points better than last season's goal differential or points (correlation 0.60 vs. 0.55 and 0.52); details in CHECKS.md. Examples: the 2/3 isolated blend, the finishing rule (11% better for forwards, 14% for defensemen) and the fitted age curve each beat the setting they replaced. The blend test reruns every night.
 
 Standing rules:
 
