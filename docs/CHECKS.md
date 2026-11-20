@@ -29,6 +29,14 @@ Rule of thumb: a check reports. It never changes a number by itself. If a check 
 
 **How:** `scripts/check_value_vs_standings.py` (standings from `scripts/fetch_standings.py`, saved in `data/checks/standings.json`). 554 team-seasons since 2008-09, all scaled to 82 games (the 48-game 2012-13 season and the shortened 2019-20 and 2020-21 seasons included).
 
+**Results over time** (one row per yearly rerun; the September upkeep check adds a row after each season's final standings):
+
+| Run | Seasons | Same season r (model / goal diff.) | Next season r: model / last GD / last points | Typical next-season miss: model / last GD | Points per projected skater win / goalie win | Team spread, model vs. real |
+| --- | --- | --- | --- | --- | --- | --- |
+| Nov 19, 2026 | 2008-09 to 2025-26 | 0.82 / 0.96 | 0.60 / 0.55 / 0.52 | 9.9 / 10.3 points | 2.1 / 0.7 | 9.9 vs. 15.2 points |
+
+**How much miss is unavoidable:** even a perfect model would miss. If a team's true quality were known exactly, the bounces of 82 games alone would still move its point total by about 8.5 points (one standard deviation), or about 7 points on average. So the model's typical next-season miss of 9.9 points is already close to that floor. The rest comes from things no one knows in advance: injuries, trades during the season, young players growing.
+
 **Found, same season:**
 
 | Measure | Correlation with points | Typical miss |
@@ -69,7 +77,7 @@ The misses are mostly at the extremes: very lucky or unlucky teams, and teams fa
 
 **What this means:** the model does what it's built for. It predicts the future better than the simple yardsticks, and skater value is well calibrated. The known trade-off is that team totals are narrower than reality. **Nothing was changed.** Possible follow-ups for the owner: (a) look again at goalie half credit for describing a season; (b) check whether the compressed spread comes mostly from the small-sample pull or from the 5v5 scaling.
 
-**Rerun:** run `scripts/fetch_standings.py` on a temporary branch, as in the README's testing notes (the NHL isn't reachable from the cloud workspace). Then run `python scripts/check_value_vs_standings.py` locally.
+**Rerun:** the September upkeep check does this every year and adds a row to "Results over time". By hand: run `scripts/fetch_standings.py` on a temporary branch, as in the README's testing notes (the NHL isn't reachable from the cloud workspace). Then run `python scripts/check_value_vs_standings.py` locally.
 
 ### Big nights line vs. NHL game logs (Nov 19, 2026)
 

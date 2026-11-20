@@ -8,6 +8,7 @@ D = os.path.join(R, 'data')
 V = json.load(open(os.path.join(D, 'value.json')))
 ST = json.load(open(os.path.join(D, 'checks', 'standings.json')))
 ALIAS = {'PHX': 'ARI'}
+LAST = max(int(k) for k, v in ST.items() if v)  # last season with final standings
 fi = {k: i for i, k in enumerate(V['fields'])}; gfi = {k: i for i, k in enumerate(V['goalie_fields'])}
 
 def team_parts(y):
@@ -56,7 +57,7 @@ def fit(xs, y):  # least squares with intercept, xs list of columns
 
 rows = []
 P = {}
-for y in range(2008, 2026):
+for y in range(2008, LAST + 1):
     parts, games, S, G = team_parts(y); P[y] = (parts, games, S, G)
     st = {ALIAS.get(k, k): v for k, v in ST[str(y)].items()}
     for t, o in parts.items():
@@ -78,7 +79,7 @@ for r in mis: print('MISS', r['y'], r['t'], 'pts', round(r['pts']), 'war', round
 gd_res = fit([[r['war'] for r in rows]], [r['gd'] for r in rows])[1]
 # predictive: next season points from (a) this roster valued on last season war82 (games with team next season), (b) last season gd, (c) last season pts
 nrows = []
-for y in range(2008, 2025):
+for y in range(2008, LAST):
     parts1, games1, S1, G1 = P[y + 1]; parts0, games0, S0, G0 = P[y]
     st0 = {ALIAS.get(k, k): v for k, v in ST[str(y)].items()}; st1 = {ALIAS.get(k, k): v for k, v in ST[str(y + 1)].items()}
     proj = {}; projg = {}
@@ -96,11 +97,10 @@ for name, cols in [('roster value', [[r['proj'] for r in nrows]]), ('last GD', [
     w, pred, mae = fit(cols, np_)
     print('NEXT', name, 'coef', [round(x, 2) for x in w], 'MAE', round(mae, 1), 'r', round(corr(pred, np_), 3))
 # by era
-for lo, hi in [(2009, 2016), (2017, 2025)]:
+for lo, hi in [(2009, 2016), (2017, LAST)]:
     sub = [r for r in nrows if lo <= r['y'] <= hi]; p = [r['pts'] for r in sub]
     for name, key in [('roster value', 'proj'), ('last GD', 'gd0')]:
         w, pred, mae = fit([[r[key] for r in sub]], p); print('NEXT', lo, hi, name, 'MAE', round(mae, 1), 'r', round(corr(pred, p), 3))
 
 import statistics as stt
 print('spread: sd of pts', round(stt.pstdev(pts),1), 'sd of war*2', round(stt.pstdev([r['war']*2 for r in rows]),1))
-print('2026 sanity', [ (r['t'], round(r['pts']), round(r['war'],1)) for r in rows if r['y']==2025][:5])

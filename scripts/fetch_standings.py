@@ -3,9 +3,10 @@ endpoint on each season's last game day, into data/checks/standings.json. Not pa
 temporary branch when rerunning scripts/check_value_vs_standings.py (see docs/CHECKS.md)."""
 import json, os, sys, datetime as dt
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from build_data import DATA, fetch_json, read_json, write_json, log
+from build_data import DATA, current_season, fetch_json, read_json, write_json, log
 out = {}
-for y in range(2008, 2026):
+LAST = current_season() - 1  # last complete season
+for y in range(2008, LAST + 1):
     tf = read_json(os.path.join(DATA, "teams", f"{y}.json"))
     last = max(g[1] for t in tf["teams"].values() for g in t["games"])
     d = dt.datetime.strptime(str(last), "%Y%m%d").date()
