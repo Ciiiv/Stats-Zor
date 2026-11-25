@@ -298,7 +298,9 @@ async function renderRoster(TD, G) {
   // jitter same-age dots a little so they don't sit on top of each other
   const seen = {};
   const dots = aged.sort((a, b) => a.war - b.war).map(i => { const k = i.age; seen[k] = (seen[k] || 0) + 1; const jx = ((seen[k] % 3) - 1) * 0.18; const r = 3 + 6 * Math.min(1, i.gp / 82); const cx = X(i.age + jx), cy = Y(i.war);
-    return `<a href="${i.grp === 'G' ? 'goalies.html' : './'}#a=${i.id}&s=${y}"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${col[i.grp]}" fill-opacity=".85" stroke="var(--panel)" stroke-width="1"><title>${esc(i.name)} · ${i.grp === 'G' ? 'goalie' : i.grp === 'D' ? 'defenseman' : 'forward'} · age ${i.age} · ${i.gp} games · ${s1(i.war)} wins</title></circle>${lab.has(i.id) ? `<text x="${(cx + r + 3).toFixed(1)}" y="${(cy + 4).toFixed(1)}" class="sname" style="font-size:11.5px">${esc(last(i.name))}</text>` : ''}</a>`; }).join('');
+    const tip = `<title>`;
+    const shape = i.grp === 'G' ? `<path d="M${cx.toFixed(1)} ${(cy - r * 1.25).toFixed(1)}L${(cx + r * 1.25).toFixed(1)} ${cy.toFixed(1)}L${cx.toFixed(1)} ${(cy + r * 1.25).toFixed(1)}L${(cx - r * 1.25).toFixed(1)} ${cy.toFixed(1)}Z" fill="${col[i.grp]}" fill-opacity=".85" stroke="var(--panel)" stroke-width="1">` : `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${r.toFixed(1)}" fill="${col[i.grp]}" fill-opacity=".85" stroke="var(--panel)" stroke-width="1">`;
+    return `<a href="${i.grp === 'G' ? 'goalies.html' : './'}#a=${i.id}&s=${y}">${shape}${tip}${esc(i.name)} · ${i.grp === 'G' ? 'goalie' : i.grp === 'D' ? 'defenseman' : 'forward'} · age ${i.age} · ${i.gp} games · ${s1(i.war)} wins</title>${i.grp === 'G' ? '</path>' : '</circle>'}${lab.has(i.id) ? `<text x="${(cx + r + 3).toFixed(1)}" y="${(cy + 4).toFixed(1)}" class="sname" style="font-size:11.5px">${esc(last(i.name))}</text>` : ''}</a>`; }).join('');
   const caps = TP.caps;
   const rowsT = items.slice().sort((a, b) => b.war - a.war);
   el.innerHTML = `<div class="ttiles">
@@ -308,7 +310,7 @@ async function renderRoster(TD, G) {
       ${tile('Average age', nz(avgAge) ? avgAge.toFixed(1) : '—', 'weighted by games played')}
     </div>
     <div class="scroll" style="margin-top:12px"><svg class="tchart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Each player's wins above replacement by age">${band}${yt}<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)"/>${xt}<text x="${(m.l + W - m.r) / 2}" y="${H - 2}" text-anchor="middle" class="axl">age (Feb 1 of the season)</text>${dots}</svg></div>
-    <p class="tkey"><span><i style="background:var(--c1)"></i>Forward</span><span><i style="background:var(--c3)"></i>Defenseman</span><span><i style="background:var(--c5)"></i>Goalie</span><span class="lab">dot size = games with ${esc(TP.team)} · up = more wins · names: top 8</span></p>
+    <p class="tkey"><span><i style="background:var(--c1)"></i>Forward</span><span><i style="background:var(--c3)"></i>Defenseman</span><span><i style="background:var(--c5);transform:rotate(45deg);border-radius:1px"></i>Goalie (diamond; counted in team totals, ranked only against goalies)</span><span class="lab">dot size = games with ${esc(TP.team)} · up = more wins · names: top 8</span></p>
     <details class="lim" style="margin-top:12px"${Object.keys(caps).length ? ' open' : ''}><summary>Pay vs. value: type cap hits (this page only)</summary>
       <p class="sub small">Type any player's cap hit in $M (or dollars) to see what he's paid against what the value model says a full season at his rate this year is worth (the same figure as his player page; with few games it's shaky). Cap hits here stay on this page only and clear when you refresh; they don't read or change the ones on player pages or in the trade machine. The model prices every win the same, so stars often look underpaid against the market.</p>
       <div class="scroll"><table class="tbl" id="paytbl"><thead><tr><th>Player</th><th>Age</th><th>GP</th><th>Wins</th><th>Value a season</th><th>Cap hit ($M)</th><th>Pay vs. value</th></tr></thead><tbody>
@@ -386,12 +388,13 @@ async function renderHistory() {
     const S2 = H.seasons[y]; const code = Object.keys(S2).find(t => sameFranchise(t, TP.team)); if (!code) continue;
     const r = S2[code]; const share2 = t => { const q = S2[t]; return share(q[ix('xgf')], q[ix('xga')]); };
     const rk = Object.keys(S2).map(t => ({ t, v: share2(t) })).sort((a, b) => b.v - a.v).findIndex(o => o.t === code) + 1;
-    let mvp = null;
+    // most valuable skater and top goalie, named separately (goalies are ranked only against goalies, as on the goalie page)
+    let mvp = null, topG = null;
     if (VAL) {
       const V = VAL.seasons[y]; if (V) for (const o of V.map.values()) if (o.team === code && (!mvp || o.war > mvp.war)) mvp = { id: o.id, war: o.war, g: false };
-      const gs = VAL.goalie_seasons && VAL.goalie_seasons[y]; if (gs) { const gf = VAL.goalie_fields; gs.rows.forEach(q => { if (q[gf.indexOf('team')] === code && (!mvp || q[gf.indexOf('war')] > mvp.war)) mvp = { id: q[0], war: q[gf.indexOf('war')], g: true }; }); }
+      const gs = VAL.goalie_seasons && VAL.goalie_seasons[y]; if (gs) { const gf = VAL.goalie_fields; gs.rows.forEach(q => { if (q[gf.indexOf('team')] === code && (!topG || q[gf.indexOf('war')] > topG.war)) topG = { id: q[0], war: q[gf.indexOf('war')], g: true }; }); }
     }
-    rows.push({ y, code, gp: r[ix('gp')], xp: share(r[ix('xgf')], r[ix('xga')]), gp2: share(r[ix('gf')], r[ix('ga')]), rk, nT: Object.keys(S2).length, coaches: (r[ix('coaches')] || '').split('|').filter(Boolean), mvp });
+    rows.push({ y, code, gp: r[ix('gp')], xp: share(r[ix('xgf')], r[ix('xga')]), gp2: share(r[ix('gf')], r[ix('ga')]), rk, nT: Object.keys(S2).length, coaches: (r[ix('coaches')] || '').split('|').filter(Boolean), mvp, topG });
   }
   if (!rows.length) { el.innerHTML = '<p class="empty">No history for this team.</p>'; return; }
   // chart with coaching eras (by the coach who finished each season)
@@ -409,9 +412,9 @@ async function renderHistory() {
   const name = id => (S.byId.get(id) || {}).name || (BIOS && BIOS.get(id) || {}).name || `#${id}`;
   el.innerHTML = `<div class="scroll"><svg class="tchart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Five-on-five expected goal share by season">${bands}${yt}<line x1="${m.l}" x2="${W - m.r}" y1="${Y(50)}" y2="${Y(50)}" stroke="var(--muted)"/><polyline points="${pts}" fill="none" stroke="var(--c1)" stroke-width="2.5"/>${dots}${xt}</svg></div>
     <p class="tkey"><span class="lab">Shaded and labeled by the coach who finished each season · click a dot or a season to open it</span></p>
-    <div class="scroll"><table class="tbl" id="histtbl"><thead><tr><th>Season</th><th>GP</th><th>5v5 xGF%</th><th>Rank</th><th>5v5 GF%</th><th>Head coach</th><th>Most valuable</th><th>Used about right</th></tr></thead><tbody>
+    <div class="scroll"><table class="tbl" id="histtbl"><thead><tr><th>Season</th><th>GP</th><th>5v5 xGF%</th><th>Rank</th><th>5v5 GF%</th><th>Head coach</th><th>Most valuable skater</th><th>Top goalie</th><th>Used about right</th></tr></thead><tbody>
     ${rows.slice().reverse().map(r => `<tr${r.y === TP.y ? ' class="isA"' : ''}><td><a href="#t=${encodeURIComponent(r.code)}&s=${r.y}" data-hy="${r.y}">${sLabel(r.y)}</a>${r.code !== TP.team ? ` <span class="lab">${esc(r.code)}</span>` : ''}</td><td>${r.gp}</td><td>${f1(r.xp)}%</td><td>${ord(r.rk)}</td><td>${f1(r.gp2)}%</td><td>${esc(r.coaches.join(', then ')) || '<span class="lab">unknown</span>'}</td>
-      <td>${r.mvp ? `<a href="${r.mvp.g ? 'goalies.html' : './'}#a=${r.mvp.id}&s=${r.y}">${esc(name(r.mvp.id))}</a> <span class="lab">${s1(r.mvp.war)} wins</span>` : '—'}</td><td id="uw-${r.y}"><span class="lab">—</span></td></tr>`).join('')}
+      ${[r.mvp, r.topG].map(m => `<td>${m ? `<a href="${m.g ? 'goalies.html' : './'}#a=${m.id}&s=${r.y}">${esc(name(m.id))}</a> <span class="lab">${s1(m.war)} wins</span>` : '—'}</td>`).join('')}<td id="uw-${r.y}"><span class="lab">—</span></td></tr>`).join('')}
     </tbody></table></div>
     <p style="margin:10px 0 0"><button type="button" id="uwbtn" class="btn">Show players used well for every season</button> <span class="sub small" id="uwnote">Downloads about 30 MB (three seasons of player data for each season), so it can take a while, especially on a phone.</span></p>`;
   el.onclick = e => { const t = e.target.closest('[data-hy]'); if (t) { e.preventDefault(); const r = rows.find(q => q.y === +t.dataset.hy); if (!r) return; TP.y = r.y; TP.team = r.code; $('tSeason').value = TP.y; renderTeams(); window.scrollTo({ top: 0, behavior: 'smooth' }); } };

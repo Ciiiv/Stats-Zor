@@ -99,6 +99,10 @@ Actual finishing is the big gain. Goalie credit barely moves the fit; it decides
 
 **Skater scaling:** each team's summed skater 5v5 credit spreads almost exactly like its real 5v5 expected-goal differential (spread 19.8 vs. 20.1 goals; r 0.77). The shared-credit scaling is about right. Goalie credit tracks team goals saved above expected at 1.84 per credited goal (2.0 by design at half credit).
 
+**Finishing weight check (Nov 25, 2026):** with the season version, team wins split into finishing, other skater play and goaltending were each worth, in standings points per win: finishing 1.92, other skater play 2.24, goalies at 0.6 credit 2.79 (a real win is about 2). Finishing is not overcounted. Compared with Evolving-Hockey's 2025-26 awards post, the season version agrees better (Caufield 17th → 3rd, their Hart tier 2; Werenski 20th → 12th); it moves away on Quinn Hughes (5th → 26th after a cold shooting year) and still differs on MacKinnon's defense and on Demidov.
+
+**Decision (Nov 25, 2026):** the owner chose goalie credit 0.6 plus actual finishing for season value only; projections, fair contracts and the trade machine keep the cautious basis (checked: all 1,011 projections identical before and after). Value cards relabeled "Value of his season" with a "Fair value for next season" tile; teams page lists most valuable skater and top goalie separately and draws goalies as diamonds.
+
 **What this means:** neither replacement level nor skater scaling is off. Goalies run high on combined lists because one goalie season really does swing many goals, and a lot of that swing is luck; the credit level is a judgment between balance in the standings (0.7-0.8) and keeping goalies near their cap share (0.5-0.6). Nothing was changed; the owner picks.
 
 ### Big nights line vs. NHL game logs (Nov 19, 2026)

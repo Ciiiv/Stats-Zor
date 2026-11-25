@@ -29,7 +29,13 @@ valued at his own workload (games per season), since no goalie plays 82.
 
 Goalies (data/goalies/seasons): goals saved above expected (expected goals minus goals
 against) in each situation, measured against a replacement-level goalie over the same
-minutes (the 20th percentile rate among regulars), times GOALIE_WEIGHT. Goalies are priced
+minutes (the 20th percentile rate among regulars), times GOALIE_WEIGHT.
+
+Season value vs. projections (Nov 2026): projections, the age curve and the trade machine's price of a win use
+the cautious numbers above (finishing credited as far as it repeats, goalies at GOALIE_WEIGHT). Season wins and
+worth describe what happened: a skater's actual finishing (goals minus expected goals) and goalies at
+GOALIE_WEIGHT_SEASON, each priced from its own pool (per_win; the projection price is per_win_proj). Tested
+against real standings since 2008-09 (docs/CHECKS.md). Goalies are priced
 from the goalie share of the cap (1 - SKATER_SHARE), with two goalies per team at minimum.
 
 Output: data/value.json, data/rosters.json, data/prospects.json
@@ -56,7 +62,8 @@ CAP_GROWTH = 0.05      # assumed yearly cap growth beyond published figures
 SKATER_SHARE = 0.88    # share of team cap spent on skaters (rest on goalies)
 ROSTER = 20            # skaters per team counted at minimum salary
 GOALS_PER_WIN = 6.0
-GOALIE_WEIGHT = 0.5    # share of a goalie's goals saved above expected credited to him (the rest is noise and team)
+GOALIE_WEIGHT = 0.5    # share of a goalie's goals saved above expected credited to him for projections (the rest is noise and team)
+GOALIE_WEIGHT_SEASON = 0.6  # credit for describing a season (season wins and worth); tested against standings Nov 2026, docs/CHECKS.md
 GOALIE_ROSTER = 2      # goalies per team counted at minimum salary
 SCHED = {2012: 48, 2019: 70, 2020: 56}
 ISO_WEIGHT = 0.67      # isolated share of the 5v5 rates (set from the forecast test in data/impact/test.json)
@@ -530,6 +537,44 @@ def main():
     if gseasons:
         project_goalies(gseasons, gbirth, cur, proj, gshots)
 
+    # season value describes what happened: actual finishing, goalies at GOALIE_WEIGHT_SEASON. Done after the
+    # projections and age curve, which keep the cautious numbers; each season's price of a win is recomputed from
+    # the same cap pool, and the projection price is kept as per_win_proj (trade machine, projections).
+    for y, s in seasons.items():
+        prog = s["progress"] or 1
+        for r in s["rows"]:
+            fin_c = r[6]
+            r.append(fin_c)                     # fin_credit: finishing credited for projections
+            r.append(r[11])                     # war_proj: season wins on the projection basis
+            if r[17] is not None:
+                r[10] = round(r[10] - fin_c + r[17], 2)
+                r[6] = r[17]
+            r[11] = round(r[10] / GOALS_PER_WIN, 2)
+        pos_war = sum(max(0.0, r[11]) for r in s["rows"]) / prog if prog else 1
+        pool = 32 * (cap(y) * SKATER_SHARE - ROSTER * min_sal(y))
+        s["per_win_proj"] = s["per_win"]
+        s["per_win"] = round(pool / pos_war if pos_war else 0, 3)
+        for r in s["rows"]:
+            war82 = r[11] / r[3] * 82 if r[3] else 0
+            worth = min_sal(y) + max(0.0, war82) * s["per_win"]
+            r[12], r[13], r[14] = round(war82, 2), round(worth, 2), round(100 * worth / cap(y), 2)
+    k = GOALIE_WEIGHT_SEASON / GOALIE_WEIGHT
+    for y, s in gseasons.items():
+        prog = s["progress"] or 1
+        for r in s["rows"]:
+            r.append(r[8])                      # war_proj
+            for i in (4, 5, 6, 7):
+                r[i] = round(r[i] * k, 2)
+            r[8] = round(r[7] / GOALS_PER_WIN, 2)
+        pos_war = sum(max(0.0, r[8]) for r in s["rows"]) / prog if prog else 1
+        pool = 32 * (cap(y) * (1 - SKATER_SHARE) - GOALIE_ROSTER * min_sal(y))
+        s["per_win_proj"] = s["per_win"]
+        s["per_win"] = round(pool / pos_war if pos_war else 0, 3)
+        for r in s["rows"]:
+            war82 = r[8] / r[3] * 82 if r[3] else 0
+            worth = min_sal(y) + max(0.0, r[8] / prog if prog else 0) * s["per_win"]
+            r[9], r[10], r[11] = round(war82, 2), round(worth, 2), round(100 * worth / cap(y), 2)
+
     # team-control inputs for the trade machine: birth date and accrued seasons (an estimate of the
     # CBA rule: a season with 40+ NHL games, 25+ for goalies), completed seasons only
     acc = {}
@@ -552,9 +597,9 @@ def main():
         "updated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
         "current": cur,
         "fields": ["id", "team", "pos", "gp", "ev_off", "ev_def", "finishing", "pp", "pk", "penalties", "gar", "war",
-                   "war82", "worth", "worth_pct", "ev_rel_only", "ev_iso_only", "fin_actual"],
+                   "war82", "worth", "worth_pct", "ev_rel_only", "ev_iso_only", "fin_actual", "fin_credit", "war_proj"],
         "seasons": {str(y): s for y, s in seasons.items()},
-        "goalie_fields": ["id", "team", "pos", "gp", "ev", "pk", "other", "gar", "war", "war82", "worth", "worth_pct"],
+        "goalie_fields": ["id", "team", "pos", "gp", "ev", "pk", "other", "gar", "war", "war82", "worth", "worth_pct", "war_proj"],
         "goalie_seasons": {str(y): s for y, s in gseasons.items()},
         "proj_fields": ["year", "age", "war", "worth", "cap"],
         "age_curve": {g: c["bands"] for g, c in curve.items()} if curve else None,

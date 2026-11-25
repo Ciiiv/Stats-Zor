@@ -232,10 +232,10 @@ async function init() {
     const cs = v.seasons[String(v.current)] || {};
     const ref = v.seasons[String(v.current - 1)] || cs;
     D.progress = cs.progress ?? 1;
-    D.perWin = ref.per_win * (cs.cap || ref.cap) / ref.cap;
+    D.perWin = (ref.per_win_proj || ref.per_win) * (cs.cap || ref.cap) / ref.cap;  // projection price (season value has its own)
     D.minNow = cs.min || ref.min;
     const gs = (v.goalie_seasons || {})[String(v.current)] || {}, gref = (v.goalie_seasons || {})[String(v.current - 1)] || gs;
-    D.perWinG = gref.per_win ? gref.per_win * (gs.cap || gref.cap) / gref.cap : D.perWin;
+    D.perWinG = (gref.per_win_proj || gref.per_win) ? (gref.per_win_proj || gref.per_win) * (gs.cap || gref.cap) / gref.cap : D.perWin;
     D.nextDraft = v.current + 1;
     D.proj = v.proj;
     D.rosters = r.teams;

@@ -1461,6 +1461,12 @@ const COMPS = [['ev_off', '5v5 offense'], ['ev_def', '5v5 defense'], ['finishing
 function capKey(id) { return `sz-cap-${id}`; }
 function getCap(id) { try { const v = localStorage.getItem(capKey(id)); return v ? +v : null; } catch (e) { return null; } }
 function setCap(id, v) { try { if (nz(v)) localStorage.setItem(capKey(id), v); else localStorage.removeItem(capKey(id)); } catch (e) { /* storage blocked */ } }
+// projection tile on the value card: what to expect (and pay) next season, from the cautious projection
+function nextTile(V, id, y) {
+  const P = V.proj && V.proj[id]; const n = P && P.years && P.years[0];
+  if (!n || y < V.current - 1) return '';
+  return `<div class="tile"><b>${money(n[3])}</b><span>Fair value for ${sLabel(n[0])}: ${f1(n[2])} wins projected. Use this for contracts and trades</span></div>`;
+}
 function payLine(worth, cap, worth3) {
   if (!nz(cap) || !nz(worth)) return '';
   const part = (w, l) => { const d = w - cap; return `<b class="${d >= 0 ? 'pos' : 'neg'}">${d >= 0 ? 'Underpaid' : 'Overpaid'} by about ${money(Math.abs(d))}</b> ${l}`; };
@@ -1476,20 +1482,21 @@ function methodHTML(r, sv) {
     ${row('Relative only (team with him minus without)', r.ev_rel_only)}${row('Isolated only (regression over every shift)', r.ev_iso_only)}${row(`Blend used: ${pct}% isolated, ${100 - pct}% relative`, used, true)}</tbody></table></div>
     <p class="small" style="margin:8px 0 0"><a href="#sec-iso">See his isolated impact</a> · <a href="about.html#m-value">How the blend was chosen</a></p></details>`;
 }
-// finishing: what happened vs the old half rule vs the tested rule used (read-only), plus a note for defensemen
-// whose actual finishing far outran what counts
+// finishing: season value counts what happened; projections use only the part that repeats (read-only), plus a
+// note for defensemen whose projection keeps far less than their actual finishing
 function finishHTML(r, V, y) {
   if (!nz(r.fin_actual)) return '';
+  const skill = nz(r.fin_credit) ? r.fin_credit : null;
   const row = (l, v, b) => `<tr${b ? ' class="isA"' : ''}><td>${l}</td><td>${s1(v)}</td><td>${s1(v / 6)}</td></tr>`;
   let note = '';
-  if (r.pos === 'D') {
+  if (r.pos === 'D' && nz(skill)) {
     let act = 0, used = 0; const ys = [];
-    [y, y - 1, y - 2].forEach(z => { const s = V.seasons[z]; const q = s && s.map.get(r.id); if (q && nz(q.fin_actual)) { act += q.fin_actual; used += q.finishing; ys.push(z); } });
-    if (ys.length && act - used >= 6) note = `<p class="note small" style="margin-top:10px"><strong>Why his scoring counts less here:</strong> ${ys.length > 1 ? `over ${sLabel(Math.min(...ys))} to ${sLabel(Math.max(...ys))}` : `in ${sLabel(ys[0])}`} his shots went in ${f1(act)} more times than expected, but only ${f1(used)} of those count toward value. For defensemen, beating expected goals barely carries over from one season to the next (about 7% does), so most of it is treated as bounces rather than skill. His chance creation (5v5 offense and power play) counts in full. <a href="about.html#m-value">How finishing is counted</a></p>`;
+    [y, y - 1, y - 2].forEach(z => { const s = V.seasons[z]; const q = s && s.map.get(r.id); if (q && nz(q.fin_actual) && nz(q.fin_credit)) { act += q.fin_actual; used += q.fin_credit; ys.push(z); } });
+    if (ys.length && act - used >= 6) note = `<p class="note small" style="margin-top:10px"><strong>Why his projection counts his scoring less:</strong> ${ys.length > 1 ? `over ${sLabel(Math.min(...ys))} to ${sLabel(Math.max(...ys))}` : `in ${sLabel(ys[0])}`} his shots went in ${f1(act)} more times than expected. All of it counts in his season value, but only ${f1(used)} carries into his projection: for defensemen, beating expected goals barely carries over from one season to the next (about 7% does). His chance creation (5v5 offense and power play) counts in full. <a href="about.html#m-value">How finishing is counted</a></p>`;
   }
-  return note + `<details class="lim" style="margin-top:12px"><summary>Finishing method</summary><p class="small" style="margin:8px 0">Read-only: value always uses the tested rule. The others are shown so you can see the difference.</p>
+  return note + `<details class="lim" style="margin-top:12px"><summary>Finishing method</summary><p class="small" style="margin:8px 0">Read-only. Season value counts what happened; his projection and fair contract count only the part of finishing that tends to repeat.</p>
     <div class="scroll"><table class="tbl fc"><thead><tr><th>Finishing, ${sLabel(y)}</th><th>Goals</th><th>Wins</th></tr></thead><tbody>
-    ${row('What actually happened (goals minus expected goals)', r.fin_actual)}${row('Old rule: half of what happened', 0.5 * r.fin_actual)}${row('Used: his finishing skill on this season\'s shots', r.finishing, true)}</tbody></table></div>
+    ${row('Season value: what actually happened (goals minus expected goals)', r.fin_actual, true)}${nz(skill) ? row('Projection: his finishing skill on this season\'s shots', skill) : ''}</tbody></table></div>
     <p class="small" style="margin:8px 0 0"><a href="about.html#m-value">How finishing is counted</a></p></details>`;
 }
 async function renderValue() {
@@ -1520,8 +1527,9 @@ async function renderValue() {
       <div class="tiles" style="margin-top:8px">
         <div class="tile"><b>${f1(r.war)}</b><span>Wins above replacement${partial ? ' so far' : ''}</span></div>
         <div class="tile"><b>${f1(r.war82)}</b><span>Per 82 games</span></div>
-        <div class="tile"><b>${money(r.worth)}</b><span>Worth this season (${f1(r.worth_pct)}% of cap)</span></div>
-        <div class="tile"><b>${t3 ? money(t3.worth) : '—'}</b><span>${t3 ? `Worth over last 3 seasons (${sLabel(t3.from)} to ${sLabel(t3.to)}, ${f1(t3.war82)} wins per 82)` : 'Worth over last 3 seasons (needs 2+ seasons)'}</span></div>
+        <div class="tile"><b>${money(r.worth)}</b><span>Value of his season (${f1(r.worth_pct)}% of cap): what it produced, not what to pay</span></div>
+        <div class="tile"><b>${t3 ? money(t3.worth) : '—'}</b><span>${t3 ? `Value of his last 3 seasons, per season (${sLabel(t3.from)} to ${sLabel(t3.to)}, ${f1(t3.war82)} wins per 82)` : 'Value of his last 3 seasons (needs 2+ seasons)'}</span></div>
+        ${nextTile(V, r.id, y)}
         <div class="tile"><b>${rankOf(r)}</b><span>Rank at position</span></div></div>
       <p class="minihead" style="margin-top:14px">Where the value comes from · goals above replacement</p><div class="comp">${comps}</div>
       ${methodHTML(r, sv)}

@@ -59,7 +59,7 @@ The teams page looks at one team and season at a time: how it used its players g
 
 A lineup strip shows every player's line or pair in every game, set by that night's ice time, so promotions, demotions, call-ups and injuries show up as patterns. A table then compares each regular's role with what his results and value say he could handle, with a "Last 10" column for recent moves. Small samples are labeled: the recent views describe what happened and never change a player's value.
 
-Further down, "Who carries the team" places every player by age and wins above replacement, showing how much of the team's value comes from players 25 and under; cap hits can be typed there to compare pay with value (that page only, cleared on refresh). Goalie usage shows who started each game. A season-by-season history since 2008-09 gives each year's 5v5 share, rank, head coaches and most valuable player.
+Further down, "Who carries the team" places every player by age and wins above replacement, showing how much of the team's value comes from players 25 and under; cap hits can be typed there to compare pay with value (that page only, cleared on refresh). Goalie usage shows who started each game. Goalies appear as diamonds: they count in team totals but read as their own group. A season-by-season history since 2008-09 gives each year's 5v5 share, rank, head coaches, most valuable skater and top goalie (listed separately, as other models do).
 
 ## Scouting lists sidebar
 
@@ -87,12 +87,12 @@ The value model turns a season into goals above a replacement-level player, then
 
 ![A season becomes goals, then wins, then dollars](value-model.png)
 
-1. **Goals above replacement.** For skaters, five-on-five play (two thirds isolated impact, one third relative to teammates), power play, penalty kill, finishing and penalties, scaled down because on-ice goals are shared by five players. For goalies, goals saved above expected, at half credit because a goalie season is roughly half luck.
+1. **Goals above replacement.** For skaters, five-on-five play (two thirds isolated impact, one third relative to teammates), power play, penalty kill, finishing and penalties, scaled down because on-ice goals are shared by five players. For goalies, goals saved above expected, at 60% credit for describing a season (half for projections, because a goalie season is roughly half luck).
 2. **Wins.** Six goals make one win.
 3. **Dollars.** A win is priced from the salary cap: skaters share 88% of the cap's spending above minimum salaries, goalies 12%.
 4. **Projection and contract.** A three-season blend, weighted 3/2/1 toward the latest season, is aged forward with an age curve fitted from real data. Small samples are pulled toward an average regular.
 
-Finishing is credited by how well it repeats: forwards keep much of their shooting talent, defensemen very little. That is why offensive defensemen like Makar or Dahlin show a note explaining the gap.
+Every player has two numbers. **Season value** describes what his season produced: it counts all the goals he scored above expected, and 60% of the goals a goalie saved, the way other public models describe a season. **Fair value** (the projection, contracts, trade machine) is cautious: finishing counts only as far as it tends to repeat (forwards keep much of their shooting talent, defensemen very little), and goalies at half credit, trusted in proportion to shots faced. So Cole Caufield's 51-goal 2025-26 shows about $19.3M of season value but about $11.4M of fair value; Quinn Hughes's cold shooting year dips his season value while his fair value stays among the league's highest. Both choices were tested against real standings since 2008-09 (CHECKS.md).
 
 The model prices every win the same, so top stars' fair value (about 12–15% of the cap) sits below what they now earn (Makar $20.4M). The owner chose not to add a hand-set star premium.
 
