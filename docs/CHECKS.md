@@ -79,6 +79,28 @@ The misses are mostly at the extremes: very lucky or unlucky teams, and teams fa
 
 **Rerun:** the September upkeep check does this every year and adds a row to "Results over time". By hand: run `scripts/fetch_standings.py` on a temporary branch, as in the README's testing notes (the NHL isn't reachable from the cloud workspace). Then run `python scripts/check_value_vs_standings.py` locally.
 
+### Goalie credit, replacement level and skater scaling (Nov 24-25, 2026)
+
+**Looking for:** whether season value should count more of what actually happened (a goalie's goals saved, a shooter's actual finishing), and whether goalies run high on combined leaderboards because of how replacement level or skater credit is set.
+
+**Season value vs. same-season standings** (554 team-seasons, `check_value_vs_standings.py` with the season pieces swapped; projections untouched):
+
+| Season value version | Correlation with points | Typical miss | Goalie share of all positive wins | Goalies in a season's top 25 (average) |
+| --- | --- | --- | --- | --- |
+| Today (goalie 0.5, cautious finishing) | 0.82 | 7.0 | about 13-15% | — |
+| Goalie 0.5 + actual finishing | 0.869 | 5.9 | 12.6% | 4.7 |
+| Goalie 0.6 + actual finishing | 0.874 | 5.8 | 14.7% | 6.9 |
+| Goalie 0.7 + actual finishing | 0.877 | 5.7 | 16.7% | 9.9 |
+| Goalie full + actual finishing | 0.875 | 5.8 | 22.3% | 17-19 |
+
+Actual finishing is the big gain. Goalie credit barely moves the fit; it decides how goalies rank against skaters. A credited goalie win and a skater win are worth the same in the standings at about 0.8 credit; full credit overpays goalies on our data. Season values predict next season worse than today's (0.55-0.58 vs. 0.60), so projections stay as they are. Six goals per win is confirmed (the "what happened" version gives 2.0 standings points per win).
+
+**Replacement level:** players below the regular cutoff (call-ups and fill-ins, the freely available pool) should land near zero if the bar is right. Skaters below the cutoff average +0.13 goals per 5v5 hour (regulars +0.33); goalies below the cutoff +0.06 per hour (regulars +0.20). Both bars sit a little below the truly free pool, skaters slightly more so, so the goalie bar is not what makes goalies run high.
+
+**Skater scaling:** each team's summed skater 5v5 credit spreads almost exactly like its real 5v5 expected-goal differential (spread 19.8 vs. 20.1 goals; r 0.77). The shared-credit scaling is about right. Goalie credit tracks team goals saved above expected at 1.84 per credited goal (2.0 by design at half credit).
+
+**What this means:** neither replacement level nor skater scaling is off. Goalies run high on combined lists because one goalie season really does swing many goals, and a lot of that swing is luck; the credit level is a judgment between balance in the standings (0.7-0.8) and keeping goalies near their cap share (0.5-0.6). Nothing was changed; the owner picks.
+
 ### Big nights line vs. NHL game logs (Nov 19, 2026)
 
 **Looking for:** whether hat tricks, multi-point games and point streaks counted from MoneyPuck's game-by-game data match the NHL. **Found:** games played, hat tricks, multi-point games and longest point streak matched exactly for all 30 player-seasons checked (McDavid, Matthews, MacKinnon, Makar and others, three seasons).
