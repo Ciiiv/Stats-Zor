@@ -176,8 +176,8 @@ function renderProfile() {
       const sc = scores(sd, p);
       const rec = nz(p.w) ? `${p.w}-${p.l}-${p.otl}` : '—';
       const T = [[rec, `W-L-OTL in ${p.gp} GP, ${p.gs} starts`], [fsv(p.sv), 'Save %'], [f2(p.gaa), 'Goals-against avg.'], [s1(p.gsax), 'Goals saved above expected'],
-        [s2(p.dsv), 'Sv% above expected (pts)'], [f0(sc.d), 'Stopping score'], [f0(sc.o), 'Danger & situations'], [f0(sc.c), 'Workload score']];
-      tiles = `<p class="minihead">${sLabel(S.season)} · scores are percentiles vs goalies</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
+        [s2(p.dsv), 'Sv% above expected (pts)'], [f0(sc.d), 'Stopping score (percentile vs goalies)'], [f0(sc.o), 'Danger & situations (percentile vs goalies)'], [f0(sc.c), 'Workload score (percentile vs goalies)']];
+      tiles = `<p class="minihead">${sLabel(S.season)}</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
     } else {
       tiles = `<p class="empty">No ${sLabel(S.season)} MoneyPuck data for ${esc(ix.name || '')}. ${ix.mask ? 'Pick one of his seasons in the Season box.' : 'Expected-goal stats start in 2008-09; the career sections below still work.'}</p>`;
     }

@@ -36,7 +36,7 @@ Searching a goalie on the skater page goes to `goalies.html#a={id}` and vice ver
 ## Conventions
 - **Seasons are start years:** `2025` = 2025-26. A new season starts September 1 (`current_season()`).
 - **Age** is as of February 1 of the season.
-- **Percentiles** are within position group only (F, D, G), flipped where lower is better, so blue is always good.
+- **Percentiles** are within position group only (F, D, G), flipped where lower is better, so blue is always good. Every number on a card says what it is compared with: score tiles say "(percentile vs defensemen/forwards/goalies)", and Rel xGF% says "(team with him minus without)" (it compares him with his own team off the ice, not with other players at his position). Don't put a "scores are percentiles" header over tiles that aren't percentiles.
 - **Player names come from `data/index.json`** (NHL spellings with accents). MoneyPuck's season files drop accents and use other spellings (Raty, Lafrenire, Alex Nylander), so `loadSeason` in app.js and goalies.js swaps in the index name; sidebar and teams-page strips do the same.
 - **Game-by-game strips** (teams page lineup and goalie usage) draw at their natural size (`svg.strip` in styles.css: `width:auto; max-width:none`), never stretched to the panel width, so a new season with a few games stays small instead of blowing names and squares up; long seasons scroll sideways inside `.scroll`.
 - **Goalie pools use team games**, not the goalie max: `team_gp` in the goalie season files (no goalie plays 82).

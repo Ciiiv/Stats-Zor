@@ -312,9 +312,9 @@ function renderProfile() {
     let tiles = '';
     if (p) {
       const sc = scores(sd, p);
-      const T = [[`${p.g}-${p.a1 + p.a2}-${p.pts}`, `G-A-P in ${p.gp} GP`], [fmin(p.toi), 'TOI per game'], [f1(p.xgf_pct), 'xGF% at 5v5'], [s1(p.rel_xgf_pct), 'Rel xGF%'],
-        [f0(sc.d), 'Defense score'], [f0(sc.o), 'Offense score'], [f0(sc.c), 'Role difficulty']];
-      tiles = `<p class="minihead">${sLabel(S.season)} · scores are percentiles vs ${GRP_NAME[p.grp]}</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
+      const T = [[`${p.g}-${p.a1 + p.a2}-${p.pts}`, `G-A-P in ${p.gp} GP`], [fmin(p.toi), 'TOI per game'], [f1(p.xgf_pct), 'xGF% at 5v5'], [s1(p.rel_xgf_pct), 'Rel xGF% (team with him minus without)'],
+        [f0(sc.d), `Defense score (percentile vs ${GRP_NAME[p.grp]})`], [f0(sc.o), `Offense score (percentile vs ${GRP_NAME[p.grp]})`], [f0(sc.c), `Role difficulty (percentile vs ${GRP_NAME[p.grp]})`]];
+      tiles = `<p class="minihead">${sLabel(S.season)}</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
     } else {
       tiles = `<p class="empty">No ${sLabel(S.season)} MoneyPuck data for ${esc(ix.name || '')}. ${ix.mask ? 'Pick one of his seasons in the Season box.' : 'Advanced stats start in 2008-09; the career sections below still work.'}</p>`;
     }
