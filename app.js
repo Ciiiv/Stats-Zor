@@ -312,7 +312,7 @@ function renderProfile() {
     let tiles = '';
     if (p) {
       const sc = scores(sd, p);
-      const T = [[`${p.g}-${p.a1 + p.a2}-${p.pts}`, `G-A-P in ${p.gp} GP`], [fmin(p.toi), 'TOI per game'], [f1(p.xgf_pct), 'xGF% at 5v5'], [s1(p.rel_xgf_pct), 'Rel xGF% (team with him minus without)'],
+      const T = [[`${p.g}-${p.a1 + p.a2}-${p.pts}`, `G-A-P in ${p.gp} GP`], [fmin(p.toi), 'TOI per game'], [f1(p.xgf_pct), 'xGF% at 5v5'], [s1(p.rel_xgf_pct), 'Rel xGF% (vs. team without him)'],
         [f0(sc.d), `Defense score (percentile vs ${GRP_NAME[p.grp]})`], [f0(sc.o), `Offense score (percentile vs ${GRP_NAME[p.grp]})`], [f0(sc.c), `Role difficulty (percentile vs ${GRP_NAME[p.grp]})`]];
       tiles = `<p class="minihead">${sLabel(S.season)}</p><div class="tiles">${T.map(([b, s]) => `<div class="tile"><b>${b}</b><span>${s}</span></div>`).join('')}</div>`;
     } else {
@@ -468,7 +468,7 @@ function scatter(svgId, xk, yk, xl, yl, notes, refs) {
 }
 function renderEnv() {
   scatter('sc1', 'xga60', 'xgf60', 'xGA/60 at 5v5 (fewer is better →  left)', 'xGF/60 at 5v5', (g, W, H, m) => `<text x="${m.l + 6}" y="${m.t + 12}" class="lab">Drives play, suppresses</text><text x="${W - m.r - 4}" y="${H - m.b - 8}" text-anchor="end" class="lab">Bleeds chances, little offense</text>`, P => [median(P.map(p => p.xga60)), median(P.map(p => p.xgf60))]);
-  scatter('sc2', 'dzs', 'rel_xgf_pct', 'Own-zone start % at 5v5 (tougher →  right)', 'Rel xGF% (team with him minus without)', (g, W, H, m) => `<text x="${W - m.r - 4}" y="${m.t + 12}" text-anchor="end" class="lab">Hard minutes, still lifts the team</text><text x="${m.l + 6}" y="${m.t + 12}" class="lab">Sheltered, lifts the team</text>`, P => [median(P.map(p => p.dzs)), 0]);
+  scatter('sc2', 'dzs', 'rel_xgf_pct', 'Own-zone start % at 5v5 (tougher →  right)', 'Rel xGF% (vs. team without him)', (g, W, H, m) => `<text x="${W - m.r - 4}" y="${m.t + 12}" text-anchor="end" class="lab">Hard minutes, still lifts the team</text><text x="${m.l + 6}" y="${m.t + 12}" class="lab">Sheltered, lifts the team</text>`, P => [median(P.map(p => p.dzs)), 0]);
 }
 
 // ------------------------------------------------------------------ isolated impact
@@ -1479,7 +1479,7 @@ function methodHTML(r, sv) {
   const row = (l, v, b) => `<tr${b ? ' class="isA"' : ''}><td>${l}</td><td>${s1(v)}</td><td>${s1(v / 6)}</td></tr>`;
   return `<details class="lim" style="margin-top:12px"><summary>5v5 method</summary><p class="small" style="margin:8px 0">The two 5v5 bars blend two ways of crediting him. Read-only: the value above always uses the blend.</p>
     <div class="scroll"><table class="tbl fc"><thead><tr><th>5v5 offense + defense</th><th>Goals</th><th>Wins</th></tr></thead><tbody>
-    ${row('Relative only (team with him minus without)', r.ev_rel_only)}${row('Isolated only (regression over every shift)', r.ev_iso_only)}${row(`Blend used: ${pct}% isolated, ${100 - pct}% relative`, used, true)}</tbody></table></div>
+    ${row('Relative only (vs. team without him)', r.ev_rel_only)}${row('Isolated only (regression over every shift)', r.ev_iso_only)}${row(`Blend used: ${pct}% isolated, ${100 - pct}% relative`, used, true)}</tbody></table></div>
     <p class="small" style="margin:8px 0 0"><a href="#sec-iso">See his isolated impact</a> · <a href="about.html#m-value">How the blend was chosen</a></p></details>`;
 }
 // finishing: season value counts what happened; projections use only the part that repeats (read-only), plus a
@@ -1492,11 +1492,11 @@ function finishHTML(r, V, y) {
   if (r.pos === 'D' && nz(skill)) {
     let act = 0, used = 0; const ys = [];
     [y, y - 1, y - 2].forEach(z => { const s = V.seasons[z]; const q = s && s.map.get(r.id); if (q && nz(q.fin_actual) && nz(q.fin_credit)) { act += q.fin_actual; used += q.fin_credit; ys.push(z); } });
-    if (ys.length && act - used >= 6) note = `<p class="note small" style="margin-top:10px"><strong>Why his projection counts his scoring less:</strong> ${ys.length > 1 ? `over ${sLabel(Math.min(...ys))} to ${sLabel(Math.max(...ys))}` : `in ${sLabel(ys[0])}`} his shots went in ${f1(act)} more times than expected. All of it counts in his season value, but only ${f1(used)} carries into his projection: for defensemen, beating expected goals barely carries over from one season to the next (about 7% does). His chance creation (5v5 offense and power play) counts in full. <a href="about.html#m-value">How finishing is counted</a></p>`;
+    if (ys.length && act - used >= 6) note = `<p class="note small" style="margin-top:10px"><strong>Why his fair value counts his scoring less:</strong> ${ys.length > 1 ? `over ${sLabel(Math.min(...ys))} to ${sLabel(Math.max(...ys))}` : `in ${sLabel(ys[0])}`} his shots went in ${f1(act)} more times than expected. All of it counts in the value of his seasons above. His fair value (what to expect next season, and the number for contracts and trades) counts only ${f1(used)}, because, for defensemen, beating expected goals barely carries over from one season to the next (about 7% does). His chance creation (5v5 offense and power play) counts in full. <a href="about.html#m-value">How finishing is counted</a></p>`;
   }
-  return note + `<details class="lim" style="margin-top:12px"><summary>Finishing method</summary><p class="small" style="margin:8px 0">Read-only. Season value counts what happened; his projection and fair contract count only the part of finishing that tends to repeat.</p>
+  return note + `<details class="lim" style="margin-top:12px"><summary>Finishing method</summary><p class="small" style="margin:8px 0">Read-only. Season value counts what happened; his fair value (next season, contracts and trades) counts only the part of finishing that tends to repeat.</p>
     <div class="scroll"><table class="tbl fc"><thead><tr><th>Finishing, ${sLabel(y)}</th><th>Goals</th><th>Wins</th></tr></thead><tbody>
-    ${row('Season value: what actually happened (goals minus expected goals)', r.fin_actual, true)}${nz(skill) ? row('Projection: his finishing skill on this season\'s shots', skill) : ''}</tbody></table></div>
+    ${row('Season value: what actually happened (goals minus expected goals)', r.fin_actual, true)}${nz(skill) ? row('Fair value (contracts, trades): his finishing skill on this season\'s shots', skill) : ''}</tbody></table></div>
     <p class="small" style="margin:8px 0 0"><a href="about.html#m-value">How finishing is counted</a></p></details>`;
 }
 async function renderValue() {
