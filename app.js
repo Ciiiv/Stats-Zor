@@ -1527,10 +1527,11 @@ async function renderValue() {
       <div class="tiles" style="margin-top:8px">
         <div class="tile"><b>${f1(r.war)}</b><span>Wins above replacement${partial ? ' so far' : ''}</span></div>
         <div class="tile"><b>${f1(r.war82)}</b><span>Per 82 games</span></div>
-        <div class="tile"><b>${money(r.worth)}</b><span>Value of his season (${f1(r.worth_pct)}% of cap): what it produced, not what to pay</span></div>
+        <div class="tile"><b>${money(r.worth)}</b><span>Value of his season${partial ? ` at this pace (${r.gp} games played)` : ''} (${f1(r.worth_pct)}% of cap): what it produced, not what to pay</span></div>
         <div class="tile"><b>${t3 ? money(t3.worth) : '—'}</b><span>${t3 ? `Value of his last 3 seasons, per season (${sLabel(t3.from)} to ${sLabel(t3.to)}, ${f1(t3.war82)} wins per 82)` : 'Value of his last 3 seasons (needs 2+ seasons)'}</span></div>
         ${nextTile(V, r.id, y)}
         <div class="tile"><b>${rankOf(r)}</b><span>Rank at position</span></div></div>
+      ${partial && sv.progress < 0.5 ? `<p class="note small" style="margin-top:8px"><strong>Early season:</strong> the season is only about ${f0(Math.round(sv.progress * 82))} games old (of 82), and this season's value is shown at full-season pace, so hot or cold shooting swings it a lot. His fair value is the steadier number.</p>` : ''}
       <p class="minihead" style="margin-top:14px">Where the value comes from · goals above replacement</p><div class="comp">${comps}</div>
       ${methodHTML(r, sv)}
       ${finishHTML(r, V, y)}
