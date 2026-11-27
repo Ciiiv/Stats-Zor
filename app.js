@@ -988,7 +988,7 @@ function compHTML(sd, I) {
     ${rows.map(r => `<tr><td>${r[0]}</td>${ps.map(p => cell(p, r)).join('')}</tr>`).join('')}</tbody></table></div>
     ${ps.map(read).join('')}<p class="sub small" style="margin:6px 0 18px">Top line = two or more of the other team's three most-used forwards that night; top pair = both of its two most-used defensemen. Quality = the average isolated impact (net xG/60, Part 1) of the five opponents or four teammates on the ice with him, weighted by time. Ranks are among regular ${GRP_NAME[ps[0].grp]}.</p>`;
 }
-// ------------------------------------------------------------------ sidebar: doing more than the box score
+// ------------------------------------------------------------------ sidebar: scouting lists (first tab: Unsung)
 // Regulars whose isolated impact (three seasons to this one) is in the top 20% at their position but who got
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.

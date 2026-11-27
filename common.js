@@ -144,7 +144,7 @@ function cellArrays(G, m) {
   new MutationObserver(fire).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 })();
 
-// ------------------------------------------------------------------ "Doing more than the box score" sidebar
+// ------------------------------------------------------------------ scouting lists sidebar
 // Shared by the skater and goalie pages. Each page builds the list (items sorted best first) and calls renderGems.
 // cfg: { title, sub, items: [{ id, grp, name, meta, pct, pctLabel, chips: [[label, kind]] }], filters, how, empty, onPick }
 const GEMS = { f: 'all', more: false, cfg: null, tab: 'box', opt: { side: 'best', span: 'season', grp: 'F' } };

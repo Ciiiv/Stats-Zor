@@ -793,7 +793,7 @@ async function render() {
 // the share of the season played), GEM_SA3 shots for three-season judgments.
 const GEM_SA = 1000, GEM_SA3 = 2500;
 const GEM_TABS = [['box', 'Little help'], ['steal', 'Stealing games'], ['danger', 'Danger'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['heavy', 'Heavy workload'], ['lead', 'Leaders']];
-const GEM_TITLE = { box: 'Doing more than the box score', steal: 'Stealing games', danger: 'Danger specialist', break: 'Breakout goalie', bounce: 'Due for a bounce', heavy: 'Heavy workload, below average', lead: 'Leaders' };
+const GEM_TITLE = { box: 'Little help: better than his record', steal: 'Stealing games', danger: 'Danger specialist', break: 'Breakout goalie', bounce: 'Due for a bounce', heavy: 'Heavy workload, below average', lead: 'Leaders' };
 const recPct = p => { const d = (p.w || 0) + (p.l || 0) + (p.otl || 0); return d >= 5 ? (2 * (p.w || 0) + (p.otl || 0)) / (2 * d) : null; };
 const recStr = p => `${p.w}-${p.l}-${p.otl || 0}`;
 const gemG = (p, pct, label, note, meta, chips, sort) => ({ id: p.id, grp: 'G', name: p.name, meta, pct, sort, pctLabel: label, pctNote: note, chips });
