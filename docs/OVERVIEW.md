@@ -67,7 +67,7 @@ A sidebar on both pages lists players who stand out in a specific way. Every lis
 
 | Skater list | Who it finds |
 | --- | --- |
-| Box score | Strong isolated impact but modest points, often on a bad team or with weak linemates (the site's original idea) |
+| Unsung | Strong isolated impact but modest points, often on a bad team, with weak linemates or against the toughest opponents (the site's original idea; Carrying is its flip side) |
 | Carrying | Good points and impact on teams that sink without him |
 | Shutdown | Top defensive impact against top competition |
 | Breakout | Age 24 or under and improving sharply |

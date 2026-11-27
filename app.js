@@ -993,8 +993,8 @@ function compHTML(sd, I) {
 // little credit this season: low points (bottom half per game), weak linemates (bottom third) or tough minutes
 // (top fifth in opponents' quality). Best isolated impact first.
 const GEM_MIN_TOI3 = 1500; // five-on-five minutes behind any three-season isolated number used in a list
-const GEM_TABS = [['box', 'Box score'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play'], ['disc', 'Discipline'], ['lead', 'Leaders']];
-const GEM_TITLE = { box: 'Doing more than the box score', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play', disc: 'Discipline', lead: 'Leaders' };
+const GEM_TABS = [['box', 'Unsung'], ['carry', 'Carrying'], ['shut', 'Shutdown'], ['break', 'Breakout'], ['bounce', 'Bounce'], ['big', 'Big minutes'], ['fo', 'Faceoffs'], ['st', 'Special teams'], ['puck', 'Puck play'], ['disc', 'Discipline'], ['lead', 'Leaders']];
+const GEM_TITLE = { box: 'Unsung: better than his points', carry: 'Carrying the load', shut: 'Shutdown', break: 'Breakout watch', bounce: 'Due for a bounce', big: 'Big minutes, low impact', fo: 'Faceoffs', st: 'Special teams', puck: 'Puck play', disc: 'Discipline', lead: 'Leaders' };
 const DISC_LISTS = [['drawn', 'Draws penalties'], ['undisc', 'Undisciplined'], ['clean', 'Clean physical'], ['fight', 'Fighters']];
 const DISC_MIN_TOI = 1500, DISC_MIN_GP = 60, DISC_MIN_FIGHTS = 3;
 const PUCK_LISTS = [['take', 'Takes it away'], ['care', 'Careful with it'], ['loose', 'Loose with it'], ['blk', 'Shot blockers'], ['hit', 'Physical']];
@@ -1116,7 +1116,7 @@ const GEM_BUILD = {
         if (chips.length) items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso - pts));
       }
     }
-    return { items, unit: UNIT_PCT, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ five-on-five minutes), with low points, weak linemates or tough minutes in ${sLabel(y)}. Biggest gap between impact and points first.` };
+    return { items, unit: UNIT_PCT, sub: `Players who drive scoring chances far better than their points suggest: top 20% at their position in isolated impact over three seasons (to ${sLabel(y)}, 1,500+ five-on-five minutes), but not top 10% in points per game. Each one has a reason in ${sLabel(y)}: low points, weak linemates, or the toughest opponents. Biggest gap between impact and points first. The flip side is Carrying: players who do get the points while carrying a weak team.` };
   },
   // scoring, but carrying a weak team
   carry(y, sd) {
@@ -1134,7 +1134,7 @@ const GEM_BUILD = {
         items.push(gemItem(p, g, iso, ordn(iso), 'isolated', `${p.team} · ${g} · ${p.pts} pts in ${p.gp}`, chips, iso + pts - w - m));
       }
     }
-    return { items, unit: UNIT_PCT, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ minutes) and points in the top 40%, on a team that falls apart without him or with weak linemates. Most elite, most productive and least helped first.` };
+    return { items, unit: UNIT_PCT, sub: `Isolated impact in the top 20% at his position (three seasons to ${sLabel(y)}, 1,500+ minutes) and points in the top 40%, on a team that falls apart without him or with weak linemates. Most elite, most productive and least helped first. The flip side is Unsung: strong impact that isn't showing up in points.` };
   },
   // defensive specialists against real competition
   shut(y, sd) {
